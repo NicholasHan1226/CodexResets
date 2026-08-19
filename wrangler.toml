@@ -1,6 +1,6 @@
+# Cloudflare Pages 配置
+# 用于 wrangler pages deploy 命令
+# 注意：Pages 项目名与 Worker 名称独立，不冲突
+
 name = "codex-resets"
-build_command = "pnpm run build"
-output_directory = "dist"
-install_command = "pnpm install"
-framework = "vite"
 compatibility_date = "2024-09-23"
