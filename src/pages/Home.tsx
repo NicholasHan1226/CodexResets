@@ -10,6 +10,8 @@ import { SubscribePanel } from "@/sections/SubscribePanel";
 import { UsageTracker } from "@/sections/UsageTracker";
 import { BankedResets } from "@/sections/BankedResets";
 import { TimeDistribution } from "@/sections/TimeDistribution";
+import { ResetCalendar } from "@/sections/ResetCalendar";
+import { PredictionAccuracy } from "@/sections/PredictionAccuracy";
 import { sharePredictionState, copyToClipboard, exportPersonalData } from "@/lib/export-share";
 import { useI18n } from "@/contexts/I18nContext";
 
@@ -77,6 +79,8 @@ export default function Home() {
               <SubscribePanel />
               <UsageTracker />
               <BankedResets />
+              <ResetCalendar />
+              <PredictionAccuracy />
               <HistoryPanel />
               <ModelInfo />
             </aside>

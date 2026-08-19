@@ -155,6 +155,27 @@ const translations: Record<Locale, Record<string, string>> = {
     'footer.modelVersion': 'Model v2.4.1',
     'footer.dataSources': 'Data: @thsottiaux posts · OpenAI Status · Historical patterns',
     'footer.disclaimer': 'Not affiliated with OpenAI. Resets are manually triggered and cannot be precisely predicted.',
+
+    // Calendar
+    'calendar.title': 'Reset Calendar',
+    'calendar.less': 'Less',
+    'calendar.more': 'More',
+    'calendar.totalResets': 'Total Resets',
+    'calendar.daysWithResets': 'Days with Resets',
+    'calendar.maxPerDay': 'Max per Day',
+
+    // Accuracy
+    'accuracy.title': 'Prediction Accuracy',
+    'accuracy.accuracy': 'Accuracy',
+    'accuracy.predictions': 'Predictions',
+    'accuracy.correct': 'Correct',
+    'accuracy.missed': 'Missed',
+    'accuracy.falseAlarms': 'False Alarms',
+    'accuracy.showHistory': 'Show History',
+    'accuracy.hideHistory': 'Hide History',
+    'accuracy.pending': 'Pending',
+    'accuracy.reset': 'Reset',
+    'accuracy.noReset': 'No Reset',
   },
   zh: {
     // Common
@@ -305,6 +326,27 @@ const translations: Record<Locale, Record<string, string>> = {
     'footer.modelVersion': '模型 v2.4.1',
     'footer.dataSources': '数据源：@thsottiaux 推文 · OpenAI 状态页 · 历史模式',
     'footer.disclaimer': '非 OpenAI 官方产品。重置由手动触发，无法精确预测。',
+
+    // Calendar
+    'calendar.title': '重置日历',
+    'calendar.less': '少',
+    'calendar.more': '多',
+    'calendar.totalResets': '总重置次数',
+    'calendar.daysWithResets': '有重置的天数',
+    'calendar.maxPerDay': '每日最多',
+
+    // Accuracy
+    'accuracy.title': '预测准确度',
+    'accuracy.accuracy': '准确度',
+    'accuracy.predictions': '预测数',
+    'accuracy.correct': '正确',
+    'accuracy.missed': '遗漏',
+    'accuracy.falseAlarms': '误报',
+    'accuracy.showHistory': '显示历史',
+    'accuracy.hideHistory': '隐藏历史',
+    'accuracy.pending': '待验证',
+    'accuracy.reset': '已重置',
+    'accuracy.noReset': '未重置',
   },
 };
 

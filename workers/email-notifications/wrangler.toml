@@ -1,0 +1,16 @@
+name = "codex-resets-email"
+main = "index.ts"
+compatibility_date = "2024-01-01"
+
+# Cron trigger - run every hour to check if notifications should be sent
+[triggers]
+crons = ["0 * * * *"]
+
+# Environment variables (set these in Cloudflare dashboard)
+# RESEND_API_KEY = ""
+# FROM_EMAIL = ""
+# SUPABASE_URL = ""
+# SUPABASE_SERVICE_KEY = ""
+
+[vars]
+ENVIRONMENT = "production"
