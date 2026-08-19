@@ -5,33 +5,35 @@
 @layer base {
   :root {
     /* Codex dark theme — always dark */
-    --background: 222 14% 6%;
-    --foreground: 210 20% 96%;
-    --card: 220 6% 13%;
-    --card-foreground: 210 20% 96%;
-    --popover: 220 6% 13%;
-    --popover-foreground: 210 20% 96%;
+    --background: 225 15% 5%;
+    --foreground: 216 20% 95%;
+    --card: 230 12% 10%;
+    --card-foreground: 216 20% 95%;
+    --popover: 230 12% 10%;
+    --popover-foreground: 216 20% 95%;
     --primary: 162 82% 35%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 6% 16%;
-    --secondary-foreground: 210 20% 96%;
-    --muted: 220 6% 16%;
-    --muted-foreground: 215 7% 64%;
+    --secondary: 231 11% 12%;
+    --secondary-foreground: 216 20% 95%;
+    --muted: 231 11% 12%;
+    --muted-foreground: 220 10% 53%;
     --accent: 162 82% 35%;
     --accent-foreground: 0 0% 100%;
     --destructive: 17 94% 57%;
     --destructive-foreground: 0 0% 98%;
-    --border: 220 8% 17%;
-    --input: 220 8% 17%;
+    --success: 142 76% 36%;
+    --warning: 38 92% 50%;
+    --border: 232 10% 16%;
+    --input: 232 10% 16%;
     --ring: 162 82% 35%;
     --radius: 0.625rem;
-    --sidebar-background: 222 14% 6%;
-    --sidebar-foreground: 210 20% 96%;
+    --sidebar-background: 225 15% 5%;
+    --sidebar-foreground: 216 20% 95%;
     --sidebar-primary: 162 82% 35%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 6% 16%;
-    --sidebar-accent-foreground: 210 20% 96%;
-    --sidebar-border: 220 8% 17%;
+    --sidebar-accent: 231 11% 12%;
+    --sidebar-accent-foreground: 216 20% 95%;
+    --sidebar-border: 232 10% 16%;
     --sidebar-ring: 162 82% 35%;
   }
 }
@@ -58,53 +60,60 @@
   .blink {
     animation: blinker 0.8s step-start infinite;
   }
-
-  .fade-in {
-    animation: fadeIn 0.3s ease-out;
+  .glow-pulse {
+    animation: glowPulse 2.5s ease-in-out infinite;
   }
-
-  .slide-up {
-    animation: slideUp 0.4s ease-out;
+  .live-breathe {
+    animation: liveBreathe 2s ease-in-out infinite;
   }
-
-  .pulse-glow {
-    animation: pulseGlow 2s ease-in-out infinite;
+  .chart-shimmer {
+    animation: chartShimmer 3.5s ease-in-out infinite;
+  }
+  .signal-glow {
+    animation: signalGlow 2s ease-in-out infinite;
+  }
+  .fade-in-up {
+    animation: fadeInUp 0.5s ease-out forwards;
+  }
+  .fade-in-up-delay-1 {
+    animation: fadeInUp 0.5s ease-out 0.1s forwards;
+    opacity: 0;
+  }
+  .fade-in-up-delay-2 {
+    animation: fadeInUp 0.5s ease-out 0.2s forwards;
+    opacity: 0;
+  }
+  .fade-in-up-delay-3 {
+    animation: fadeInUp 0.5s ease-out 0.3s forwards;
+    opacity: 0;
   }
 }
 
 @keyframes blinker {
-  50% {
-    opacity: 0.25;
-  }
+  50% { opacity: 0.25; }
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(16, 163, 127, 0.15), 0 0 12px rgba(16, 163, 127, 0.05); }
+  50% { box-shadow: 0 0 8px rgba(16, 163, 127, 0.25), 0 0 24px rgba(16, 163, 127, 0.1); }
 }
 
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+@keyframes liveBreathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 163, 127, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(16, 163, 127, 0); }
 }
 
-@keyframes pulseGlow {
-  0%, 100% {
-    box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
-  }
-  50% {
-    box-shadow: 0 0 8px 2px hsl(var(--primary) / 0.15);
-  }
+@keyframes chartShimmer {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes signalGlow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }

@@ -11,7 +11,7 @@ interface ResetEstimatePanelProps {
 const adviceConfig: Record<AdviceLevel, { icon: typeof AlertTriangle; color: string; bg: string; border: string }> = {
   'wait': { icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-400/10', border: 'border-amber-400/20' },
   'cautious': { icon: Zap, color: 'text-primary', bg: 'bg-primary/10', border: 'border-primary/20' },
-  'use_freely': { icon: CheckCircle, color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/20' },
+  'use_freely': { icon: CheckCircle, color: 'text-success', bg: 'bg-success/10', border: 'border-success/20' },
   'critical': { icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-400/10', border: 'border-red-400/20' },
 };
 

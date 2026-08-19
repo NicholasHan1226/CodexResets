@@ -1,15 +1,13 @@
 import { usePrediction } from "@/hooks/usePrediction";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { StatusHeader } from "@/sections/StatusHeader";
-import { ResetEstimatePanel } from "@/sections/CountdownPanel";
+import { HeroSection } from "@/sections/HeroSection";
 import { ProbabilityCurve } from "@/sections/ProbabilityCurve";
 import { SignalPanel } from "@/sections/SignalPanel";
-import { HistoryPanel } from "@/sections/HistoryPanel";
 import { ModelInfo } from "@/sections/ModelInfo";
-import { SubscribePanel } from "@/sections/SubscribePanel";
-import { PushNotificationPanel } from "@/sections/PushNotificationPanel";
+import { ResetAlertsPanel } from "@/sections/ResetAlertsPanel";
 import { UsageTracker } from "@/sections/UsageTracker";
-import { BankedResets } from "@/sections/BankedResets";
+import { HistoryBankedPanel } from "@/sections/HistoryBankedPanel";
 import { TimeDistribution } from "@/sections/TimeDistribution";
 import { ResetCalendar } from "@/sections/ResetCalendar";
 import { PredictionAccuracy } from "@/sections/PredictionAccuracy";
@@ -37,59 +35,72 @@ export default function Home() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-background p-3 sm:p-4 md:p-6 lg:p-8">
-        <div className="mx-auto max-w-6xl">
-          {/* Header */}
-          <StatusHeader
-            prediction={prediction}
-            isLive={isLive}
-            onRefresh={() => window.location.reload()}
-            onShare={handleShare}
-            onExport={() => {
-              const usage = JSON.parse(localStorage.getItem('codex-usage-tracker') || '{}');
-              const resets = JSON.parse(localStorage.getItem('codex-banked-resets') || '[]');
-              exportPersonalData(usage, resets);
-            }}
-          />
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <StatusHeader
+          prediction={prediction}
+          isLive={isLive}
+          onRefresh={() => window.location.reload()}
+          onShare={handleShare}
+          onExport={() => {
+            const usage = JSON.parse(localStorage.getItem('codex-usage-tracker') || '{}');
+            const resets = JSON.parse(localStorage.getItem('codex-banked-resets') || '[]');
+            exportPersonalData(usage, resets);
+          }}
+        />
 
-          {/* Main grid - responsive: 1 column on mobile, 12 columns on desktop */}
-          <main className="mt-4 grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-12" role="main" aria-label="Codex Reset Prediction Dashboard">
+        <main className="mx-auto max-w-7xl px-4 md:px-6 py-8" role="main" aria-label="Codex Reset Prediction Dashboard">
+          {/* Hero Section - full width */}
+          <HeroSection prediction={prediction} />
+
+          {/* Main grid: 8+4 columns */}
+          <div className="grid grid-cols-12 gap-6 mt-8">
             {/* Left column - Primary data */}
-            <section className="md:col-span-8 space-y-3 sm:space-y-4" aria-label="Primary prediction data">
-              {/* Reset estimate panel (probability-first, no countdown) */}
-              <ResetEstimatePanel prediction={prediction} />
+            <section className="col-span-12 lg:col-span-8 flex flex-col gap-6 min-w-0" aria-label="Primary prediction data">
+              <div className="fade-in-up-delay-1">
+                <ProbabilityCurve curve={prediction.curve} />
+              </div>
 
-              {/* Probability curve */}
-              <ProbabilityCurve curve={prediction.curve} />
+              <div className="fade-in-up-delay-2">
+                <SignalPanel prediction={prediction} loading={signalsLoading} />
+              </div>
 
-              {/* Signal radar */}
-              <SignalPanel prediction={prediction} loading={signalsLoading} />
-
-              {/* Reset time distribution */}
-              <TimeDistribution />
+              <div className="fade-in-up-delay-3">
+                <TimeDistribution />
+              </div>
             </section>
 
             {/* Right column - Secondary data */}
-            <aside className="md:col-span-4 space-y-3 sm:space-y-4" aria-label="Additional tools and history">
-              <SubscribePanel />
-              <PushNotificationPanel />
-              <UsageTracker />
-              <BankedResets />
-              <ResetCalendar />
-              <PredictionAccuracy />
-              <HistoryPanel />
-              <ModelInfo />
+            <aside className="col-span-12 lg:col-span-4 flex flex-col gap-6 min-w-0" aria-label="Tools and history">
+              <div className="fade-in-up-delay-1">
+                <ResetAlertsPanel />
+              </div>
+              <div className="fade-in-up-delay-2">
+                <UsageTracker />
+              </div>
+              <div className="fade-in-up-delay-3">
+                <HistoryBankedPanel />
+              </div>
+              <div className="fade-in-up-delay-3">
+                <ResetCalendar />
+              </div>
+              <div className="fade-in-up-delay-3">
+                <PredictionAccuracy />
+              </div>
+              <div className="fade-in-up-delay-3">
+                <ModelInfo />
+              </div>
             </aside>
-          </main>
+          </div>
 
           {/* Footer */}
-          <footer className="mt-6 border-t border-border/30 pt-4 text-center text-xs text-muted-foreground" role="contentinfo">
-            <p>{t('footer.disclaimer')}</p>
-            <p className="mt-1">
+          <footer className="mt-8 pt-6 border-t border-border/10 text-center" role="contentinfo">
+            <p className="text-xs text-muted-foreground">{t('footer.disclaimer')}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground/60 font-mono">
               {usingRealData ? t('footer.liveData') : t('footer.simulatedData')}
             </p>
           </footer>
-        </div>
+        </main>
       </div>
     </TooltipProvider>
   );

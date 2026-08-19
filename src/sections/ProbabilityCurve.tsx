@@ -53,11 +53,11 @@ export function ProbabilityCurve({ curve }: ProbabilityCurveProps) {
   });
 
   return (
-    <Card className="border-border/50 bg-card">
+    <Card className="border-border/10 bg-card">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <TrendingUp className="h-4 w-4" />
+          <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+            <TrendingUp className="h-4 w-4 text-primary" />
             {t("curve.title")}
           </CardTitle>
           <div className="flex items-center gap-2">
@@ -72,7 +72,7 @@ export function ProbabilityCurve({ curve }: ProbabilityCurveProps) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-48 w-full">
+        <div className="h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
               <defs>
@@ -83,13 +83,13 @@ export function ProbabilityCurve({ curve }: ProbabilityCurveProps) {
               </defs>
               <XAxis
                 dataKey="displayDate"
-                tick={{ fontSize: 10, fill: "#8B92A0" }}
+                tick={{ fontSize: 11, fill: "#7C8494" }}
                 tickLine={false}
-                axisLine={{ stroke: "#1A1B21" }}
+                axisLine={{ stroke: "#26272E" }}
                 interval={Math.floor(chartData.length / 7)}
               />
               <YAxis
-                tick={{ fontSize: 10, fill: "#8B92A0" }}
+                tick={{ fontSize: 11, fill: "#7C8494" }}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
@@ -122,15 +122,15 @@ export function ProbabilityCurve({ curve }: ProbabilityCurveProps) {
                 <>
                   <ReferenceLine
                     x={currentPoint.displayDate}
-                    stroke="#F59E0B"
-                    strokeWidth={2}
-                    strokeDasharray="4 2"
-                    strokeOpacity={0.8}
+                    stroke="#F0F2F5"
+                    strokeWidth={1}
+                    strokeDasharray="4 4"
+                    strokeOpacity={0.5}
                     label={{
                       value: t("curve.now"),
                       position: "top",
-                      fill: "#F59E0B",
-                      fontSize: 10,
+                      fill: "#F0F2F5",
+                      fontSize: 11,
                       fontWeight: 600,
                     }}
                   />
@@ -138,8 +138,8 @@ export function ProbabilityCurve({ curve }: ProbabilityCurveProps) {
                     x={currentPoint.displayDate}
                     y={currentPoint.probability}
                     r={5}
-                    fill="#F59E0B"
-                    stroke="#0E0F12"
+                    fill="#10A37F"
+                    stroke="#0B0C0F"
                     strokeWidth={2}
                   />
                 </>
@@ -157,18 +157,19 @@ export function ProbabilityCurve({ curve }: ProbabilityCurveProps) {
         </div>
 
         {/* Legend */}
-        <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-full bg-primary" />
-              {t("curve.lowerProb")}
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
-              {t("curve.nowMarker")}
-            </span>
-          </div>
-          <span>{t("curve.higherProb")}</span>
+        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-primary" />
+            {t("curve.lowerProb")}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-px h-3 bg-foreground/60" />
+            {t("curve.nowMarker")}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-primary" />
+            {t("curve.peak")} {Math.round(peak.probability * 100)}%
+          </span>
         </div>
       </CardContent>
     </Card>

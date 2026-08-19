@@ -9,6 +9,19 @@ const translations: Record<Locale, Record<string, string>> = {
     // Common
     'common.loading': 'Initializing signal model...',
 
+    // Hero Section
+    'hero.prob24h': '24h Reset Probability',
+    'hero.prob48h': '48h Reset Probability',
+    'hero.trend': '+9 pts / 24h',
+    'hero.waitedPrefix': 'Waited',
+    'hero.waitedSuffix': 'since last reset, median',
+    'hero.days': 'days',
+    'hero.windowLabel': 'Most Likely Window',
+    'hero.windowHint': 'Conditional probability ≈ 41% within window',
+    'hero.waitProgress': 'Wait Progress',
+    'hero.lastReset': 'Last reset',
+    'hero.prob48hHint': 'Most likely window entering 48h range',
+
     // Header
     'app.title': 'Codex Resets',
     'app.subtitle': 'Next reset prediction',
@@ -122,6 +135,9 @@ const translations: Record<Locale, Record<string, string>> = {
     'push.disable': 'Disable Notifications',
     'push.active': 'Notifications active',
     'push.notSupported': 'Not supported in this browser',
+    'push.enabled': 'Browser push enabled',
+    'push.disabled': 'Enable browser push',
+    'push.unsubscribe': 'Disable notifications',
 
     // Usage Tracker
     'usage.title': 'codex /status',
@@ -147,7 +163,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'banked.noResets': 'No banked resets',
 
     // History
-    'history.title': 'RESET HISTORY',
+    'history.title': 'Reset History & Banked',
+    'history.recent': 'Recent Resets',
     'history.lastReset': 'Last reset',
     'history.totalResets': 'Total resets',
     'history.medianInterval': 'Median interval',
@@ -188,6 +205,19 @@ const translations: Record<Locale, Record<string, string>> = {
   zh: {
     // Common
     'common.loading': '正在初始化信号模型...',
+
+    // Hero Section
+    'hero.prob24h': '24h 内重置概率',
+    'hero.prob48h': '48h 内重置概率',
+    'hero.trend': '+9 点 / 24h',
+    'hero.waitedPrefix': '距上次重置已等待',
+    'hero.waitedSuffix': '，中位间隔',
+    'hero.days': '天',
+    'hero.windowLabel': '最可能重置窗口',
+    'hero.windowHint': '窗口内条件概率 ≈ 41%',
+    'hero.waitProgress': '等待进度',
+    'hero.lastReset': '上次重置',
+    'hero.prob48hHint': '最可能窗口进入 48h 射程',
 
     // Header
     'app.title': 'Codex 重置预判',
@@ -301,6 +331,9 @@ const translations: Record<Locale, Record<string, string>> = {
     'push.disable': '关闭通知',
     'push.active': '通知已激活',
     'push.notSupported': '此浏览器不支持',
+    'push.enabled': '浏览器推送已开启',
+    'push.disabled': '开启浏览器推送',
+    'push.unsubscribe': '关闭通知',
 
     // Usage Tracker
     'usage.title': 'codex /status',
@@ -326,7 +359,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'banked.noResets': '无存储重置',
 
     // History
-    'history.title': '重置历史',
+    'history.title': '重置历史与存储',
+    'history.recent': '最近重置',
     'history.lastReset': '上次重置',
     'history.totalResets': '总重置次数',
     'history.medianInterval': '中位间隔',

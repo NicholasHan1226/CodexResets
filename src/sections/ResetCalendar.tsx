@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useI18n } from '@/contexts/I18nContext';
 import { RESET_HISTORY } from '@/lib/reset-data';
 
@@ -73,10 +72,10 @@ export function ResetCalendar() {
   // Get color based on reset count
   const getColor = (count: number): string => {
     if (count === -1) return 'bg-transparent';
-    if (count === 0) return 'bg-slate-800';
-    if (count === 1) return 'bg-emerald-900';
-    if (count === 2) return 'bg-emerald-700';
-    return 'bg-emerald-500';
+    if (count === 0) return 'bg-muted';
+    if (count === 1) return 'bg-primary/30';
+    if (count === 2) return 'bg-primary/60';
+    return 'bg-primary';
   };
 
   // Get month labels
@@ -111,16 +110,14 @@ export function ResetCalendar() {
   }, [calendarData]);
 
   return (
-    <Card className="bg-slate-900/50 border-slate-800">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          {t('calendar.title')}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
+    <section className="bg-card rounded-lg shadow-card p-5" aria-label="Reset calendar">
+      <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+        <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+        {t('calendar.title')}
+      </h2>
+      <div className="mt-4">
         {/* Month labels */}
-        <div className="flex mb-1 text-xs text-slate-500">
+        <div className="flex mb-1 text-xs text-muted-foreground">
           {monthLabels.map((label, i) => (
             <span
               key={i}
@@ -141,7 +138,7 @@ export function ResetCalendar() {
                   <div
                     key={`${weekIndex}-${dayIndex}`}
                     className={`w-2.5 h-2.5 rounded-sm ${getColor(day.count)} ${
-                      day.count > 0 ? 'cursor-pointer hover:ring-1 hover:ring-emerald-400' : ''
+                      day.count > 0 ? 'cursor-pointer hover:ring-1 hover:ring-primary/50' : ''
                     }`}
                     title={
                       day.count >= 0
@@ -156,33 +153,33 @@ export function ResetCalendar() {
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-2 mt-3 text-xs text-slate-500">
+        <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
           <span>{t('calendar.less')}</span>
           <div className="flex gap-0.5">
-            <div className="w-2.5 h-2.5 rounded-sm bg-slate-800" />
-            <div className="w-2.5 h-2.5 rounded-sm bg-emerald-900" />
-            <div className="w-2.5 h-2.5 rounded-sm bg-emerald-700" />
-            <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+            <div className="w-2.5 h-2.5 rounded-sm bg-muted" />
+            <div className="w-2.5 h-2.5 rounded-sm bg-primary/30" />
+            <div className="w-2.5 h-2.5 rounded-sm bg-primary/60" />
+            <div className="w-2.5 h-2.5 rounded-sm bg-primary" />
           </div>
           <span>{t('calendar.more')}</span>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-slate-800">
+        <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-border/10">
           <div className="text-center">
-            <div className="text-lg font-mono text-emerald-400">{stats.totalResets}</div>
-            <div className="text-xs text-slate-500">{t('calendar.totalResets')}</div>
+            <div className="text-lg font-mono text-primary">{stats.totalResets}</div>
+            <div className="text-xs text-muted-foreground">{t('calendar.totalResets')}</div>
           </div>
           <div className="text-center">
-            <div className="text-lg font-mono text-emerald-400">{stats.daysWithResets}</div>
-            <div className="text-xs text-slate-500">{t('calendar.daysWithResets')}</div>
+            <div className="text-lg font-mono text-primary">{stats.daysWithResets}</div>
+            <div className="text-xs text-muted-foreground">{t('calendar.daysWithResets')}</div>
           </div>
           <div className="text-center">
-            <div className="text-lg font-mono text-emerald-400">{stats.maxResetsInDay}</div>
-            <div className="text-xs text-slate-500">{t('calendar.maxPerDay')}</div>
+            <div className="text-lg font-mono text-primary">{stats.maxResetsInDay}</div>
+            <div className="text-xs text-muted-foreground">{t('calendar.maxPerDay')}</div>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
