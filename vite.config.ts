@@ -19,4 +19,43 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vendor chunks
+          'vendor-react': ['react', 'react-dom', 'react-router'],
+          'vendor-ui': ['@radix-ui/react-slot', 'class-variance-authority', 'clsx', 'tailwind-merge'],
+          'vendor-charts': ['recharts'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+          // Feature chunks
+          'sections': [
+            '@/sections/StatusHeader',
+            '@/sections/CountdownPanel',
+            '@/sections/ProbabilityGauges',
+            '@/sections/ProbabilityCurve',
+            '@/sections/SignalPanel',
+            '@/sections/HistoryPanel',
+            '@/sections/ModelInfo',
+            '@/sections/SubscribePanel',
+            '@/sections/UsageTracker',
+            '@/sections/BankedResets',
+            '@/sections/TimeDistribution',
+            '@/sections/ResetCalendar',
+            '@/sections/PredictionAccuracy',
+          ],
+        },
+        // Optimize chunk naming for caching
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
+      },
+    },
+    // Enable minification
+    minify: 'esbuild',
+    // Source maps for production (optional, can be disabled for smaller builds)
+    sourcemap: false,
+    // Target modern browsers for smaller bundle
+    target: 'es2020',
+  },
 });

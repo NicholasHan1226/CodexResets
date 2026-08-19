@@ -7,6 +7,7 @@ import { SignalPanel } from "@/sections/SignalPanel";
 import { HistoryPanel } from "@/sections/HistoryPanel";
 import { ModelInfo } from "@/sections/ModelInfo";
 import { SubscribePanel } from "@/sections/SubscribePanel";
+import { PushNotificationPanel } from "@/sections/PushNotificationPanel";
 import { UsageTracker } from "@/sections/UsageTracker";
 import { BankedResets } from "@/sections/BankedResets";
 import { TimeDistribution } from "@/sections/TimeDistribution";
@@ -14,20 +15,14 @@ import { ResetCalendar } from "@/sections/ResetCalendar";
 import { PredictionAccuracy } from "@/sections/PredictionAccuracy";
 import { sharePredictionState, copyToClipboard, exportPersonalData } from "@/lib/export-share";
 import { useI18n } from "@/contexts/I18nContext";
+import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 
 export default function Home() {
   const { prediction, isLive, signalsLoading, usingRealData } = usePrediction();
   const { t } = useI18n();
 
   if (!prediction) {
-    return (
-      <div className="flex h-screen items-center justify-center" role="status" aria-label="Loading">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <div className="h-2 w-2 animate-pulse rounded-full bg-primary" aria-hidden="true" />
-          <span className="text-sm font-mono">{t('common.loading')}</span>
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   const handleShare = async () => {
@@ -77,6 +72,7 @@ export default function Home() {
             {/* Right column - Secondary data */}
             <aside className="md:col-span-4 space-y-3 sm:space-y-4" aria-label="Additional tools and history">
               <SubscribePanel />
+              <PushNotificationPanel />
               <UsageTracker />
               <BankedResets />
               <ResetCalendar />

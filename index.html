@@ -1,20 +1,53 @@
 <!doctype html>
-<html lang="zh-CN" class="dark">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Codex 下次重置预判：透明信号模型预测 OpenAI 下一次面向所有用户的额外额度重置时间（非固定周重置）。" />
-    <meta property="og:title" content="Codex Resets — 下次重置时间预判" />
-    <meta property="og:description" content="透明信号模型预测 OpenAI 下一次额外额度重置：24h/48h 概率、最可能重置窗口、7 天概率脉搏曲线。" />
+
+    <!-- SEO -->
+    <meta name="description" content="Codex Resets — Predict when OpenAI will trigger the next goodwill usage limit reset. Real-time probability model based on historical patterns and live signals." />
+    <meta name="keywords" content="codex, openai, usage limit, reset, prediction, dashboard, ai" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://codexresets.cc/" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Codex Resets — Reset Time Prediction" />
+    <meta property="og:description" content="Real-time probability dashboard for OpenAI Codex usage limit resets. Track signals, view history, plan your usage." />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://codexresets.cc/" />
+    <meta property="og:site_name" content="Codex Resets" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Codex Resets — Reset Time Prediction" />
+    <meta name="twitter:description" content="Real-time probability dashboard for OpenAI Codex usage limit resets." />
+
+    <!-- PWA -->
     <meta name="theme-color" content="#0E0F12" />
-    <title>Codex Resets — 下次重置时间预判</title>
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Codex Resets",
+      "url": "https://codexresets.cc",
+      "description": "Predict when OpenAI will trigger the next goodwill usage limit reset for Codex.",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Web"
+    }
+    </script>
+
+    <title>Codex Resets — Reset Time Prediction</title>
     <link rel="preconnect" href="https://fonts.googleapis.cn" />
     <link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin />
     <link
       href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
+    <link rel="manifest" href="/manifest.json" />
   </head>
   <body>
     <div id="root"></div>

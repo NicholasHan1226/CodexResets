@@ -31,7 +31,16 @@ export default {
     }
 
     try {
-      if (path === '/api/prediction') {
+      if (path === '/api/health') {
+        return new Response(JSON.stringify({
+          status: 'healthy',
+          timestamp: new Date().toISOString(),
+          version: '1.0.0',
+          uptime: Date.now(),
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } else if (path === '/api/prediction') {
         return await handlePrediction(env);
       } else if (path === '/api/history') {
         return await handleHistory(env);
@@ -43,6 +52,7 @@ export default {
             { path: '/api/prediction', description: 'Current prediction state' },
             { path: '/api/history', description: 'Reset history (last 20 records)' },
             { path: '/api/signals', description: 'Current signal states' },
+            { path: '/api/health', description: 'Health check' },
           ],
           version: '1.0.0',
         }), {

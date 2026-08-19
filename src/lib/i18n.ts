@@ -115,6 +115,14 @@ const translations: Record<Locale, Record<string, string>> = {
     'subscribe.subscribers': '{n} subscribers',
     'subscribe.invalidEmail': 'Please enter a valid email',
 
+    // Push Notifications
+    'push.title': 'BROWSER NOTIFICATIONS',
+    'push.description': 'Get instant alerts when a Codex reset is imminent.',
+    'push.enable': 'Enable Notifications',
+    'push.disable': 'Disable Notifications',
+    'push.active': 'Notifications active',
+    'push.notSupported': 'Not supported in this browser',
+
     // Usage Tracker
     'usage.title': 'codex /status',
     'usage.weeklyWindow': 'Weekly window',
@@ -285,6 +293,14 @@ const translations: Record<Locale, Record<string, string>> = {
     'subscribe.subscribed': '已订阅！',
     'subscribe.subscribers': '{n} 位订阅者',
     'subscribe.invalidEmail': '请输入有效的邮箱地址',
+
+    // Push Notifications
+    'push.title': '浏览器通知',
+    'push.description': '当 Codex 重置即将发生时获取即时通知。',
+    'push.enable': '开启通知',
+    'push.disable': '关闭通知',
+    'push.active': '通知已激活',
+    'push.notSupported': '此浏览器不支持',
 
     // Usage Tracker
     'usage.title': 'codex /status',

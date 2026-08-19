@@ -1,0 +1,41 @@
+# Cloudflare Pages Headers Configuration
+# Cache static assets aggressively
+
+# JavaScript files - cache for 1 year (immutable)
+/assets/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+# CSS files - cache for 1 year (immutable)
+/assets/*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+# Font files - cache for 1 year (immutable)
+/assets/*.woff
+  Cache-Control: public, max-age=31536000, immutable
+/assets/*.woff2
+  Cache-Control: public, max-age=31536000, immutable
+
+# Image files - cache for 1 year
+/assets/*.png
+  Cache-Control: public, max-age=31536000, immutable
+/assets/*.jpg
+  Cache-Control: public, max-age=31536000, immutable
+/assets/*.jpeg
+  Cache-Control: public, max-age=31536000, immutable
+/assets/*.svg
+  Cache-Control: public, max-age=31536000, immutable
+/assets/*.ico
+  Cache-Control: public, max-age=31536000, immutable
+
+# HTML files - no cache (always revalidate)
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+# JSON files - cache for 1 hour
+/*.json
+  Cache-Control: public, max-age=3600
+
+# Service Worker - no cache
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+  Service-Worker-Allowed: /
