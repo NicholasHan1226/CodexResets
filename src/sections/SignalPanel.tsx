@@ -54,7 +54,11 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
               <span className="text-xs font-medium text-foreground">{signal.label}</span>
               <SignalBar value={signal.value} status={signal.status} />
             </div>
-            <p className="text-xs text-muted-foreground line-clamp-2">{signal.description}</p>
+            <p className="text-xs text-muted-foreground line-clamp-2">
+              {signal.descriptionParams 
+                ? t(signal.description, signal.descriptionParams)
+                : t(signal.description)}
+            </p>
             <div className="flex items-center justify-between mt-2">
               <span className={`text-xs font-mono ${
                 signal.status === 'active' ? 'text-primary' : 

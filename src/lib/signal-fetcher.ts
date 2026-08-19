@@ -100,7 +100,8 @@ export async function fetchTiboTweets(): Promise<ResetSignal | null> {
 
     // Determine signal status based on reset-related content
     let status: ResetSignal['status'];
-    let description: string;
+    let descriptionKey: string;
+    let descriptionParams: Record<string, string | number> = {};
     let value: number;
 
     if (resetTweet) {
@@ -109,26 +110,30 @@ export async function fetchTiboTweets(): Promise<ResetSignal | null> {
       
       if (resetHoursAgo < 24) {
         status = 'active';
-        description = `Reset announced ${resetHoursAgo}h ago`;
+        descriptionKey = 'resetAnnounced';
+        descriptionParams = { hours: resetHoursAgo };
         value = 0.9;
       } else if (resetHoursAgo < 72) {
         status = 'weak';
-        description = `Reset mentioned ${Math.floor(resetHoursAgo / 24)}d ago`;
+        descriptionKey = 'resetMentioned';
+        descriptionParams = { days: Math.floor(resetHoursAgo / 24) };
         value = 0.4;
       } else {
         status = 'idle';
-        description = `Last reset signal ${Math.floor(resetHoursAgo / 24)}d ago`;
+        descriptionKey = 'lastResetSignal';
+        descriptionParams = { days: Math.floor(resetHoursAgo / 24) };
         value = 0.1;
       }
     } else {
       // No reset-related tweets recently
       if (hoursAgo < 12) {
         status = 'weak';
-        description = `Active today, no reset hints`;
+        descriptionKey = 'activeTodayNoHints';
         value = 0.2;
       } else {
         status = 'idle';
-        description = `Last activity ${daysAgo}d ago`;
+        descriptionKey = 'lastActivity';
+        descriptionParams = { days: daysAgo };
         value = 0.05;
       }
     }
@@ -138,7 +143,8 @@ export async function fetchTiboTweets(): Promise<ResetSignal | null> {
       label: "Tibo's Posts",
       status,
       value,
-      description,
+      description: descriptionKey,
+      descriptionParams,
       updatedAt: Date.now(),
       sourceUrl: 'https://x.com/thsottiaux',
     };
@@ -183,20 +189,23 @@ export async function fetchOpenAIStatus(): Promise<ResetSignal | null> {
     });
 
     let status: ResetSignal['status'];
-    let description: string;
+    let descriptionKey: string;
+    let descriptionParams: Record<string, string | number> = {};
     let value: number;
 
     if (codexIncidents.length > 0) {
       status = 'active';
-      description = `${codexIncidents.length} active Codex incident(s)`;
+      descriptionKey = 'activeCodexIncidents';
+      descriptionParams = { count: codexIncidents.length };
       value = 0.8;
     } else if (activeIncidents.length > 0) {
       status = 'weak';
-      description = `${activeIncidents.length} active incident(s), Codex OK`;
+      descriptionKey = 'activeIncidentsCodexOk';
+      descriptionParams = { count: activeIncidents.length };
       value = 0.3;
     } else {
       status = 'idle';
-      description = 'No open incidents';
+      descriptionKey = 'noOpenIncidents';
       value = 0;
     }
 
@@ -205,7 +214,8 @@ export async function fetchOpenAIStatus(): Promise<ResetSignal | null> {
       label: 'OpenAI Status',
       status,
       value,
-      description,
+      description: descriptionKey,
+      descriptionParams,
       updatedAt: Date.now(),
       sourceUrl: 'https://status.openai.com',
     };

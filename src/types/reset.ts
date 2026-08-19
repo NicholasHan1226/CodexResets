@@ -18,8 +18,10 @@ export interface ResetSignal {
   source: string;
   /** Signal label */
   label: string;
-  /** Short description of current state */
+  /** Translation key for description */
   description: string;
+  /** Parameters for translation interpolation */
+  descriptionParams?: Record<string, string | number>;
   /** Current signal value (0-1 normalized) */
   value: number;
   /** Signal status */
