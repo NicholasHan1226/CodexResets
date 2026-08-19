@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Codex dark theme — always dark */
+    --background: 222 14% 6%;
+    --foreground: 210 20% 96%;
+    --card: 220 6% 13%;
+    --card-foreground: 210 20% 96%;
+    --popover: 220 6% 13%;
+    --popover-foreground: 210 20% 96%;
+    --primary: 162 82% 35%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 6% 16%;
+    --secondary-foreground: 210 20% 96%;
+    --muted: 220 6% 16%;
+    --muted-foreground: 215 7% 64%;
+    --accent: 162 82% 35%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 17 94% 57%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 8% 17%;
+    --input: 220 8% 17%;
+    --ring: 162 82% 35%;
+    --radius: 0.625rem;
+    --sidebar-background: 222 14% 6%;
+    --sidebar-foreground: 210 20% 96%;
+    --sidebar-primary: 162 82% 35%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 6% 16%;
+    --sidebar-accent-foreground: 210 20% 96%;
+    --sidebar-border: 220 8% 17%;
+    --sidebar-ring: 162 82% 35%;
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::selection {
+    background: #10a37f;
+    color: #fff;
+  }
+}
+
+@layer utilities {
+  .blink {
+    animation: blinker 0.8s step-start infinite;
+  }
+}
+
+@keyframes blinker {
+  50% {
+    opacity: 0.25;
+  }
+}
