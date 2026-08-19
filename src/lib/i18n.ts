@@ -47,6 +47,11 @@ const translations: Record<Locale, Record<string, string>> = {
     'curve.title': 'PROBABILITY PULSE',
     'curve.subtitle': '7-day reset probability curve',
     'curve.mostLikelyWindow': 'Most likely window',
+    'curve.peak': 'Peak',
+    'curve.now': 'NOW',
+    'curve.nowMarker': 'Current time',
+    'curve.lowerProb': 'Lower probability',
+    'curve.higherProb': 'Higher probability',
 
     // Signal Radar
     'signals.title': 'SIGNAL RADAR',
@@ -163,6 +168,11 @@ const translations: Record<Locale, Record<string, string>> = {
     'curve.title': '概率脉搏',
     'curve.subtitle': '7天重置概率曲线',
     'curve.mostLikelyWindow': '最可能窗口',
+    'curve.peak': '峰值',
+    'curve.now': '现在',
+    'curve.nowMarker': '当前时间',
+    'curve.lowerProb': '较低概率',
+    'curve.higherProb': '较高概率',
 
     // Signal Radar
     'signals.title': '信号雷达',
