@@ -1,8 +1,6 @@
-{
-  "name": "codex-resets",
-  "buildCommand": "pnpm run build",
-  "outputDirectory": "dist",
-  "installCommand": "pnpm install",
-  "framework": "vite",
-  "compatibilityDate": "2024-09-23"
-}
+name = "codex-resets"
+build_command = "pnpm run build"
+output_directory = "dist"
+install_command = "pnpm install"
+framework = "vite"
+compatibility_date = "2024-09-23"
