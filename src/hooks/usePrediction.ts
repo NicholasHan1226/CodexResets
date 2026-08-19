@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { generatePrediction } from "@/lib/prediction";
+import { generatePrediction, formatDuration } from "@/lib/prediction";
 import type { ResetPrediction } from "@/types/reset";
 
 /**
  * Hook that manages the reset prediction state.
- * Refreshes data every 30 seconds to simulate real-time updates.
+ * Refreshes data every 30 seconds.
  */
 export function usePrediction() {
   const [prediction, setPrediction] = useState<ResetPrediction | null>(null);
@@ -23,7 +23,7 @@ export function usePrediction() {
     return () => clearInterval(interval);
   }, [refresh]);
 
-  // Countdown timer
+  // Countdown timer — counts toward the start of the predicted window
   useEffect(() => {
     if (!prediction) return;
 
@@ -31,13 +31,7 @@ export function usePrediction() {
       const windowStart = new Date(prediction.windowStart).getTime();
       const now = Date.now();
       const diff = Math.max(0, windowStart - now);
-
-      const seconds = Math.floor((diff / 1000) % 60);
-      const minutes = Math.floor((diff / (1000 * 60)) % 60);
-      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-      setCountdown({ days, hours, minutes, seconds });
+      setCountdown(formatDuration(diff));
     };
 
     updateCountdown();

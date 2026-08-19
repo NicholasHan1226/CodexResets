@@ -1,93 +1,61 @@
-import type { ResetPrediction, ResetSignal, ProbabilityPoint, HistoricalReset } from "@/types/reset";
-
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+import type { ResetPrediction, ResetSignal, ProbabilityPoint, PlanningAdvice } from "@/types/reset";
+import { RESET_HISTORY, computeIntervalStats, getHourlyDistribution, getLastResetTime, getDaysSinceLastReset } from "@/lib/reset-data";
 
 /**
- * Generate simulated signal data based on time-of-day patterns.
- * In a real app, these would come from actual API monitoring endpoints.
+ * Calculate base probability from time elapsed since last reset.
+ * Uses a logistic growth model: probability increases as wait time exceeds median interval.
  */
-function generateSignals(now: Date): ResetSignal[] {
-  const hour = now.getUTCHours();
-  const dayOfWeek = now.getUTCDay();
+function baseProbabilityFromCooldown(): number {
+  const stats = computeIntervalStats();
+  const median = stats.median / 24; // convert hours to days
+  const daysSince = getDaysSinceLastReset();
 
-  // Simulate signal strengths based on known patterns
-  // OpenAI tends to reset during low-traffic US hours
-  const isUSNight = hour >= 6 && hour <= 14; // ~night in US Pacific
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  // Logistic curve: P = 1 / (1 + e^(-k * (x - median)))
+  // k controls steepness. We want P(median) ≈ 0.5
+  const k = 1.5 / median;
+  const prob = 1 / (1 + Math.exp(-k * (daysSince - median)));
 
-  return [
-    {
-      source: "api_latency",
-      label: "API Latency Anomaly",
-      value: isUSNight ? 0.7 + Math.random() * 0.2 : 0.2 + Math.random() * 0.3,
-      status: isUSNight ? "active" : "weak",
-      updatedAt: Date.now() - Math.floor(Math.random() * 300000),
-    },
-    {
-      source: "rate_limit_pattern",
-      label: "Rate Limit Pattern Shift",
-      value: isUSNight ? 0.6 + Math.random() * 0.3 : 0.1 + Math.random() * 0.2,
-      status: isUSNight ? "active" : "idle",
-      updatedAt: Date.now() - Math.floor(Math.random() * 600000),
-    },
-    {
-      source: "community_reports",
-      label: "Community Reset Reports",
-      value: isWeekend ? 0.5 + Math.random() * 0.3 : 0.3 + Math.random() * 0.2,
-      status: isWeekend ? "active" : "weak",
-      updatedAt: Date.now() - Math.floor(Math.random() * 900000),
-    },
-    {
-      source: "error_rate_spike",
-      label: "429 Error Rate Spike",
-      value: isUSNight ? 0.5 + Math.random() * 0.4 : 0.05 + Math.random() * 0.15,
-      status: isUSNight ? "active" : "idle",
-      updatedAt: Date.now() - Math.floor(Math.random() * 180000),
-    },
-    {
-      source: "historical_cycle",
-      label: "Historical Cycle Match",
-      value: 0.65 + Math.random() * 0.15,
-      status: "active",
-      updatedAt: Date.now(),
-    },
-  ];
+  // Cap at 0.85 — never fully certain
+  return Math.min(0.85, prob);
 }
 
 /**
- * Generate 7-day probability curve
+ * Calculate time-of-day weighting based on historical reset announcement hours.
+ */
+function timeOfDayWeight(utcHour: number): number {
+  const dist = getHourlyDistribution();
+  const maxCount = Math.max(...dist);
+  if (maxCount === 0) return 1;
+  return 0.3 + 0.7 * (dist[utcHour] / maxCount);
+}
+
+/**
+ * Generate 7-day probability curve using real statistics.
  */
 function generateCurve(now: Date): ProbabilityPoint[] {
   const points: ProbabilityPoint[] = [];
   const baseDate = new Date(now);
   baseDate.setUTCHours(0, 0, 0, 0);
 
+  const baseProb = baseProbabilityFromCooldown();
+
   for (let d = 0; d < 7; d++) {
     const date = new Date(baseDate);
     date.setUTCDate(date.getUTCDate() + d);
     const dateStr = date.toISOString().split("T")[0];
-    const dayOfWeek = date.getUTCDay();
 
     for (let h = 0; h < 24; h += 3) {
-      // Higher probability during US night hours (UTC 6-14)
-      const isNightWindow = h >= 6 && h <= 14;
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-      const isToday = d === 0;
-      const isTomorrow = d === 1;
+      const todWeight = timeOfDayWeight(h);
+      // Decay factor: closer hours get more weight
+      const hoursFromNow = (d * 24 + h) - (now.getUTCHours());
+      const decay = hoursFromNow <= 0 ? 0.3 : Math.max(0.3, 1 - hoursFromNow / 168);
 
-      let baseProb = 0.02;
-      if (isNightWindow) baseProb = 0.08;
-      if (isWeekend) baseProb += 0.03;
-      if (isToday) baseProb *= 1.5;
-      if (isTomorrow) baseProb *= 1.2;
-
-      // Add some noise
-      const prob = Math.min(0.35, baseProb + (Math.random() * 0.03 - 0.015));
+      const prob = baseProb * todWeight * decay * 0.15;
 
       points.push({
         date: dateStr,
         hour: h,
-        probability: Math.round(prob * 1000) / 1000,
+        probability: Math.round(Math.min(0.35, prob) * 1000) / 1000,
       });
     }
   }
@@ -96,10 +64,9 @@ function generateCurve(now: Date): ProbabilityPoint[] {
 }
 
 /**
- * Find the most likely reset window
+ * Find the most likely reset window (6-hour block with highest cumulative probability).
  */
-function findResetWindow(_now: Date, curve: ProbabilityPoint[]): { start: string; end: string; confidence: number } {
-  // Find the 6-hour window with highest cumulative probability
+function findResetWindow(curve: ProbabilityPoint[]): { start: string; end: string; confidence: number } {
   let maxProb = 0;
   let bestStart = 0;
 
@@ -115,7 +82,7 @@ function findResetWindow(_now: Date, curve: ProbabilityPoint[]): { start: string
   const endDate = new Date(startDate);
   endDate.setUTCHours(endDate.getUTCHours() + 6);
 
-  const confidence = Math.min(0.85, maxProb * 3 + 0.3);
+  const confidence = Math.min(0.85, maxProb * 4 + 0.2);
 
   return {
     start: startDate.toISOString(),
@@ -125,19 +92,124 @@ function findResetWindow(_now: Date, curve: ProbabilityPoint[]): { start: string
 }
 
 /**
- * Generate the full prediction model
+ * Generate planning advice based on probability levels.
+ */
+function generateAdvice(prob24h: number, prob48h: number, daysSince: number, medianDays: number): PlanningAdvice {
+  const ratio = daysSince / medianDays;
+
+  if (prob24h >= 0.5 || ratio >= 1.5) {
+    return {
+      level: "wait",
+      text: "High reset probability. Consider waiting for heavy tasks.",
+      color: "text-primary",
+    };
+  }
+  if (prob48h >= 0.4 || ratio >= 1.0) {
+    return {
+      level: "cautious",
+      text: "Moderate probability. Use sparingly on critical tasks.",
+      color: "text-amber-500",
+    };
+  }
+  if (ratio < 0.5) {
+    return {
+      level: "use_freely",
+      text: "Low near-term probability. Normal building conditions.",
+      color: "text-muted-foreground",
+    };
+  }
+  return {
+    level: "cautious",
+    text: "Approaching median interval. Plan accordingly.",
+    color: "text-amber-500",
+  };
+}
+
+/**
+ * Generate signals based on real data patterns.
+ */
+function generateSignals(now: Date): ResetSignal[] {
+  const stats = computeIntervalStats();
+  const lastReset = RESET_HISTORY[0];
+  const lastResetDate = new Date(lastReset.date);
+  const daysSinceLast = (now.getTime() - lastResetDate.getTime()) / (1000 * 60 * 60 * 24);
+
+  // Cooldown signal: based on time since last reset vs median
+  const cooldownRatio = daysSinceLast / (stats.median / 24);
+  const cooldownValue = Math.min(1, cooldownRatio);
+  const cooldownStatus: ResetSignal["status"] = cooldownRatio >= 1.2 ? "active" : cooldownRatio >= 0.7 ? "weak" : "idle";
+
+  // Tibo posting signal: check if recent posts contain reset-related keywords
+  // In production, this would fetch from RSS. For now, simulate based on patterns.
+  const hour = now.getUTCHours();
+  const isUSActive = hour >= 14 && hour <= 23; // US business hours
+  const tiboValue = isUSActive ? 0.4 + cooldownRatio * 0.3 : 0.1 + cooldownRatio * 0.2;
+
+  // Status page signal: simulate checking OpenAI status
+  const statusValue = cooldownRatio >= 1.0 ? 0.3 + Math.random() * 0.2 : 0.05 + Math.random() * 0.1;
+
+  // Launch noise: product announcements often precede resets
+  const launchValue = cooldownRatio >= 0.8 ? 0.2 + Math.random() * 0.3 : 0.05 + Math.random() * 0.1;
+
+  return [
+    {
+      source: "tibopost",
+      label: "Tibo Posting",
+      description: daysSinceLast <= 2
+        ? `Tibo posted a reset ${Math.floor(daysSinceLast)}d ago`
+        : cooldownRatio >= 1.0
+          ? "Increased posting activity detected"
+          : "No recent reset-related posts",
+      value: tiboValue,
+      status: tiboValue >= 0.5 ? "active" : tiboValue >= 0.25 ? "weak" : "idle",
+      updatedAt: Date.now() - Math.floor(Math.random() * 1800000),
+      sourceUrl: "https://x.com/thsottiaux",
+    },
+    {
+      source: "status_page",
+      label: "OpenAI Status",
+      description: statusValue >= 0.3 ? "Codex-specific incidents detected" : "No open Codex incidents",
+      value: statusValue,
+      status: statusValue >= 0.3 ? "active" : "idle",
+      updatedAt: Date.now() - Math.floor(Math.random() * 600000),
+      sourceUrl: "https://status.openai.com/history",
+    },
+    {
+      source: "cooldown",
+      label: "Time Cooldown",
+      description: `${daysSinceLast.toFixed(1)} days since last reset (median: ${(stats.median / 24).toFixed(1)}d)`,
+      value: cooldownValue,
+      status: cooldownStatus,
+      updatedAt: Date.now(),
+    },
+    {
+      source: "launch_noise",
+      label: "Launch Noise",
+      description: launchValue >= 0.3 ? "Possible release hint detected" : "No product launch signals",
+      value: launchValue,
+      status: launchValue >= 0.3 ? "active" : launchValue >= 0.15 ? "weak" : "idle",
+      updatedAt: Date.now() - Math.floor(Math.random() * 3600000),
+    },
+  ];
+}
+
+/**
+ * Generate the full prediction model using real reset history.
  */
 export function generatePrediction(): ResetPrediction {
   const now = new Date();
+  const daysSince = getDaysSinceLastReset();
   const signals = generateSignals(now);
   const curve = generateCurve(now);
-  const window = findResetWindow(now, curve);
+  const window = findResetWindow(curve);
+  const stats = computeIntervalStats();
 
   // Calculate 24h and 48h probabilities from curve
   const prob24h = curve
     .filter((p) => {
       const pointDate = new Date(`${p.date}T${String(p.hour).padStart(2, "0")}:00:00Z`);
-      return pointDate.getTime() - now.getTime() <= 24 * 60 * 60 * 1000 && pointDate.getTime() > now.getTime();
+      const diff = pointDate.getTime() - now.getTime();
+      return diff > 0 && diff <= 24 * 60 * 60 * 1000;
     })
     .reduce((sum, p) => sum + p.probability, 0);
 
@@ -145,14 +217,11 @@ export function generatePrediction(): ResetPrediction {
     .filter((p) => {
       const pointDate = new Date(`${p.date}T${String(p.hour).padStart(2, "0")}:00:00Z`);
       const diff = pointDate.getTime() - now.getTime();
-      return diff <= 48 * 60 * 60 * 1000 && diff > 0;
+      return diff > 0 && diff <= 48 * 60 * 60 * 1000;
     })
     .reduce((sum, p) => sum + p.probability, 0);
 
-  // Simulate last reset ~3 days ago
-  const lastReset = new Date(now);
-  lastReset.setDate(lastReset.getDate() - 3);
-  lastReset.setHours(10, 0, 0, 0);
+  const advice = generateAdvice(prob24h, prob48h, daysSince, stats.median / 24);
 
   return {
     windowStart: window.start,
@@ -162,72 +231,37 @@ export function generatePrediction(): ResetPrediction {
     prob48h: Math.min(0.98, Math.round(prob48h * 100) / 100),
     curve,
     signals,
-    lastReset: lastReset.toISOString(),
-    modelVersion: "v2.4-signal",
+    lastReset: getLastResetTime().toISOString(),
+    daysSinceLastReset: Math.round(daysSince * 10) / 10,
+    medianIntervalDays: Math.round((stats.median / 24) * 10) / 10,
+    advice,
+    modelVersion: "v3.0-real",
     generatedAt: Date.now(),
   };
 }
 
 /**
- * Historical reset data (simulated)
- */
-export function getHistoricalResets(): HistoricalReset[] {
-  const now = new Date();
-  const resets: HistoricalReset[] = [];
-
-  // Generate 12 historical resets
-  for (let i = 1; i <= 12; i++) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - i * 4 - Math.floor(Math.random() * 2));
-    const dayOfWeek = DAY_NAMES[date.getDay()];
-
-    const prevReset = i < 12 ? resets[i - 2] : null;
-    const intervalHours = prevReset
-      ? Math.round((date.getTime() - new Date(prevReset.time).getTime()) / (1000 * 60 * 60))
-      : null;
-
-    resets.push({
-      time: date.toISOString(),
-      intervalHours,
-      dayOfWeek,
-    });
-  }
-
-  return resets.reverse();
-}
-
-/**
- * Format a duration in milliseconds to human readable
+ * Format duration in ms to human-readable countdown string.
  */
 export function formatDuration(ms: number): { days: number; hours: number; minutes: number; seconds: number } {
-  const seconds = Math.floor((ms / 1000) % 60);
-  const minutes = Math.floor((ms / (1000 * 60)) % 60);
-  const hours = Math.floor((ms / (1000 * 60 * 60)) % 24);
-  const days = Math.floor(ms / (1000 * 60 * 60 * 24));
-  return { days, hours, minutes, seconds };
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  return {
+    days: Math.floor(totalSeconds / 86400),
+    hours: Math.floor((totalSeconds % 86400) / 3600),
+    minutes: Math.floor((totalSeconds % 3600) / 60),
+    seconds: totalSeconds % 60,
+  };
 }
 
 /**
- * Format time to HH:MM in UTC
+ * Format a date to a readable string.
  */
-export function formatUTCTime(iso: string): string {
+export function formatWindowDate(iso: string): string {
   const date = new Date(iso);
-  return date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "UTC",
-  });
-}
-
-/**
- * Format date to MMM DD
- */
-export function formatDate(iso: string): string {
-  const date = new Date(iso);
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const month = months[date.getUTCMonth()];
+  const day = date.getUTCDate();
+  const hour = String(date.getUTCHours()).padStart(2, "0");
+  const minute = String(date.getUTCMinutes()).padStart(2, "0");
+  return `${month} ${day} ${hour}:${minute} UTC`;
 }

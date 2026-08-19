@@ -1,18 +1,18 @@
 import { usePrediction } from "@/hooks/usePrediction";
-import { getHistoricalResets } from "@/lib/prediction";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { StatusHeader } from "@/sections/StatusHeader";
-import { CountdownPanel } from "@/sections/CountdownPanel";
-import { ProbabilityGauges } from "@/sections/ProbabilityGauges";
+import { ResetEstimatePanel } from "@/sections/CountdownPanel";
 import { ProbabilityCurve } from "@/sections/ProbabilityCurve";
 import { SignalPanel } from "@/sections/SignalPanel";
 import { HistoryPanel } from "@/sections/HistoryPanel";
 import { ModelInfo } from "@/sections/ModelInfo";
 import { SubscribePanel } from "@/sections/SubscribePanel";
+import { UsageTracker } from "@/sections/UsageTracker";
+import { BankedResets } from "@/sections/BankedResets";
+import { TimeDistribution } from "@/sections/TimeDistribution";
 
 export default function Home() {
   const { prediction, countdown, isLive, setIsLive } = usePrediction();
-  const historicalResets = getHistoricalResets();
 
   if (!prediction) {
     return (
@@ -41,35 +41,35 @@ export default function Home() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
             {/* Left column - Primary data */}
             <div className="md:col-span-8 space-y-4">
-              {/* Top row: Countdown + Probability gauges */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="sm:col-span-1">
-                  <CountdownPanel
-                    countdown={countdown}
-                    windowStart={prediction.windowStart}
-                    windowEnd={prediction.windowEnd}
-                    confidence={prediction.confidence}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <ProbabilityGauges
-                    prob24h={prediction.prob24h}
-                    prob48h={prediction.prob48h}
-                  />
-                </div>
-              </div>
+              {/* Reset estimate panel (replaces countdown + gauges) */}
+              <ResetEstimatePanel
+                countdown={countdown}
+                windowStart={prediction.windowStart}
+                windowEnd={prediction.windowEnd}
+                confidence={prediction.confidence}
+                prob24h={prediction.prob24h}
+                prob48h={prediction.prob48h}
+                daysSinceLastReset={prediction.daysSinceLastReset}
+                medianIntervalDays={prediction.medianIntervalDays}
+                advice={prediction.advice}
+              />
 
               {/* Probability curve */}
               <ProbabilityCurve curve={prediction.curve} />
 
-              {/* Signal monitor */}
+              {/* Signal radar */}
               <SignalPanel signals={prediction.signals} />
+
+              {/* Reset time distribution */}
+              <TimeDistribution />
             </div>
 
             {/* Right column - Secondary data */}
             <div className="md:col-span-4 space-y-4">
               <SubscribePanel />
-              <HistoryPanel resets={historicalResets} />
+              <UsageTracker />
+              <BankedResets />
+              <HistoryPanel />
               <ModelInfo />
             </div>
           </div>

@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- 字体 -->
+  <link href="https://lf-code-agent.coze.cn/obj/x-ai-cn/fonts/google/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+
+  <script src="https://lf-code-agent.coze.cn/obj/x-ai-cn/cdn/jquery/jquery-3.7.1.min.js"></script>
+  <script src="https://lf-code-agent.coze.cn/obj/x-ai-cn/cdn/lucide/lucide-1.11.0.min.js"></script>
+  <script src="https://lf-code-agent.coze.cn/obj/x-ai-cn/cdn/tailwindcss/tailwindcss-browser-4.2.4.min.js"></script>
+
+  <style type="text/tailwindcss">
+    @theme {
+      /* === 品牌色 === */
+      --color-primary:              #10A37F;
+      --color-primary-container:    #0A3D2F;
+      --color-on-primary:           #ffffff;
+      /* === 背景 / 表面 === */
+      --color-background:                 #0E0F12;
+      --color-surface-container-lowest:   #111216;
+      --color-surface:                    #1A1B21;
+      --color-surface-container:          #1F2026;
+      --color-surface-container-high:     #25262D;
+      --color-surface-container-highest:  #2B2C34;
+      /* === 文字 === */
+      --color-on-surface:           #F0F2F5;
+      --color-on-surface-variant:   #8B92A0;
+      /* === 功能色 === */
+      --color-success:  #22c55e;
+      --color-error:    #EF4444;
+      --color-warning:  #F59E0B;
+      /* === 边框 === */
+      --color-outline:          #2A2B33;
+      --color-outline-variant:  #1F2026;
+      /* === 圆角 === */
+      --radius-sm:   0.375rem;
+      --radius-md:   0.5rem;
+      --radius-lg:   0.625rem;
+      --radius-xl:   0.75rem;
+      --radius-2xl:  1rem;
+      /* === 阴影 === */
+      --shadow-card:   0 2px 8px rgba(0,0,0,0.35);
+      --shadow-float:  0 10px 25px rgba(0,0,0,0.45);
+      --shadow-dialog: 0 25px 50px rgba(0,0,0,0.55);
+      /* === 字体 === */
+      --font-sans: "Inter", system-ui, sans-serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+    }
+  </style>
+
+  <!-- 图片兜底 -->
+  <script>
+    document.addEventListener('error', function (e) {
+      const img = e.target;
+      if (img.tagName !== 'IMG' || img.dataset.fallback) return;
+      img.dataset.fallback = '1';
+      const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const cat = img.getAttribute('data-category') || '其他';
+      const alt = img.getAttribute('alt') || '';
+      const label = esc(alt.length > 8 ? alt.slice(0, 8) + '…' : alt);
+      const icons = { '人物': '👤', '自然风景': '🏞', '动物': '🐾', '建筑城市': '🏙', '运动体育': '⚽', '交通工具': '🚗', '食物': '🍽', '服饰时尚': '👗', '商业科技': '💼', '游戏娱乐': '🎮', '艺术': '🎨', '其他': '🖼' };
+      const icon = icons[cat] || '🖼';
+      const w = img.width || 400, h = img.height || 300;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="100%" height="100%" fill="%23f3f4f6"/><text x="50%" y="45%" text-anchor="middle" font-size="${Math.min(w, h) * 0.18}" dominant-baseline="central">${icon}</text><text x="50%" y="68%" text-anchor="middle" font-size="${Math.min(w, h) * 0.07}" fill="%239ca3af" font-family="system-ui,sans-serif" dominant-baseline="central">${label}</text></svg>`;
+      img.src = 'data:image/svg+xml,' + svg;
+    }, true);
+  </script>
+
+  <style>
+    /* Gauge ring animation */
+    @keyframes gauge-pulse {
+      0%, 100% { opacity: 0.8; }
+      50% { opacity: 1; }
+    }
+    .gauge-ring { animation: gauge-pulse 2s ease-in-out infinite; }
+
+    /* Chart area pulse */
+    @keyframes area-pulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 0.85; }
+    }
+    .chart-area-pulse { animation: area-pulse 3s ease-in-out infinite; }
+
+    /* Live dot pulse */
+    @keyframes live-dot {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16, 163, 127, 0.5); }
+      50% { box-shadow: 0 0 0 4px rgba(16, 163, 127, 0); }
+    }
+    .live-dot { animation: live-dot 1.5s ease-in-out infinite; }
+
+    /* Signal bar animation */
+    @keyframes signal-active {
+      0%, 100% { opacity: 0.7; }
+      50% { opacity: 1; }
+    }
+    .signal-active { animation: signal-active 1.8s ease-in-out infinite; }
+  </style>
+</head>
+
+<body class="bg-background text-on-surface font-sans">
+
+  <!-- @nav:start 导航组件 -->
+  <header class="bg-surface/80 backdrop-blur-sm sticky top-0 z-40 border-b border-outline/20">
+    <div class="max-w-7xl mx-auto px-4 md:px-6 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center">
+          <i data-lucide="radar" class="w-4 h-4 text-primary"></i>
+        </div>
+        <span class="font-bold text-base text-on-surface tracking-tight">Codex Resets</span>
+        <span class="text-[10px] font-mono text-on-surface-variant bg-surface-container px-1.5 py-0.5 rounded">v2</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-1.5 text-xs font-mono text-on-surface-variant">
+          <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+          <span>LIVE</span>
+        </div>
+      </div>
+    </div>
+  </header>
+  <!-- @nav:end 导航组件 -->
+
+  <!-- @main-content:start -->
+  <main class="max-w-7xl mx-auto px-4 md:px-6 py-6">
+
+    <!-- ===== 顶部状态条 ===== -->
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-primary live-dot"></span>
+          <span class="text-xs font-mono text-on-surface-variant">LIVE MONITORING</span>
+        </div>
+        <span class="text-xs font-mono text-on-surface-variant">Model v2.4.1</span>
+      </div>
+      <div class="flex items-center gap-3 text-xs font-mono text-on-surface-variant">
+        <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+        <span>Updated 12s ago</span>
+      </div>
+    </div>
+
+    <!-- ===== 12 列网格主内容 ===== -->
+    <div class="grid grid-cols-12 gap-5">
+
+      <!-- ========== 左列 (8列) ========== -->
+      <div class="col-span-12 lg:col-span-8 flex flex-col gap-5">
+
+        <!-- 1. 重置预判主面板 + 概率仪表盘 -->
+        <div class="grid grid-cols-3 gap-4">
+          <!-- 重置预判面板 (1列) -->
+          <div class="bg-surface rounded-lg shadow-card p-4 flex flex-col">
+            <span class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2 font-medium">下次重置预估</span>
+            <!-- 最可能窗口 -->
+            <div class="font-mono text-lg font-bold text-primary leading-tight mb-1">Aug 20 17:00</div>
+            <div class="font-mono text-[10px] text-on-surface-variant mb-3">至 Aug 20 23:00 UTC</div>
+            <!-- 等待进度条 -->
+            <div class="mb-3">
+              <div class="flex items-center justify-between text-[10px] font-mono text-on-surface-variant mb-1">
+                <span>已等待</span>
+                <span class="text-on-surface">6.1 天 <span class="text-on-surface-variant">/ 中位 3.8 天</span></span>
+              </div>
+              <div class="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">
+                <div class="h-full rounded-full bg-gradient-to-r from-primary/60 to-primary" style="width: 78%"></div>
+              </div>
+              <div class="flex items-center justify-between mt-1">
+                <span class="text-[9px] font-mono text-on-surface-variant">上次: Aug 13</span>
+                <span class="text-[9px] font-mono text-warning">超过中位间隔 60%</span>
+              </div>
+            </div>
+            <!-- 规划建议 -->
+            <div class="border-t border-outline/20 pt-3 mt-auto">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="w-2 h-2 rounded-full bg-warning"></span>
+                <span class="text-xs font-semibold text-warning">谨慎使用</span>
+              </div>
+              <p class="text-[10px] text-on-surface-variant leading-relaxed">概率中等，非紧急任务建议等待。紧急任务可正常使用，撞墙后可用存储重置。</p>
+            </div>
+          </div>
+
+          <!-- 概率仪表盘 (2列) -->
+          <div class="col-span-2 grid grid-cols-2 gap-4">
+            <!-- 24h 概率 -->
+            <div class="bg-surface rounded-lg shadow-card p-4 flex flex-col items-center justify-center">
+              <span class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2 font-medium">24h 概率</span>
+              <div class="relative w-28 h-28 mb-2">
+                <svg viewBox="0 0 120 120" class="w-full h-full">
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="#1F2026" stroke-width="8"/>
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="url(#gaugeGrad1)" stroke-width="8"
+                    stroke-dasharray="94.2 220" stroke-dashoffset="0" stroke-linecap="round"
+                    transform="rotate(-90 60 60)" class="gauge-ring"/>
+                  <defs>
+                    <linearGradient id="gaugeGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#10A37F"/>
+                      <stop offset="100%" stop-color="#22c55e"/>
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <span class="font-mono text-2xl font-bold text-on-surface">30<span class="text-sm text-on-surface-variant">%</span></span>
+                </div>
+              </div>
+              <span class="text-[10px] font-mono text-on-surface-variant">未来 24 小时内重置</span>
+            </div>
+
+            <!-- 48h 概率 -->
+            <div class="bg-surface rounded-lg shadow-card p-4 flex flex-col items-center justify-center">
+              <span class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2 font-medium">48h 概率</span>
+              <div class="relative w-28 h-28 mb-2">
+                <svg viewBox="0 0 120 120" class="w-full h-full">
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="#1F2026" stroke-width="8"/>
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="url(#gaugeGrad2)" stroke-width="8"
+                    stroke-dasharray="157 157.1" stroke-dashoffset="0" stroke-linecap="round"
+                    transform="rotate(-90 60 60)" class="gauge-ring"/>
+                  <defs>
+                    <linearGradient id="gaugeGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#10A37F"/>
+                      <stop offset="100%" stop-color="#22c55e"/>
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <span class="font-mono text-2xl font-bold text-on-surface">50<span class="text-sm text-on-surface-variant">%</span></span>
+                </div>
+              </div>
+              <span class="text-[10px] font-mono text-on-surface-variant">未来 48 小时内重置</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. 概率脉搏曲线 -->
+        <div class="bg-surface rounded-lg shadow-card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <i data-lucide="activity" class="w-4 h-4 text-primary"></i>
+              <h2 class="text-sm font-semibold text-on-surface">概率脉搏曲线</h2>
+            </div>
+            <span class="text-[10px] font-mono text-on-surface-variant">7 天预测 · 每 3 小时采样</span>
+          </div>
+          <!-- SVG 面积图 -->
+          <div class="relative w-full h-40">
+            <svg viewBox="0 0 672 140" class="w-full h-full" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#10A37F" stop-opacity="0.4"/>
+                  <stop offset="100%" stop-color="#10A37F" stop-opacity="0.02"/>
+                </linearGradient>
+              </defs>
+              <!-- 网格线 -->
+              <line x1="0" y1="35" x2="672" y2="35" stroke="#1F2026" stroke-width="0.5"/>
+              <line x1="0" y1="70" x2="672" y2="70" stroke="#1F2026" stroke-width="0.5"/>
+              <line x1="0" y1="105" x2="672" y2="105" stroke="#1F2026" stroke-width="0.5"/>
+              <!-- 面积填充 -->
+              <path d="M0,130 L28,128 L56,125 L84,120 L112,115 L140,108 L168,100 L196,95 L224,85 L252,72 L280,55 L308,40 L336,30 L364,25 L392,35 L420,50 L448,68 L476,80 L504,95 L532,105 L560,112 L588,118 L616,122 L644,126 L672,128 L672,140 L0,140 Z"
+                fill="url(#areaGrad)" class="chart-area-pulse"/>
+              <!-- 线条 -->
+              <path d="M0,130 L28,128 L56,125 L84,120 L112,115 L140,108 L168,100 L196,95 L224,85 L252,72 L280,55 L308,40 L336,30 L364,25 L392,35 L420,50 L448,68 L476,80 L504,95 L532,105 L560,112 L588,118 L616,122 L644,126 L672,128"
+                fill="none" stroke="#10A37F" stroke-width="1.5"/>
+              <!-- 峰值点 -->
+              <circle cx="364" cy="25" r="3" fill="#10A37F"/>
+              <circle cx="364" cy="25" r="6" fill="#10A37F" opacity="0.2" class="gauge-ring"/>
+              <!-- 最可能窗口标注 -->
+              <rect x="308" y="0" width="112" height="140" fill="#10A37F" opacity="0.05"/>
+              <line x1="308" y1="0" x2="308" y2="140" stroke="#10A37F" stroke-width="0.5" stroke-dasharray="3,3"/>
+              <line x1="420" y1="0" x2="420" y2="140" stroke="#10A37F" stroke-width="0.5" stroke-dasharray="3,3"/>
+            </svg>
+            <!-- Y 轴标签 -->
+            <div class="absolute left-0 top-0 h-full flex flex-col justify-between text-[9px] font-mono text-on-surface-variant py-1 -ml-0.5">
+              <span>80%</span>
+              <span>40%</span>
+              <span>0%</span>
+            </div>
+          </div>
+          <!-- X 轴时间标签 -->
+          <div class="flex justify-between mt-2 px-0">
+            <span class="text-[9px] font-mono text-on-surface-variant">Jun 24</span>
+            <span class="text-[9px] font-mono text-on-surface-variant">Jun 25</span>
+            <span class="text-[9px] font-mono text-on-surface-variant">Jun 26</span>
+            <span class="text-[9px] font-mono text-on-surface-variant">Jun 27</span>
+            <span class="text-[9px] font-mono text-on-surface-variant">Jun 28</span>
+            <span class="text-[9px] font-mono text-on-surface-variant">Jun 29</span>
+            <span class="text-[9px] font-mono text-on-surface-variant">Jun 30</span>
+          </div>
+          <!-- 最可能窗口标注 -->
+          <div class="mt-3 flex items-center gap-2 text-[10px] font-mono">
+            <span class="w-2 h-2 rounded-sm bg-primary/30 border border-primary/50"></span>
+            <span class="text-on-surface-variant">最可能重置窗口：</span>
+            <span class="text-primary font-semibold">Jun 27 21:00 — Jun 28 09:00 UTC</span>
+          </div>
+        </div>
+
+        <!-- 3. 信号雷达 -->
+        <div class="bg-surface rounded-lg shadow-card p-5">
+          <div class="flex items-center gap-2 mb-4">
+            <i data-lucide="satellite-dish" class="w-4 h-4 text-primary"></i>
+            <h2 class="text-sm font-semibold text-on-surface">Signal Radar</h2>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <!-- 信号卡片：Tibo 推文 -->
+            <div class="bg-surface-container rounded-lg p-3.5 border border-outline/10" id="signal-tibo">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="message-circle" class="w-3.5 h-3.5 text-primary"></i>
+                  <span class="text-xs font-semibold text-on-surface">Tibo 推文</span>
+                </div>
+                <span class="text-[9px] font-mono text-on-surface-variant">2h ago</span>
+              </div>
+              <p class="text-[11px] text-on-surface-variant leading-relaxed mb-2.5">"Codex usage limits are being reviewed — expect some changes soon 🔄"</p>
+              <!-- 信号强度条 -->
+              <div class="flex items-center gap-1.5">
+                <span class="text-[9px] font-mono text-on-surface-variant">Signal</span>
+                <div class="flex-1 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+                  <div class="h-full w-4/5 rounded-full bg-primary signal-active"></div>
+                </div>
+                <span class="text-[9px] font-mono text-primary font-semibold">ACTIVE</span>
+              </div>
+            </div>
+
+            <!-- 信号卡片：OpenAI 状态页 -->
+            <div class="bg-surface-container rounded-lg p-3.5 border border-outline/10" id="signal-status">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="shield-check" class="w-3.5 h-3.5 text-success"></i>
+                  <span class="text-xs font-semibold text-on-surface">OpenAI 状态页</span>
+                </div>
+                <span class="text-[9px] font-mono text-on-surface-variant">Live</span>
+              </div>
+              <div class="flex items-center gap-2 mb-2.5">
+                <span class="w-2 h-2 rounded-full bg-success"></span>
+                <span class="text-[11px] text-success font-medium">无事故</span>
+                <span class="text-[10px] text-on-surface-variant">· All systems operational</span>
+              </div>
+              <!-- 信号强度条 -->
+              <div class="flex items-center gap-1.5">
+                <span class="text-[9px] font-mono text-on-surface-variant">Signal</span>
+                <div class="flex-1 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+                  <div class="h-full w-1/5 rounded-full bg-on-surface-variant/40"></div>
+                </div>
+                <span class="text-[9px] font-mono text-on-surface-variant font-semibold">IDLE</span>
+              </div>
+            </div>
+
+            <!-- 信号卡片：时间冷却 -->
+            <div class="bg-surface-container rounded-lg p-3.5 border border-outline/10" id="signal-cooldown">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="timer" class="w-3.5 h-3.5 text-warning"></i>
+                  <span class="text-xs font-semibold text-on-surface">时间冷却</span>
+                </div>
+                <span class="text-[9px] font-mono text-on-surface-variant">Tracking</span>
+              </div>
+              <div class="flex items-center gap-2 mb-2.5">
+                <span class="font-mono text-lg font-bold text-warning">4</span>
+                <span class="text-[11px] text-on-surface-variant">天距上次重置</span>
+              </div>
+              <!-- 冷却进度条 -->
+              <div class="flex items-center gap-1.5">
+                <span class="text-[9px] font-mono text-on-surface-variant">Cooldown</span>
+                <div class="flex-1 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+                  <div class="h-full w-3/5 rounded-full bg-warning"></div>
+                </div>
+                <span class="text-[9px] font-mono text-warning font-semibold">WARM</span>
+              </div>
+            </div>
+
+            <!-- 信号卡片：产品发布噪音 -->
+            <div class="bg-surface-container rounded-lg p-3.5 border border-outline/10" id="signal-launch">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="rocket" class="w-3.5 h-3.5 text-on-surface-variant"></i>
+                  <span class="text-xs font-semibold text-on-surface">产品发布噪音</span>
+                </div>
+                <span class="text-[9px] font-mono text-on-surface-variant">Scanning</span>
+              </div>
+              <div class="flex items-center gap-2 mb-2.5">
+                <span class="w-2 h-2 rounded-full bg-on-surface-variant/40"></span>
+                <span class="text-[11px] text-on-surface-variant">未检测到发布暗示</span>
+              </div>
+              <!-- 信号强度条 -->
+              <div class="flex items-center gap-1.5">
+                <span class="text-[9px] font-mono text-on-surface-variant">Signal</span>
+                <div class="flex-1 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+                  <div class="h-full w-1/6 rounded-full bg-on-surface-variant/30"></div>
+                </div>
+                <span class="text-[9px] font-mono text-on-surface-variant font-semibold">IDLE</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. 重置时间分布 -->
+        <div class="bg-surface rounded-lg shadow-card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <i data-lucide="bar-chart-3" class="w-4 h-4 text-primary"></i>
+              <h2 class="text-sm font-semibold text-on-surface">重置时间分布</h2>
+            </div>
+            <span class="text-[10px] font-mono text-on-surface-variant">47 次已记录 · 本地时区</span>
+          </div>
+          <!-- 柱状图 -->
+          <div class="relative w-full h-36">
+            <svg viewBox="0 0 576 130" class="w-full h-full" preserveAspectRatio="none">
+              <!-- 网格线 -->
+              <line x1="0" y1="32" x2="576" y2="32" stroke="#1F2026" stroke-width="0.5"/>
+              <line x1="0" y1="65" x2="576" y2="65" stroke="#1F2026" stroke-width="0.5"/>
+              <line x1="0" y1="97" x2="576" y2="97" stroke="#1F2026" stroke-width="0.5"/>
+              <!-- 柱子 - 24小时 -->
+              <!-- 0h -->
+              <rect x="4" y="110" width="18" height="20" rx="2" fill="#1F2026"/>
+              <!-- 1h -->
+              <rect x="28" y="105" width="18" height="25" rx="2" fill="#1F2026"/>
+              <!-- 2h -->
+              <rect x="52" y="115" width="18" height="15" rx="2" fill="#1F2026"/>
+              <!-- 3h -->
+              <rect x="76" y="118" width="18" height="12" rx="2" fill="#1F2026"/>
+              <!-- 4h -->
+              <rect x="100" y="120" width="18" height="10" rx="2" fill="#1F2026"/>
+              <!-- 5h -->
+              <rect x="124" y="115" width="18" height="15" rx="2" fill="#1F2026"/>
+              <!-- 6h -->
+              <rect x="148" y="108" width="18" height="22" rx="2" fill="#1F2026"/>
+              <!-- 7h -->
+              <rect x="172" y="100" width="18" height="30" rx="2" fill="#1F2026"/>
+              <!-- 8h -->
+              <rect x="196" y="90" width="18" height="40" rx="2" fill="#1F2026"/>
+              <!-- 9h -->
+              <rect x="220" y="78" width="18" height="52" rx="2" fill="#1F2026"/>
+              <!-- 10h -->
+              <rect x="244" y="65" width="18" height="65" rx="2" fill="#1F2026"/>
+              <!-- 11h -->
+              <rect x="268" y="55" width="18" height="75" rx="2" fill="#1F2026"/>
+              <!-- 12h -->
+              <rect x="292" y="48" width="18" height="82" rx="2" fill="#1F2026"/>
+              <!-- 13h -->
+              <rect x="316" y="42" width="18" height="88" rx="2" fill="#1F2026"/>
+              <!-- 14h - 峰值 -->
+              <rect x="340" y="15" width="18" height="115" rx="2" fill="#10A37F" opacity="0.9"/>
+              <!-- 15h - 峰值 -->
+              <rect x="364" y="20" width="18" height="110" rx="2" fill="#10A37F" opacity="0.8"/>
+              <!-- 16h - 峰值 -->
+              <rect x="388" y="25" width="18" height="105" rx="2" fill="#10A37F" opacity="0.7"/>
+              <!-- 17h -->
+              <rect x="412" y="35" width="18" height="95" rx="2" fill="#1F2026"/>
+              <!-- 18h -->
+              <rect x="436" y="50" width="18" height="80" rx="2" fill="#1F2026"/>
+              <!-- 19h -->
+              <rect x="460" y="68" width="18" height="62" rx="2" fill="#1F2026"/>
+              <!-- 20h -->
+              <rect x="484" y="82" width="18" height="48" rx="2" fill="#1F2026"/>
+              <!-- 21h -->
+              <rect x="508" y="95" width="18" height="35" rx="2" fill="#1F2026"/>
+              <!-- 22h -->
+              <rect x="532" y="105" width="18" height="25" rx="2" fill="#1F2026"/>
+              <!-- 23h -->
+              <rect x="556" y="112" width="18" height="18" rx="2" fill="#1F2026"/>
+            </svg>
+          </div>
+          <!-- X 轴标签 -->
+          <div class="flex justify-between mt-1.5">
+            <span class="text-[9px] font-mono text-on-surface-variant">00</span>
+            <span class="text-[9px] font-mono text-on-surface-variant">04</span>
+            <span class="text-[9px] font-mono text-on-surface-variant">08</span>
+            <span class="text-[9px] font-mono text-on-surface-variant">12</span>
+            <span class="text-[9px] font-mono text-primary font-semibold">14</span>
+            <span class="text-[9px] font-mono text-on-surface-variant">16</span>
+            <span class="text-[9px] font-mono text-on-surface-variant">20</span>
+            <span class="text-[9px] font-mono text-on-surface-variant">23</span>
+          </div>
+          <!-- 峰值标注 -->
+          <div class="mt-3 flex items-center gap-2 text-[10px] font-mono">
+            <span class="w-2 h-2 rounded-sm bg-primary"></span>
+            <span class="text-on-surface-variant">峰值时段：</span>
+            <span class="text-primary font-semibold">14:00 – 16:00 (本地时间)</span>
+            <span class="text-on-surface-variant">· 占全部重置的 34%</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ========== 右列 (4列) ========== -->
+      <div class="col-span-12 lg:col-span-4 flex flex-col gap-5">
+
+        <!-- 1. 邮箱订阅面板 -->
+        <div class="bg-surface rounded-lg shadow-card p-5">
+          <div class="flex items-center gap-2 mb-2">
+            <i data-lucide="mail" class="w-4 h-4 text-primary"></i>
+            <h2 class="text-sm font-semibold text-on-surface">Reset Radar</h2>
+          </div>
+          <p class="text-[11px] text-on-surface-variant leading-relaxed mb-4">We'll email at 70%, then once more if the button actually gets pressed.</p>
+          <div class="flex gap-2 mb-3">
+            <input id="email-input" type="email" placeholder="you@example.com"
+              class="flex-1 min-w-0 bg-surface-container border-none rounded-md px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-colors"/>
+            <button id="btn-subscribe" class="bg-primary text-on-primary px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 active:scale-[0.98] transition-all shrink-0">
+              订阅
+            </button>
+          </div>
+          <div class="flex items-center gap-1.5 text-[10px] font-mono text-on-surface-variant">
+            <i data-lucide="users" class="w-3 h-3"></i>
+            <span><strong class="text-on-surface">2,847</strong> subscribers tracking resets</span>
+          </div>
+        </div>
+
+        <!-- 2. 个人用量追踪器 -->
+        <div class="bg-surface rounded-lg shadow-card p-5">
+          <div class="flex items-center gap-2 mb-1">
+            <i data-lucide="terminal" class="w-4 h-4 text-primary"></i>
+            <h2 class="text-sm font-semibold text-on-surface font-mono">codex /status</h2>
+          </div>
+          <div class="text-[10px] font-mono text-on-surface-variant mb-4">$ track your weekly usage</div>
+
+          <!-- 重置时间输入 -->
+          <div class="mb-3">
+            <label class="text-[10px] font-mono text-on-surface-variant uppercase tracking-wider block mb-1.5">每周窗口重置时间</label>
+            <input id="reset-time-input" type="time" value="17:00"
+              class="w-full bg-surface-container border-none rounded-md px-3 py-2 text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-colors"/>
+          </div>
+
+          <!-- 使用百分比滑块 -->
+          <div class="mb-3">
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-[10px] font-mono text-on-surface-variant uppercase tracking-wider">使用百分比</label>
+              <span id="usage-percent-display" class="text-xs font-mono text-primary font-bold">68%</span>
+            </div>
+            <input id="usage-slider" type="range" min="0" max="100" value="68"
+              class="w-full h-1.5 bg-surface-container-highest rounded-full appearance-none cursor-pointer accent-primary"/>
+            <!-- 可持续速度标记 -->
+            <div class="flex justify-between mt-1">
+              <span class="text-[9px] font-mono text-on-surface-variant">0%</span>
+              <span class="text-[9px] font-mono text-warning">⚡ 可持续速度</span>
+              <span class="text-[9px] font-mono text-on-surface-variant">100%</span>
+            </div>
+          </div>
+
+          <!-- 进度条可视化 -->
+          <div class="mb-3">
+            <div class="w-full h-3 bg-surface-container-highest rounded-full overflow-hidden">
+              <div id="usage-progress-bar" class="h-full rounded-full transition-all duration-300" style="width: 68%; background: linear-gradient(90deg, #10A37F, #F59E0B);"></div>
+            </div>
+            <div class="flex justify-between mt-1">
+              <span class="text-[9px] font-mono text-on-surface-variant">已用 68%</span>
+              <span class="text-[9px] font-mono text-on-surface-variant">剩余 32%</span>
+            </div>
+          </div>
+
+          <!-- 判断文字 -->
+          <div id="usage-verdict" class="bg-primary/10 border border-primary/20 rounded-md px-3 py-2.5 text-center">
+            <span class="text-xs font-mono text-primary font-semibold">✅ 你能撑到重置！保持当前节奏即可。</span>
+          </div>
+        </div>
+
+        <!-- 3. 存储重置管理器 -->
+        <div class="bg-surface rounded-lg shadow-card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <i data-lucide="piggy-bank" class="w-4 h-4 text-primary"></i>
+              <h2 class="text-sm font-semibold text-on-surface">Banked Resets</h2>
+            </div>
+            <button id="btn-add-reset" class="text-primary text-xs font-medium hover:underline flex items-center gap-1">
+              <i data-lucide="plus" class="w-3 h-3"></i>添加
+            </button>
+          </div>
+
+          <!-- 存储重置列表 -->
+          <div class="space-y-3">
+            <!-- 存储重置 1 -->
+            <div class="bg-surface-container rounded-lg p-3 border border-outline/10">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[11px] font-mono text-on-surface font-medium">重置 #1</span>
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm text-[9px] font-mono font-medium bg-success/15 text-success">可用</span>
+              </div>
+              <div class="text-[10px] font-mono text-on-surface-variant mb-2">发放于 Jun 15, 2025</div>
+              <!-- 过期倒计时进度条 -->
+              <div class="flex items-center gap-2">
+                <div class="flex-1 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+                  <div class="h-full w-3/5 rounded-full bg-primary"></div>
+                </div>
+                <span class="text-[9px] font-mono text-primary">12 天剩余</span>
+              </div>
+            </div>
+
+            <!-- 存储重置 2 -->
+            <div class="bg-surface-container rounded-lg p-3 border border-outline/10">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[11px] font-mono text-on-surface font-medium">重置 #2</span>
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm text-[9px] font-mono font-medium bg-on-surface-variant/15 text-on-surface-variant">已使用</span>
+              </div>
+              <div class="text-[10px] font-mono text-on-surface-variant mb-2">发放于 Jun 02, 2025</div>
+              <div class="flex items-center gap-2">
+                <div class="flex-1 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+                  <div class="h-full w-full rounded-full bg-on-surface-variant/30"></div>
+                </div>
+                <span class="text-[9px] font-mono text-on-surface-variant">已用完</span>
+              </div>
+            </div>
+
+            <!-- 存储重置 3 -->
+            <div class="bg-surface-container rounded-lg p-3 border border-outline/10">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[11px] font-mono text-on-surface font-medium">重置 #3</span>
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm text-[9px] font-mono font-medium bg-warning/15 text-warning">即将过期</span>
+              </div>
+              <div class="text-[10px] font-mono text-on-surface-variant mb-2">发放于 May 28, 2025</div>
+              <div class="flex items-center gap-2">
+                <div class="flex-1 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+                  <div class="h-full w-11/12 rounded-full bg-warning"></div>
+                </div>
+                <span class="text-[9px] font-mono text-warning">3 天剩余</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 统计 -->
+          <div class="mt-3 pt-3 border-t border-outline/10 flex items-center justify-between text-[10px] font-mono text-on-surface-variant">
+            <span>可用: <strong class="text-primary">1</strong></span>
+            <span>已用: <strong class="text-on-surface">1</strong></span>
+            <span>即将过期: <strong class="text-warning">1</strong></span>
+          </div>
+        </div>
+
+        <!-- 4. 重置历史 -->
+        <div class="bg-surface rounded-lg shadow-card p-5">
+          <div class="flex items-center gap-2 mb-4">
+            <i data-lucide="history" class="w-4 h-4 text-primary"></i>
+            <h2 class="text-sm font-semibold text-on-surface">Reset History</h2>
+          </div>
+
+          <div class="space-y-0 divide-y divide-outline/10">
+            <!-- 重置记录 1 -->
+            <div class="py-2.5 flex items-start gap-3">
+              <div class="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-mono text-on-surface font-medium">Jun 24, 2025</span>
+                  <span class="text-[10px] font-mono text-on-surface-variant">3d gap</span>
+                </div>
+                <p class="text-[10px] text-on-surface-variant mt-0.5">Tibo 确认推文 — 常规窗口重置</p>
+              </div>
+            </div>
+
+            <!-- 重置记录 2 -->
+            <div class="py-2.5 flex items-start gap-3">
+              <div class="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-mono text-on-surface font-medium">Jun 21, 2025</span>
+                  <span class="text-[10px] font-mono text-on-surface-variant">4d gap</span>
+                </div>
+                <p class="text-[10px] text-on-surface-variant mt-0.5">OpenAI 状态页事故修复后触发</p>
+              </div>
+            </div>
+
+            <!-- 重置记录 3 -->
+            <div class="py-2.5 flex items-start gap-3">
+              <div class="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-mono text-on-surface font-medium">Jun 17, 2025</span>
+                  <span class="text-[10px] font-mono text-on-surface-variant">3d gap</span>
+                </div>
+                <p class="text-[10px] text-on-surface-variant mt-0.5">常规周期重置 — 无公开公告</p>
+              </div>
+            </div>
+
+            <!-- 重置记录 4 -->
+            <div class="py-2.5 flex items-start gap-3">
+              <div class="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-mono text-on-surface font-medium">Jun 14, 2025</span>
+                  <span class="text-[10px] font-mono text-on-surface-variant">5d gap</span>
+                </div>
+                <p class="text-[10px] text-on-surface-variant mt-0.5">产品发布后附带重置 — o3 模型更新</p>
+              </div>
+            </div>
+
+            <!-- 重置记录 5 -->
+            <div class="py-2.5 flex items-start gap-3">
+              <div class="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-mono text-on-surface font-medium">Jun 09, 2025</span>
+                  <span class="text-[10px] font-mono text-on-surface-variant">3d gap</span>
+                </div>
+                <p class="text-[10px] text-on-surface-variant mt-0.5">Tibo 暗示推文后 6 小时确认</p>
+              </div>
+            </div>
+
+            <!-- 重置记录 6 -->
+            <div class="py-2.5 flex items-start gap-3">
+              <div class="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-mono text-on-surface font-medium">Jun 06, 2025</span>
+                  <span class="text-[10px] font-mono text-on-surface-variant">4d gap</span>
+                </div>
+                <p class="text-[10px] text-on-surface-variant mt-0.5">常规窗口重置 — 社区报告集中</p>
+              </div>
+            </div>
+
+            <!-- 重置记录 7 -->
+            <div class="py-2.5 flex items-start gap-3">
+              <div class="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-mono text-on-surface font-medium">Jun 02, 2025</span>
+                  <span class="text-[10px] font-mono text-on-surface-variant">6d gap</span>
+                </div>
+                <p class="text-[10px] text-on-surface-variant mt-0.5">延长间隔 — 疑似内部调整</p>
+              </div>
+            </div>
+
+            <!-- 重置记录 8 -->
+            <div class="py-2.5 flex items-start gap-3">
+              <div class="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-mono text-on-surface font-medium">May 27, 2025</span>
+                  <span class="text-[10px] font-mono text-on-surface-variant">4d gap</span>
+                </div>
+                <p class="text-[10px] text-on-surface-variant mt-0.5">常规周期重置 — 状态页无异常</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 统计摘要 -->
+          <div class="mt-4 pt-3 border-t border-outline/10 grid grid-cols-3 gap-2 text-center">
+            <div>
+              <span class="text-lg font-mono font-bold text-on-surface block">47</span>
+              <span class="text-[9px] font-mono text-on-surface-variant uppercase">总次数</span>
+            </div>
+            <div>
+              <span class="text-lg font-mono font-bold text-primary block">3.8d</span>
+              <span class="text-[9px] font-mono text-on-surface-variant uppercase">中位间隔</span>
+            </div>
+            <div>
+              <span class="text-lg font-mono font-bold text-on-surface block">6d</span>
+              <span class="text-[9px] font-mono text-on-surface-variant uppercase">最长等待</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. 模型说明 -->
+        <div class="bg-surface rounded-lg shadow-card p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <i data-lucide="info" class="w-4 h-4 text-primary"></i>
+            <h2 class="text-sm font-semibold text-on-surface">About the Model</h2>
+          </div>
+          <p class="text-[11px] text-on-surface-variant leading-relaxed mb-3">
+            预测模型基于 47+ 条已验证重置记录，结合时间衰减函数、历史间隔统计（中位数 3.8 天）和多源信号加权（Tibo 推文、OpenAI 状态页、产品发布噪音）。概率每 3 小时更新一次。
+          </p>
+          <div class="bg-surface-container rounded-md px-3 py-2 border border-outline/10">
+            <p class="text-[10px] text-on-surface-variant leading-relaxed">
+              <span class="text-warning font-semibold">⚠ 免责声明：</span>此工具为非官方社区项目，与 OpenAI 无关。预测仅供参考，不构成任何承诺或保证。重置时间和频率完全由 OpenAI 决定。
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== 底部页脚 ===== -->
+    <footer class="mt-8 pt-5 border-t border-outline/20 flex items-center justify-between">
+      <span class="text-[10px] font-mono text-on-surface-variant">Model v2.4.1 · 47 resets tracked</span>
+      <div class="flex items-center gap-3 text-[10px] font-mono text-on-surface-variant">
+        <span>数据来源：Tibo 推文 · OpenAI 状态页 · 社区报告</span>
+        <span class="text-on-surface-variant/50">|</span>
+        <span>非官方 · 仅供参考</span>
+      </div>
+    </footer>
+
+  </main>
+  <!-- @main-content:end -->
+
+  <script>lucide.createIcons();</script>
+
+  <script>
+  $(function() {
+    // === Lucide icons 初始化 ===
+    lucide.createIcons();
+
+    // === 邮箱订阅 ===
+    $('#btn-subscribe').on('click', function() {
+      const email = $('#email-input').val().trim();
+      if (!email || !email.includes('@')) {
+        $('#email-input').addClass('ring-2 ring-error/50');
+        setTimeout(() => $('#email-input').removeClass('ring-2 ring-error/50'), 2000);
+        return;
+      }
+      console.log('订阅邮箱:', email);
+      $('#btn-subscribe').text('已订阅 ✓').prop('disabled', true).addClass('opacity-60');
+    });
+
+    // === 用量滑块交互 ===
+    $('#usage-slider').on('input', function() {
+      const val = $(this).val();
+      $('#usage-percent-display').text(val + '%');
+      $('#usage-progress-bar').css('width', val + '%');
+
+      // 更新判断文字
+      if (val >= 90) {
+        $('#usage-verdict').html('<span class="text-xs font-mono text-error font-semibold">🚨 危险！建议立即使用存储重置。</span>')
+          .removeClass('bg-primary/10 border-primary/20').addClass('bg-error/10 border-error/20');
+      } else if (val >= 75) {
+        $('#usage-verdict').html('<span class="text-xs font-mono text-warning font-semibold">⚠️ 紧张！考虑使用存储重置缓冲。</span>')
+          .removeClass('bg-primary/10 border-primary/20 bg-error/10 border-error/20').addClass('bg-warning/10 border-warning/20');
+      } else {
+        $('#usage-verdict').html('<span class="text-xs font-mono text-primary font-semibold">✅ 你能撑到重置！保持当前节奏即可。</span>')
+          .removeClass('bg-error/10 border-error/20 bg-warning/10 border-warning/20').addClass('bg-primary/10 border-primary/20');
+      }
+    });
+
+    // === 添加存储重置 ===
+    // 点击后应实现：
+    // 1. 弹出日期选择器（或展开内联日期输入）
+    // 2. 用户选择发放日期后，自动计算 30 天后的过期日期
+    // 3. 在列表顶部新增一条存储重置记录，显示发放日期、过期倒计时进度条
+    // 4. 状态标签默认为"可用"
+    // 5. 数据持久化到 localStorage
+    $('#btn-add-reset').on('click', function() {
+      console.log('添加存储重置 — 应弹出日期选择器并新增记录');
+    });
+
+    // === 信号卡片悬停效果 ===
+    $('.bg-surface-container').on('mouseenter', function() {
+      $(this).css('border-color', 'rgba(16, 163, 127, 0.2)');
+    }).on('mouseleave', function() {
+      $(this).css('border-color', '');
+    });
+  });
+  </script>
+
+</body>
+
+</html>

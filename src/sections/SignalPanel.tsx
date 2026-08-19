@@ -1,64 +1,59 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
+import { Radio } from "lucide-react";
 import type { ResetSignal } from "@/types/reset";
-import { RadioTower } from "lucide-react";
 
 interface SignalPanelProps {
   signals: ResetSignal[];
 }
 
 export function SignalPanel({ signals }: SignalPanelProps) {
-  const activeCount = signals.filter((s) => s.status === "active").length;
-
   return (
     <Card className="border-border/50 bg-card">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <RadioTower className="h-4 w-4" />
-            SIGNAL MONITOR
-          </CardTitle>
-          <Badge variant={activeCount > 2 ? "default" : "secondary"} className="text-xs">
-            {activeCount}/{signals.length} active
-          </Badge>
-        </div>
+        <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <Radio className="h-4 w-4" />
+          SIGNAL RADAR
+        </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {signals.map((signal) => (
-          <SignalRow key={signal.source} signal={signal} />
-        ))}
+      <CardContent>
+        <div className="grid grid-cols-2 gap-3">
+          {signals.map((signal) => (
+            <div
+              key={signal.source}
+              className="rounded-lg border border-border/50 p-3 space-y-2 hover:border-primary/30 transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-foreground">{signal.label}</span>
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    signal.status === "active"
+                      ? "bg-primary animate-pulse"
+                      : signal.status === "weak"
+                        ? "bg-amber-500"
+                        : "bg-muted-foreground/30"
+                  }`}
+                />
+              </div>
+              <div className="text-[11px] text-muted-foreground line-clamp-2">
+                {signal.description}
+              </div>
+              {/* Signal strength bar */}
+              <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    signal.status === "active"
+                      ? "bg-primary"
+                      : signal.status === "weak"
+                        ? "bg-amber-500"
+                        : "bg-muted-foreground/20"
+                  }`}
+                  style={{ width: `${signal.value * 100}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
       </CardContent>
     </Card>
-  );
-}
-
-function SignalRow({ signal }: { signal: ResetSignal }) {
-  const statusColor =
-    signal.status === "active"
-      ? "bg-primary"
-      : signal.status === "weak"
-        ? "bg-amber-400"
-        : "bg-muted-foreground/30";
-
-  const timeAgo = Math.floor((Date.now() - signal.updatedAt) / 1000);
-  const timeAgoLabel = timeAgo < 60 ? `${timeAgo}s` : `${Math.floor(timeAgo / 60)}m`;
-
-  return (
-    <div className="group">
-      <div className="flex items-center justify-between mb-1.5">
-        <div className="flex items-center gap-2">
-          <div className={`h-1.5 w-1.5 rounded-full ${statusColor}`} />
-          <span className="text-xs text-foreground">{signal.label}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono text-muted-foreground">{timeAgoLabel} ago</span>
-          <span className="text-xs font-mono text-muted-foreground w-8 text-right">
-            {Math.round(signal.value * 100)}%
-          </span>
-        </div>
-      </div>
-      <Progress value={signal.value * 100} className="h-1" />
-    </div>
   );
 }
