@@ -8,6 +8,7 @@ import { ProbabilityCurve } from "@/sections/ProbabilityCurve";
 import { SignalPanel } from "@/sections/SignalPanel";
 import { HistoryPanel } from "@/sections/HistoryPanel";
 import { ModelInfo } from "@/sections/ModelInfo";
+import { SubscribePanel } from "@/sections/SubscribePanel";
 
 export default function Home() {
   const { prediction, countdown, isLive, setIsLive } = usePrediction();
@@ -67,6 +68,7 @@ export default function Home() {
 
             {/* Right column - Secondary data */}
             <div className="md:col-span-4 space-y-4">
+              <SubscribePanel />
               <HistoryPanel resets={historicalResets} />
               <ModelInfo />
             </div>
