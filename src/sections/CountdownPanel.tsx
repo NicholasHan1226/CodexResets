@@ -1,37 +1,32 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatWindowDate } from "@/lib/prediction";
 import type { PlanningAdvice } from "@/types/reset";
-import { Clock, Target, Zap, Calendar } from "lucide-react";
+import { Target, Zap, Activity, AlertCircle } from "lucide-react";
 
 interface ResetEstimatePanelProps {
-  countdown: { days: number; hours: number; minutes: number; seconds: number };
-  windowStart: string;
-  windowEnd: string;
-  confidence: number;
   prob24h: number;
   prob48h: number;
   daysSinceLastReset: number;
   medianIntervalDays: number;
   advice: PlanningAdvice;
+  confidence: number;
 }
 
 export function ResetEstimatePanel({
-  countdown,
-  windowStart,
-  windowEnd,
-  confidence,
   prob24h,
   prob48h,
   daysSinceLastReset,
   medianIntervalDays,
   advice,
+  confidence,
 }: ResetEstimatePanelProps) {
-  const { days, hours, minutes, seconds } = countdown;
-  const confidencePercent = Math.round(confidence * 100);
   const waitRatio = daysSinceLastReset / medianIntervalDays;
   const waitPercent = Math.min(100, waitRatio * 100);
+  const prob24Percent = Math.round(prob24h * 100);
+  const prob48Percent = Math.round(prob48h * 100);
 
+  // Determine overall signal strength
+  const signalStrength = prob24h >= 0.5 ? "strong" : prob24h >= 0.25 ? "moderate" : "weak";
 
   return (
     <Card className="relative overflow-hidden border-border/50 bg-card">
@@ -40,48 +35,40 @@ export function ResetEstimatePanel({
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            NEXT RESET WINDOW
+            <Activity className="h-4 w-4" />
+            RESET OUTLOOK
           </CardTitle>
           <Badge variant="outline" className="text-xs font-mono">
-            {formatWindowDate(windowStart).split(" ").slice(0, 2).join(" ")}
+            {signalStrength === "strong" ? "HIGH" : signalStrength === "moderate" ? "MODERATE" : "LOW"} SIGNAL
           </Badge>
         </div>
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Predicted window */}
-        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-          <Calendar className="h-3.5 w-3.5" />
-          <span className="font-mono">{formatWindowDate(windowStart)}</span>
-          <span className="text-border">→</span>
-          <span className="font-mono">{formatWindowDate(windowEnd)}</span>
-        </div>
-
-        {/* Countdown digits */}
-        <div className="flex items-baseline justify-center gap-1 font-mono">
-          {days > 0 && (
-            <>
-              <TimeBlock value={days} label="d" />
-              <span className="text-muted-foreground/50 text-2xl mx-1">:</span>
-            </>
-          )}
-          <TimeBlock value={hours} label="h" />
-          <span className="text-muted-foreground/50 text-2xl mx-1">:</span>
-          <TimeBlock value={minutes} label="m" />
-          <span className="text-muted-foreground/50 text-2xl mx-1">:</span>
-          <TimeBlock value={seconds} label="s" />
-        </div>
-
-        {/* Probability gauges inline */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="text-center rounded-lg bg-muted/30 p-2">
-            <div className="text-lg font-mono font-bold text-primary">{Math.round(prob24h * 100)}%</div>
-            <div className="text-[10px] text-muted-foreground">24h</div>
+        {/* Main probability display */}
+        <div className="text-center py-2">
+          <div className="text-5xl font-mono font-bold text-primary tabular-nums">
+            {prob24Percent}%
           </div>
-          <div className="text-center rounded-lg bg-muted/30 p-2">
-            <div className="text-lg font-mono font-bold text-primary">{Math.round(prob48h * 100)}%</div>
-            <div className="text-[10px] text-muted-foreground">48h</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            probability of reset within 24h
+          </div>
+        </div>
+
+        {/* 48h probability */}
+        <div className="flex items-center justify-center gap-4 text-sm">
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">48h:</span>
+            <span className="font-mono font-semibold text-foreground">{prob48Percent}%</span>
+          </div>
+          <div className="h-3 w-px bg-border" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">Confidence:</span>
+            <span className={`font-mono font-semibold ${
+              confidence >= 0.6 ? "text-primary" : confidence >= 0.4 ? "text-amber-400" : "text-muted-foreground"
+            }`}>
+              {Math.round(confidence * 100)}%
+            </span>
           </div>
         </div>
 
@@ -90,10 +77,10 @@ export function ResetEstimatePanel({
           <div className="flex items-center justify-between text-xs mb-1.5">
             <span className="text-muted-foreground flex items-center gap-1">
               <Target className="h-3 w-3" />
-              Wait progress
+              Days since last reset
             </span>
             <span className="font-mono text-foreground">
-              {daysSinceLastReset.toFixed(1)}d / {medianIntervalDays.toFixed(1)}d
+              {daysSinceLastReset.toFixed(1)}d
             </span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -108,6 +95,13 @@ export function ResetEstimatePanel({
                     : "linear-gradient(90deg, hsl(var(--muted-foreground) / 0.3), hsl(var(--muted-foreground) / 0.5))",
               }}
             />
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1">
+            <span>0d</span>
+            <span className={waitRatio >= 1 ? "text-primary font-medium" : ""}>
+              median: {medianIntervalDays.toFixed(1)}d
+            </span>
+            <span>{waitRatio >= 1.5 ? "overdue" : waitRatio >= 1 ? "past median" : "building"}</span>
           </div>
         </div>
 
@@ -128,27 +122,15 @@ export function ResetEstimatePanel({
           </div>
         </div>
 
-        {/* Confidence */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">Confidence</span>
-          <span className={`text-sm font-mono font-semibold ${
-            confidence >= 0.6 ? "text-primary" : confidence >= 0.4 ? "text-amber-400" : "text-muted-foreground"
-          }`}>
-            {confidencePercent}%
+        {/* Disclaimer */}
+        <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground/70 pt-1 border-t border-border/30">
+          <AlertCircle className="h-3 w-3 shrink-0 mt-0.5" />
+          <span>
+            Resets are manually triggered by OpenAI and cannot be precisely predicted. 
+            This is a probability estimate based on historical patterns and public signals.
           </span>
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function TimeBlock({ value, label }: { value: number; label: string }) {
-  return (
-    <div className="flex flex-col items-center">
-      <span className="text-3xl font-bold tracking-tight text-foreground tabular-nums">
-        {String(value).padStart(2, "0")}
-      </span>
-      <span className="text-[10px] text-muted-foreground mt-0.5">{label}</span>
-    </div>
   );
 }

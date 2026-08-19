@@ -12,7 +12,7 @@ import { BankedResets } from "@/sections/BankedResets";
 import { TimeDistribution } from "@/sections/TimeDistribution";
 
 export default function Home() {
-  const { prediction, countdown, isLive, setIsLive } = usePrediction();
+  const { prediction, isLive, setIsLive } = usePrediction();
 
   if (!prediction) {
     return (
@@ -43,15 +43,12 @@ export default function Home() {
             <div className="md:col-span-8 space-y-4">
               {/* Reset estimate panel (replaces countdown + gauges) */}
               <ResetEstimatePanel
-                countdown={countdown}
-                windowStart={prediction.windowStart}
-                windowEnd={prediction.windowEnd}
-                confidence={prediction.confidence}
                 prob24h={prediction.prob24h}
                 prob48h={prediction.prob48h}
                 daysSinceLastReset={prediction.daysSinceLastReset}
                 medianIntervalDays={prediction.medianIntervalDays}
                 advice={prediction.advice}
+                confidence={prediction.confidence}
               />
 
               {/* Probability curve */}
