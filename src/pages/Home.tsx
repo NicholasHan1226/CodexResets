@@ -22,7 +22,7 @@ export default function Home() {
       <div className="flex h-screen items-center justify-center" role="status" aria-label="Loading">
         <div className="flex items-center gap-2 text-muted-foreground">
           <div className="h-2 w-2 animate-pulse rounded-full bg-primary" aria-hidden="true" />
-          <span className="text-sm font-mono">Initializing signal model...</span>
+          <span className="text-sm font-mono">{t('common.loading')}</span>
         </div>
       </div>
     );

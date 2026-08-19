@@ -6,6 +6,9 @@ export type Locale = 'en' | 'zh';
 // Flat key-value translation structure
 const translations: Record<Locale, Record<string, string>> = {
   en: {
+    // Common
+    'common.loading': 'Initializing signal model...',
+
     // Header
     'app.title': 'Codex Resets',
     'app.subtitle': 'Next reset prediction',
@@ -154,6 +157,9 @@ const translations: Record<Locale, Record<string, string>> = {
     'footer.disclaimer': 'Not affiliated with OpenAI. Resets are manually triggered and cannot be precisely predicted.',
   },
   zh: {
+    // Common
+    'common.loading': '正在初始化信号模型...',
+
     // Header
     'app.title': 'Codex 重置预判',
     'app.subtitle': '下次重置预测',
