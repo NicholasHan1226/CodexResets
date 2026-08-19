@@ -1,3 +1,18 @@
+export interface ResetRecord {
+  /** Unique identifier */
+  id: string;
+  /** Reset date in YYYY-MM-DD format */
+  date: string;
+  /** Reset timestamp in milliseconds */
+  timestamp: number;
+  /** Reason for the reset */
+  reason: string;
+  /** Source URL (e.g., tweet link) */
+  source?: string;
+  /** Whether this reset is verified */
+  verified?: boolean;
+}
+
 export interface ResetSignal {
   /** Signal source identifier */
   source: string;

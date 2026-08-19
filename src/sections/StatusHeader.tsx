@@ -1,26 +1,20 @@
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Activity, Radio, Wifi, WifiOff, Globe, Database } from "lucide-react";
+import { Activity, Radio, Globe, Database } from "lucide-react";
 
 interface StatusHeaderProps {
   isLive: boolean;
-  onToggleLive: (live: boolean) => void;
   modelVersion: string;
-  generatedAt: number;
   usingRealData?: boolean;
   signalsLoading?: boolean;
 }
 
 export function StatusHeader({ 
   isLive, 
-  onToggleLive, 
   modelVersion, 
-  generatedAt,
   usingRealData = false,
   signalsLoading = false,
 }: StatusHeaderProps) {
-  const timeAgo = Math.floor((Date.now() - generatedAt) / 1000);
-
   return (
     <header className="flex flex-col gap-3 border-b border-border pb-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
@@ -78,41 +72,26 @@ export function StatusHeader({
           </TooltipContent>
         </Tooltip>
 
+        <div className={cn(
+          "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium",
+          isLive
+            ? "bg-primary/10 text-primary"
+            : "bg-muted text-muted-foreground"
+        )}>
+          <Radio className="h-3 w-3" />
+          {isLive ? "LIVE" : "PAUSED"}
+        </div>
+
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
-              onClick={() => onToggleLive(!isLive)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-                isLive
-                  ? "bg-primary/10 text-primary hover:bg-primary/20"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              )}
-            >
-              {isLive ? (
-                <>
-                  <Radio className="h-3 w-3" />
-                  LIVE
-                </>
-              ) : (
-                <>
-                  <WifiOff className="h-3 w-3" />
-                  PAUSED
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1.5 text-xs text-muted-foreground">
+              <span className="font-mono">{modelVersion}</span>
+            </div>
           </TooltipTrigger>
           <TooltipContent>
-            {isLive ? "Click to pause real-time updates" : "Click to resume real-time updates"}
+            Signal model version
           </TooltipContent>
         </Tooltip>
-
-        <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
-          <Wifi className="h-3 w-3" />
-          <span>{modelVersion}</span>
-          <span className="text-border">|</span>
-          <span>{timeAgo}s ago</span>
-        </div>
       </div>
     </header>
   );

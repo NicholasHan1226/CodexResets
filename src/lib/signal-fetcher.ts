@@ -6,12 +6,18 @@
 
 import type { ResetSignal } from '@/types/reset';
 
-// RSS proxy for Twitter/X feeds
-const RSS2JSON_API = 'https://api.rss2json.com/v1/api.json';
+// RSS proxies for Twitter/X feeds (fallback chain)
+const RSS_PROXIES = [
+  'https://api.rss2json.com/v1/api.json',
+  'https://api.allorigins.win/raw?url=',
+];
 const TIBO_RSS_URL = 'https://rsshub.app/twitter/user/thsottiaux';
 
-// OpenAI status page API
-const OPENAI_STATUS_API = 'https://status.openai.com/api/v2/incidents.json';
+// OpenAI status page API (with fallback)
+const OPENAI_STATUS_APIS = [
+  'https://status.openai.com/api/v2/incidents.json',
+  'https://status.openai.com/history',
+];
 
 // Cache for fetched data
 interface CacheEntry<T> {
@@ -36,19 +42,38 @@ function setCache<T>(key: string, data: T, ttl: number): void {
   cache.set(key, { data, timestamp: Date.now(), ttl });
 }
 
-// Fetch Tibo's recent tweets via RSS proxy
+// Fetch with fallback across multiple proxies
+async function fetchWithFallback(urls: string[], options?: RequestInit): Promise<Response | null> {
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, { ...options, signal: AbortSignal.timeout(8000) });
+      if (response.ok) return response;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+// Fetch Tibo's recent tweets via RSS proxy with fallback
 export async function fetchTiboTweets(): Promise<ResetSignal | null> {
   const cacheKey = 'tibo_tweets';
   const cached = getCached<ResetSignal>(cacheKey);
   if (cached) return cached;
 
   try {
-    const response = await fetch(
-      `${RSS2JSON_API}?rss_url=${encodeURIComponent(TIBO_RSS_URL)}&count=10`
-    );
+    // Try primary proxy
+    const primaryUrl = `${RSS_PROXIES[0]}?rss_url=${encodeURIComponent(TIBO_RSS_URL)}&count=10`;
+    let response = await fetchWithFallback([primaryUrl]);
     
-    if (!response.ok) {
-      console.warn('Failed to fetch Tibo tweets:', response.status);
+    // If primary fails, try alternative proxy
+    if (!response) {
+      const altUrl = `${RSS_PROXIES[1]}${encodeURIComponent(TIBO_RSS_URL)}`;
+      response = await fetchWithFallback([altUrl]);
+    }
+
+    if (!response) {
+      console.warn('All RSS proxies failed for Tibo tweets');
       return null;
     }
 
@@ -128,17 +153,17 @@ export async function fetchTiboTweets(): Promise<ResetSignal | null> {
   }
 }
 
-// Fetch OpenAI status page incidents
+// Fetch OpenAI status page incidents with fallback
 export async function fetchOpenAIStatus(): Promise<ResetSignal | null> {
   const cacheKey = 'openai_status';
   const cached = getCached<ResetSignal>(cacheKey);
   if (cached) return cached;
 
   try {
-    const response = await fetch(OPENAI_STATUS_API);
+    const response = await fetchWithFallback(OPENAI_STATUS_APIS);
     
-    if (!response.ok) {
-      console.warn('Failed to fetch OpenAI status:', response.status);
+    if (!response) {
+      console.warn('All OpenAI status APIs failed');
       return null;
     }
 

@@ -1,17 +1,37 @@
-import type { ResetPrediction, ResetSignal, ProbabilityPoint, PlanningAdvice } from "@/types/reset";
-import { RESET_HISTORY, computeIntervalStats, getHourlyDistribution, getLastResetTime, getDaysSinceLastReset } from "@/lib/reset-data";
+import type { ResetPrediction, ResetSignal, ProbabilityPoint, PlanningAdvice, ResetRecord } from "@/types/reset";
+import { RESET_HISTORY, computeIntervalStats, computeHourlyDistribution } from "@/lib/reset-data";
+
+// Allow overriding reset history with dynamic data
+let dynamicResetHistory: ResetRecord[] | null = null;
+
+export function setDynamicResetHistory(records: ResetRecord[] | null): void {
+  dynamicResetHistory = records;
+}
+
+function getEffectiveHistory(): ResetRecord[] {
+  return dynamicResetHistory || RESET_HISTORY;
+}
 
 /**
  * Calculate base probability from time elapsed since last reset.
  * Uses a logistic growth model: probability increases as wait time exceeds median interval.
  */
 function baseProbabilityFromCooldown(): number {
-  const stats = computeIntervalStats();
-  const median = stats.median / 24; // convert hours to days
-  const daysSince = getDaysSinceLastReset();
+  const history = getEffectiveHistory();
+  const sorted = [...history].sort((a, b) => b.timestamp - a.timestamp);
+  const lastReset = sorted[0]?.timestamp || 0;
+  const daysSince = (Date.now() - lastReset) / (1000 * 60 * 60 * 24);
+  
+  // Calculate median interval
+  const intervals: number[] = [];
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const diff = (sorted[i].timestamp - sorted[i + 1].timestamp) / (1000 * 60 * 60 * 24);
+    if (diff > 0 && diff < 100) intervals.push(diff);
+  }
+  intervals.sort((a, b) => a - b);
+  const median = intervals.length > 0 ? intervals[Math.floor(intervals.length / 2)] : 3.8;
 
   // Logistic curve: P = 1 / (1 + e^(-k * (x - median)))
-  // k controls steepness. We want P(median) ≈ 0.5
   const k = 1.5 / median;
   const prob = 1 / (1 + Math.exp(-k * (daysSince - median)));
 
@@ -23,7 +43,7 @@ function baseProbabilityFromCooldown(): number {
  * Calculate time-of-day weighting based on historical reset announcement hours.
  */
 function timeOfDayWeight(utcHour: number): number {
-  const dist = getHourlyDistribution();
+  const dist = computeHourlyDistribution();
   const maxCount = Math.max(...dist);
   if (maxCount === 0) return 1;
   return 0.3 + 0.7 * (dist[utcHour] / maxCount);
@@ -135,7 +155,7 @@ function generateSignals(now: Date): ResetSignal[] {
   const daysSinceLast = (now.getTime() - lastResetDate.getTime()) / (1000 * 60 * 60 * 24);
 
   // Cooldown signal: based on time since last reset vs median
-  const cooldownRatio = daysSinceLast / (stats.median / 24);
+  const cooldownRatio = daysSinceLast / (stats.medianDays / 24);
   const cooldownValue = Math.min(1, cooldownRatio);
   const cooldownStatus: ResetSignal["status"] = cooldownRatio >= 1.2 ? "active" : cooldownRatio >= 0.7 ? "weak" : "idle";
 
@@ -177,7 +197,7 @@ function generateSignals(now: Date): ResetSignal[] {
     {
       source: "cooldown",
       label: "Time Cooldown",
-      description: `${daysSinceLast.toFixed(1)} days since last reset (median: ${(stats.median / 24).toFixed(1)}d)`,
+      description: `${daysSinceLast.toFixed(1)} days since last reset (median: ${(stats.medianDays / 24).toFixed(1)}d)`,
       value: cooldownValue,
       status: cooldownStatus,
       updatedAt: Date.now(),
@@ -195,14 +215,32 @@ function generateSignals(now: Date): ResetSignal[] {
 
 /**
  * Generate the full prediction model using real reset history.
+ * @param records Optional reset records to use instead of static data
  */
-export function generatePrediction(): ResetPrediction {
+export function generatePrediction(records?: ResetRecord[]): ResetPrediction {
+  // Set dynamic history if provided
+  if (records) {
+    setDynamicResetHistory(records);
+  }
+  
   const now = new Date();
-  const daysSince = getDaysSinceLastReset();
+  const history = getEffectiveHistory();
+  const sorted = [...history].sort((a, b) => b.timestamp - a.timestamp);
+  const lastReset = sorted[0]?.timestamp || 0;
+  const daysSince = (Date.now() - lastReset) / (1000 * 60 * 60 * 24);
+  
+  // Calculate median interval
+  const intervals: number[] = [];
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const diff = (sorted[i].timestamp - sorted[i + 1].timestamp) / (1000 * 60 * 60 * 24);
+    if (diff > 0 && diff < 100) intervals.push(diff);
+  }
+  intervals.sort((a, b) => a - b);
+  const median = intervals.length > 0 ? intervals[Math.floor(intervals.length / 2)] : 3.8;
+  
   const signals = generateSignals(now);
   const curve = generateCurve(now);
   const window = findResetWindow(curve);
-  const stats = computeIntervalStats();
 
   // Calculate 24h and 48h probabilities from curve
   const prob24h = curve
@@ -221,7 +259,7 @@ export function generatePrediction(): ResetPrediction {
     })
     .reduce((sum, p) => sum + p.probability, 0);
 
-  const advice = generateAdvice(prob24h, prob48h, daysSince, stats.median / 24);
+  const advice = generateAdvice(prob24h, prob48h, daysSince, median);
 
   return {
     windowStart: window.start,
@@ -231,9 +269,9 @@ export function generatePrediction(): ResetPrediction {
     prob48h: Math.min(0.98, Math.round(prob48h * 100) / 100),
     curve,
     signals,
-    lastReset: getLastResetTime().toISOString(),
+    lastReset: new Date(lastReset).toISOString(),
     daysSinceLastReset: Math.round(daysSince * 10) / 10,
-    medianIntervalDays: Math.round((stats.median / 24) * 10) / 10,
+    medianIntervalDays: Math.round(median * 10) / 10,
     advice,
     modelVersion: "v3.0-real",
     generatedAt: Date.now(),

@@ -1,17 +1,20 @@
 import { useState, useEffect, useCallback } from "react";
 import { generatePrediction } from "@/lib/prediction";
 import { getSignalsWithFallback } from "@/lib/signal-fetcher";
-import type { ResetPrediction } from "@/types/reset";
+import { fetchResetRecords } from "@/lib/reset-records";
+import type { ResetPrediction, ResetRecord } from "@/types/reset";
 
 /**
  * Hook that manages the reset prediction state.
  * Fetches real signals from public sources (Tibo tweets, OpenAI status page)
- * and falls back to simulated data if real fetch fails.
+ * and reset history from Supabase.
+ * Falls back to simulated data if real fetch fails.
  * Refreshes data every 5 minutes (signals are cached).
  */
 export function usePrediction() {
   const [prediction, setPrediction] = useState<ResetPrediction | null>(null);
-  const [isLive, setIsLive] = useState(true);
+  const [resetRecords, setResetRecords] = useState<ResetRecord[]>([]);
+  const isLive = true;
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [usingRealData, setUsingRealData] = useState(false);
 
@@ -19,8 +22,14 @@ export function usePrediction() {
     setSignalsLoading(true);
     
     try {
+      // Fetch reset records from Supabase
+      const records = await fetchResetRecords();
+      if (records.length > 0) {
+        setResetRecords(records);
+      }
+      
       // Generate base prediction from historical data
-      const data = generatePrediction();
+      const data = generatePrediction(records.length > 0 ? records : undefined);
       
       // Try to fetch real signals
       const { signals, hasRealData } = await getSignalsWithFallback(data.signals);
@@ -32,6 +41,10 @@ export function usePrediction() {
         signals,
         generatedAt: Date.now(),
       });
+      
+      if (records.length > 0) {
+        setUsingRealData(true);
+      }
     } catch (error) {
       console.warn('Error refreshing prediction:', error);
       // Fall back to simulated data
@@ -50,5 +63,12 @@ export function usePrediction() {
     return () => clearInterval(interval);
   }, [refresh]);
 
-  return { prediction, isLive, setIsLive, refresh, signalsLoading, usingRealData };
+  return {
+    prediction,
+    resetRecords,
+    isLive,
+    signalsLoading,
+    usingRealData,
+    refresh,
+  };
 }
