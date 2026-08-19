@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useI18n } from "@/contexts/I18nContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { UsageTracking } from "@/types/reset";
@@ -7,6 +8,7 @@ import { Terminal, Save, RotateCcw } from "lucide-react";
 const STORAGE_KEY = "codex-resets-usage";
 
 export function UsageTracker() {
+  const { t } = useI18n();
   const [tracking, setTracking] = useState<UsageTracking | null>(null);
   const [resetTime, setResetTime] = useState("");
   const [usagePercent, setUsagePercent] = useState(50);
@@ -46,13 +48,12 @@ export function UsageTracker() {
     setUsagePercent(50);
   };
 
-  // Calculate "can you make it?" status
   const getSustainability = () => {
     if (!tracking) return null;
     const percent = tracking.usagePercent;
-    if (percent >= 90) return { text: "You won't make it. Consider using a banked reset.", color: "text-destructive" };
-    if (percent >= 70) return { text: "Tight. Avoid heavy tasks until reset.", color: "text-amber-500" };
-    return { text: "You should make it to the reset.", color: "text-primary" };
+    if (percent >= 90) return { text: t('usage.wontMakeIt'), color: "text-destructive" };
+    if (percent >= 70) return { text: t('usage.tight'), color: "text-amber-500" };
+    return { text: t('usage.shouldMakeIt'), color: "text-primary" };
   };
 
   const sustainability = getSustainability();
@@ -66,9 +67,8 @@ export function UsageTracker() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Weekly reset time input */}
         <div>
-          <label className="text-[11px] text-muted-foreground mb-1 block">Weekly reset time</label>
+          <label className="text-[11px] text-muted-foreground mb-1 block">{t('usage.weeklyResetTime')}</label>
           <input
             type="time"
             value={resetTime}
@@ -77,10 +77,9 @@ export function UsageTracker() {
           />
         </div>
 
-        {/* Usage percentage slider */}
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="text-[11px] text-muted-foreground">Usage rate</label>
+            <label className="text-[11px] text-muted-foreground">{t('usage.usageRate')}</label>
             <span className="text-xs font-mono text-foreground">{usagePercent}%</span>
           </div>
           <input
@@ -91,7 +90,6 @@ export function UsageTracker() {
             onChange={(e) => setUsagePercent(Number(e.target.value))}
             className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-muted [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
           />
-          {/* Progress bar visualization */}
           <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full transition-all duration-300"
@@ -107,23 +105,21 @@ export function UsageTracker() {
           </div>
         </div>
 
-        {/* Sustainability check */}
         {sustainability && (
           <div className={`text-xs ${sustainability.color}`}>
             {sustainability.text}
           </div>
         )}
 
-        {/* Actions */}
         <div className="flex gap-2">
           <Button onClick={handleSave} size="sm" className="flex-1 h-7 text-xs">
             <Save className="h-3 w-3 mr-1" />
-            {saved ? "Saved!" : "Save"}
+            {saved ? t('usage.saved') : t('usage.save')}
           </Button>
           {tracking && (
             <Button onClick={handleReset} size="sm" variant="ghost" className="h-7 text-xs">
               <RotateCcw className="h-3 w-3 mr-1" />
-              Reset
+              {t('usage.reset')}
             </Button>
           )}
         </div>

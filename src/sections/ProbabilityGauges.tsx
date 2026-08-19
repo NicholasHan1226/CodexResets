@@ -1,72 +1,67 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Gauge } from "lucide-react";
+import { useI18n } from '@/contexts/I18nContext';
+import type { ResetPrediction } from '@/types/reset';
+import { Card } from '@/components/ui/card';
 
 interface ProbabilityGaugesProps {
-  prob24h: number;
-  prob48h: number;
+  prediction: ResetPrediction;
 }
 
-export function ProbabilityGauges({ prob24h, prob48h }: ProbabilityGaugesProps) {
+function CircularProgress({ value, label, size = 100 }: { value: number; label: string; size?: number }) {
+  const radius = (size - 12) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (value / 100) * circumference;
+
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <GaugeCard label="24h Probability" value={prob24h} />
-      <GaugeCard label="48h Probability" value={prob48h} />
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90">
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke="hsl(var(--border))"
+            strokeWidth="4"
+          />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke="hsl(var(--primary))"
+            strokeWidth="4"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            className="transition-all duration-1000 ease-out"
+            style={{
+              filter: 'drop-shadow(0 0 4px hsl(var(--primary) / 0.5))'
+            }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-2xl font-mono font-bold text-foreground">
+            {Math.round(value)}%
+          </span>
+        </div>
+      </div>
+      <span className="text-xs font-mono text-muted-foreground">{label}</span>
     </div>
   );
 }
 
-function GaugeCard({ label, value }: { label: string; value: number }) {
-  const percent = Math.round(value * 100);
-  const circumference = 2 * Math.PI * 40;
-  const strokeDashoffset = circumference - (value * circumference);
-
-  const color =
-    value >= 0.5 ? "#10A37F" : value >= 0.25 ? "#F59E0B" : "#8B92A0";
+export function ProbabilityGauges({ prediction }: ProbabilityGaugesProps) {
+  const { t } = useI18n();
 
   return (
-    <Card className="border-border/50 bg-card">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <Gauge className="h-3.5 w-3.5" />
-          {label}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col items-center">
-        {/* SVG circular gauge */}
-        <div className="relative w-24 h-24">
-          <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-            {/* Background circle */}
-            <circle
-              cx="50"
-              cy="50"
-              r="40"
-              fill="none"
-              stroke="hsl(220 6% 16%)"
-              strokeWidth="6"
-            />
-            {/* Value arc */}
-            <circle
-              cx="50"
-              cy="50"
-              r="40"
-              fill="none"
-              stroke={color}
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              className="transition-all duration-1000 ease-out"
-            />
-          </svg>
-          {/* Center text */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-xl font-bold font-mono text-foreground tabular-nums">
-              {percent}
-            </span>
-            <span className="text-[10px] text-muted-foreground">%</span>
-          </div>
-        </div>
-      </CardContent>
+    <Card className="p-5 bg-card border-border/50">
+      <h2 className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-4">
+        {t('gauges.title')}
+      </h2>
+      <div className="flex items-center justify-around">
+        <CircularProgress value={prediction.prob24h} label={t('gauges.next24h')} />
+        <CircularProgress value={prediction.prob48h} label={t('gauges.next48h')} />
+      </div>
     </Card>
   );
 }

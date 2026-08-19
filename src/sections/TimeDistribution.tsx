@@ -1,14 +1,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useI18n } from "@/contexts/I18nContext";
 import { BarChart3 } from "lucide-react";
 import { RESET_HISTORY } from "@/lib/reset-data";
 
 export function TimeDistribution() {
+  const { t } = useI18n();
   // Build hourly distribution from reset history
   const hourlyCounts = new Array(24).fill(0);
   const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   RESET_HISTORY.forEach((event) => {
-    const hour = new Date(event.date).getHours();
+    const hour = new Date(event.timestamp).getHours();
     hourlyCounts[hour]++;
   });
 
@@ -31,7 +33,7 @@ export function TimeDistribution() {
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <BarChart3 className="h-4 w-4" />
-            RESET TIME DISTRIBUTION
+            {t('timeDistribution.title')}
           </CardTitle>
           <span className="text-[10px] text-muted-foreground font-mono">{userTz}</span>
         </div>
@@ -54,7 +56,7 @@ export function TimeDistribution() {
                       ? "hsl(var(--muted-foreground) / 0.3)"
                       : "hsl(var(--muted) / 0.5)",
                 }}
-                title={`${String(hour).padStart(2, "0")}:00 — ${count} resets`}
+                title={`${String(hour).padStart(2, "0")}:00 — ${count} ${t('timeDistribution.resets')}`}
               />
             );
           })}
@@ -71,12 +73,12 @@ export function TimeDistribution() {
 
         {/* Peak window info */}
         <div className="rounded-lg bg-muted/30 p-2.5">
-          <div className="text-[11px] text-muted-foreground mb-1">Peak window</div>
+          <div className="text-[11px] text-muted-foreground mb-1">{t('timeDistribution.peakWindow')}</div>
           <div className="text-sm font-mono font-semibold text-foreground">
             {String(bestStart).padStart(2, "0")}:00 – {String((bestStart + 3) % 24).padStart(2, "0")}:00
           </div>
           <div className="text-[10px] text-muted-foreground mt-0.5">
-            {bestCount} of {RESET_HISTORY.length} resets ({Math.round((bestCount / RESET_HISTORY.length) * 100)}%) fall in this window
+            {t('timeDistribution.peakInfo', { count: bestCount, total: RESET_HISTORY.length, percent: Math.round((bestCount / RESET_HISTORY.length) * 100) })}
           </div>
         </div>
       </CardContent>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useI18n } from "@/contexts/I18nContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { BankedReset } from "@/types/reset";
@@ -7,6 +8,7 @@ import { Package, Plus, Check, AlertTriangle } from "lucide-react";
 const STORAGE_KEY = "codex-resets-banked";
 
 export function BankedResets() {
+  const { t } = useI18n();
   const [resets, setResets] = useState<BankedReset[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [issueDate, setIssueDate] = useState("");
@@ -66,13 +68,14 @@ export function BankedResets() {
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <Package className="h-4 w-4" />
-            BANKED RESETS
+            {t('banked.title')}
           </CardTitle>
           <Button
             size="sm"
             variant="ghost"
             className="h-6 w-6 p-0"
             onClick={() => setShowAdd(!showAdd)}
+            aria-label={t('banked.add')}
           >
             <Plus className="h-3.5 w-3.5" />
           </Button>
@@ -83,7 +86,7 @@ export function BankedResets() {
         {showAdd && (
           <div className="flex gap-2 items-end">
             <div className="flex-1">
-              <label className="text-[10px] text-muted-foreground mb-1 block">Issue date</label>
+              <label className="text-[10px] text-muted-foreground mb-1 block">{t('banked.issueDate')}</label>
               <input
                 type="date"
                 value={issueDate}
@@ -92,7 +95,7 @@ export function BankedResets() {
               />
             </div>
             <Button size="sm" className="h-7 text-xs" onClick={handleAdd}>
-              Add
+              {t('banked.add')}
             </Button>
           </div>
         )}
@@ -100,7 +103,7 @@ export function BankedResets() {
         {/* Available resets */}
         {available.length === 0 && !showAdd && (
           <div className="text-xs text-muted-foreground text-center py-2">
-            No banked resets. Refer friends to earn resets.
+            {t('banked.empty')}
           </div>
         )}
         {available.map((reset) => {
@@ -113,7 +116,7 @@ export function BankedResets() {
             <div key={reset.id} className="rounded-lg border border-border/50 p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-foreground">
-                  {daysLeft > 0 ? `${daysLeft} days left` : "Expired"}
+                  {daysLeft > 0 ? t('banked.daysLeft', { days: daysLeft }) : t('banked.expired')}
                 </span>
                 <div className="flex gap-1">
                   {daysLeft > 0 && (
@@ -124,7 +127,7 @@ export function BankedResets() {
                       onClick={() => handleUse(reset.id)}
                     >
                       <Check className="h-3 w-3 mr-1" />
-                      Use
+                      {t('banked.use')}
                     </Button>
                   )}
                   <Button
@@ -132,6 +135,7 @@ export function BankedResets() {
                     variant="ghost"
                     className="h-6 w-6 p-0"
                     onClick={() => handleRemove(reset.id)}
+                    aria-label={t('banked.remove')}
                   >
                     <AlertTriangle className="h-3 w-3 text-muted-foreground" />
                   </Button>
@@ -147,7 +151,7 @@ export function BankedResets() {
                 />
               </div>
               <div className="text-[10px] text-muted-foreground font-mono">
-                Issued: {new Date(reset.issueDate).toLocaleDateString()} · Expires: {new Date(reset.expiryDate).toLocaleDateString()}
+                {t('banked.issued')}: {new Date(reset.issueDate).toLocaleDateString()} · {t('banked.expires')}: {new Date(reset.expiryDate).toLocaleDateString()}
               </div>
             </div>
           );
@@ -156,7 +160,7 @@ export function BankedResets() {
         {/* Used resets */}
         {used.length > 0 && (
           <div className="pt-2 border-t border-border/30">
-            <div className="text-[10px] text-muted-foreground mb-1">Used ({used.length})</div>
+            <div className="text-[10px] text-muted-foreground mb-1">{t('banked.used')} ({used.length})</div>
             {used.map((reset) => (
               <div key={reset.id} className="text-[10px] text-muted-foreground/50 line-through font-mono">
                 {new Date(reset.issueDate).toLocaleDateString()}
