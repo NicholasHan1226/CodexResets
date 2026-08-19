@@ -1,18 +1,22 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Radio } from "lucide-react";
+import { Radio, Loader2 } from "lucide-react";
 import type { ResetSignal } from "@/types/reset";
 
 interface SignalPanelProps {
   signals: ResetSignal[];
+  loading?: boolean;
 }
 
-export function SignalPanel({ signals }: SignalPanelProps) {
+export function SignalPanel({ signals, loading = false }: SignalPanelProps) {
   return (
     <Card className="border-border/50 bg-card">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <Radio className="h-4 w-4" />
-          SIGNAL RADAR
+        <CardTitle className="flex items-center justify-between text-sm font-medium text-muted-foreground">
+          <span className="flex items-center gap-2">
+            <Radio className="h-4 w-4" />
+            SIGNAL RADAR
+          </span>
+          {loading && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
         </CardTitle>
       </CardHeader>
       <CardContent>

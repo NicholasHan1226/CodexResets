@@ -1,43 +1,54 @@
 import { useState, useEffect, useCallback } from "react";
-import { generatePrediction, formatDuration } from "@/lib/prediction";
+import { generatePrediction } from "@/lib/prediction";
+import { getSignalsWithFallback } from "@/lib/signal-fetcher";
 import type { ResetPrediction } from "@/types/reset";
 
 /**
  * Hook that manages the reset prediction state.
- * Refreshes data every 30 seconds.
+ * Fetches real signals from public sources (Tibo tweets, OpenAI status page)
+ * and falls back to simulated data if real fetch fails.
+ * Refreshes data every 5 minutes (signals are cached).
  */
 export function usePrediction() {
   const [prediction, setPrediction] = useState<ResetPrediction | null>(null);
-  const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [isLive, setIsLive] = useState(true);
+  const [signalsLoading, setSignalsLoading] = useState(true);
+  const [usingRealData, setUsingRealData] = useState(false);
 
-  const refresh = useCallback(() => {
-    const data = generatePrediction();
-    setPrediction(data);
+  const refresh = useCallback(async () => {
+    setSignalsLoading(true);
+    
+    try {
+      // Generate base prediction from historical data
+      const data = generatePrediction();
+      
+      // Try to fetch real signals
+      const { signals, hasRealData } = await getSignalsWithFallback(data.signals);
+      setUsingRealData(hasRealData);
+      
+      // Update prediction with real signals
+      setPrediction({
+        ...data,
+        signals,
+        generatedAt: Date.now(),
+      });
+    } catch (error) {
+      console.warn('Error refreshing prediction:', error);
+      // Fall back to simulated data
+      const data = generatePrediction();
+      setPrediction(data);
+      setUsingRealData(false);
+    } finally {
+      setSignalsLoading(false);
+    }
   }, []);
 
-  // Initial load and periodic refresh
+  // Initial load and periodic refresh (every 5 minutes)
   useEffect(() => {
     refresh();
-    const interval = setInterval(refresh, 30000);
+    const interval = setInterval(refresh, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [refresh]);
 
-  // Countdown timer — counts toward the start of the predicted window
-  useEffect(() => {
-    if (!prediction) return;
-
-    const updateCountdown = () => {
-      const windowStart = new Date(prediction.windowStart).getTime();
-      const now = Date.now();
-      const diff = Math.max(0, windowStart - now);
-      setCountdown(formatDuration(diff));
-    };
-
-    updateCountdown();
-    const timer = setInterval(updateCountdown, 1000);
-    return () => clearInterval(timer);
-  }, [prediction]);
-
-  return { prediction, countdown, isLive, setIsLive, refresh };
+  return { prediction, isLive, setIsLive, refresh, signalsLoading, usingRealData };
 }

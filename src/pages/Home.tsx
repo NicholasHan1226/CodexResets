@@ -12,7 +12,7 @@ import { BankedResets } from "@/sections/BankedResets";
 import { TimeDistribution } from "@/sections/TimeDistribution";
 
 export default function Home() {
-  const { prediction, isLive, setIsLive } = usePrediction();
+  const { prediction, isLive, setIsLive, signalsLoading, usingRealData } = usePrediction();
 
   if (!prediction) {
     return (
@@ -35,13 +35,15 @@ export default function Home() {
             onToggleLive={setIsLive}
             modelVersion={prediction.modelVersion}
             generatedAt={prediction.generatedAt}
+            usingRealData={usingRealData}
+            signalsLoading={signalsLoading}
           />
 
           {/* Main grid */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
             {/* Left column - Primary data */}
             <div className="md:col-span-8 space-y-4">
-              {/* Reset estimate panel (replaces countdown + gauges) */}
+              {/* Reset estimate panel (probability-first, no countdown) */}
               <ResetEstimatePanel
                 prob24h={prediction.prob24h}
                 prob48h={prediction.prob48h}
@@ -55,7 +57,7 @@ export default function Home() {
               <ProbabilityCurve curve={prediction.curve} />
 
               {/* Signal radar */}
-              <SignalPanel signals={prediction.signals} />
+              <SignalPanel signals={prediction.signals} loading={signalsLoading} />
 
               {/* Reset time distribution */}
               <TimeDistribution />
@@ -73,8 +75,9 @@ export default function Home() {
 
           {/* Footer */}
           <footer className="mt-8 border-t border-border/50 pt-4">
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground/60">
+            <div className="flex flex-col gap-1 text-[10px] text-muted-foreground/60 sm:flex-row sm:items-center sm:justify-between">
               <span>Codex Resets Prediction Model {prediction.modelVersion}</span>
+              <span>Resets are manually triggered by OpenAI and cannot be precisely predicted. This is a probability estimate based on historical patterns and public signals.</span>
               <span>Not affiliated with OpenAI</span>
             </div>
           </footer>
