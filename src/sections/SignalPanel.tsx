@@ -1,85 +1,101 @@
 import { useI18n } from '@/contexts/I18nContext';
 import type { ResetPrediction } from '@/types/reset';
-import { SatelliteDish, Loader2, MessageSquare, Server, Hourglass, Megaphone } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 interface SignalPanelProps {
   prediction: ResetPrediction;
   loading?: boolean;
 }
 
-const signalIcons: Record<string, typeof MessageSquare> = {
-  tibo: MessageSquare,
-  status: Server,
-  cooldown: Hourglass,
-  launch: Megaphone,
+const statusTagMap: Record<string, { label: string; className: string }> = {
+  active: { label: 'ACTIVE', className: 'text-primary' },
+  weak: { label: 'WARM', className: 'text-warning' },
+  idle: { label: 'IDLE', className: 'text-muted-foreground/60' },
 };
 
-const statusStyles: Record<string, { badge: string; barColor: string }> = {
-  active: { badge: 'bg-success/15 text-success', barColor: 'bg-primary' },
-  weak: { badge: 'bg-warning/15 text-warning', barColor: 'bg-warning' },
-  idle: { badge: 'bg-muted text-muted-foreground', barColor: 'bg-muted-foreground/50' },
-};
+function timeAgo(timestamp: number, locale: string): string {
+  const diff = Date.now() - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (locale === 'zh') {
+    if (days > 0) return `${days}天前`;
+    if (hours > 0) return `${hours}小时前`;
+    return `${minutes}分钟前`;
+  }
+  if (days > 0) return `${days}d ago`;
+  if (hours > 0) return `${hours}h ago`;
+  return `${minutes}m ago`;
+}
 
 export function SignalPanel({ prediction, loading }: SignalPanelProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
-  const statusTextMap: Record<string, string> = {
-    'active': 'ACTIVE',
-    'weak': 'WARM',
-    'idle': 'IDLE',
-  };
+  // Sort signals by updatedAt descending — most recent first
+  const sortedSignals = [...prediction.signals].sort((a, b) => b.updatedAt - a.updatedAt);
 
   return (
-    <section className="bg-card rounded-lg shadow-card p-6" aria-label="Signal radar">
+    <section aria-label="Signal radar" className="max-w-3xl">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
-          <SatelliteDish className="w-4 h-4 text-primary" />
+        <h2 className="text-lg font-semibold text-foreground">
           {t('signals.title')}
         </h2>
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-mono text-muted-foreground">
-            {prediction.signals.length} sources monitored
+          <span className="font-mono text-xs text-muted-foreground">
+            {prediction.signals.length} sources
           </span>
           {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {prediction.signals.map((signal) => {
-          const IconComponent = signalIcons[signal.source] || MessageSquare;
-          const style = statusStyles[signal.status] || statusStyles.idle;
-          const pct = Math.round(signal.value * 100);
+      {/* Timeline feed */}
+      <div className="mt-4 space-y-0">
+        {sortedSignals.map((signal, i) => {
+          const tag = statusTagMap[signal.status] || statusTagMap.idle;
+          const desc = signal.descriptionParams
+            ? t(signal.description, signal.descriptionParams)
+            : t(signal.description);
 
           return (
             <div
               key={signal.label}
-              className="bg-muted/50 rounded-lg p-4 border border-border/10 hover:border-primary/30 transition-colors"
+              className={`flex gap-4 py-3 ${i > 0 ? 'border-t border-border/20' : ''}`}
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                  <IconComponent className="w-4 h-4 text-primary" />
-                  {signal.label}
+              {/* Timestamp */}
+              <span className="shrink-0 w-16 pt-0.5 font-mono text-xs text-muted-foreground/60">
+                {timeAgo(signal.updatedAt, locale)}
+              </span>
+
+              {/* Content */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className={`font-mono text-xs font-medium ${tag.className}`}>
+                    {tag.label}
+                  </span>
+                  <span className="text-sm font-medium text-foreground">
+                    {signal.label}
+                  </span>
                 </div>
-                <span className="text-[11px] font-mono text-muted-foreground">
-                  {signal.source}
-                </span>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  {desc}
+                </p>
+                {signal.sourceUrl && (
+                  <a
+                    href={signal.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-block font-mono text-xs text-primary hover:underline"
+                  >
+                    {signal.source} →
+                  </a>
+                )}
               </div>
-              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-                {signal.descriptionParams
-                  ? t(signal.description, signal.descriptionParams)
-                  : t(signal.description)}
-              </p>
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${style.barColor} ${signal.status === 'active' ? 'signal-glow' : ''}`}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-sm text-[11px] font-mono font-medium ${style.badge}`}>
-                  {statusTextMap[signal.status] || signal.status.toUpperCase()}
-                </span>
-              </div>
+
+              {/* Signal strength — text-based */}
+              <span className="shrink-0 pt-0.5 font-mono text-xs text-muted-foreground/40">
+                {Math.round(signal.value * 100)}%
+              </span>
             </div>
           );
         })}

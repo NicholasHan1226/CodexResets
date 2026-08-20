@@ -36,7 +36,6 @@ export default function Home() {
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-background">
-        {/* Header */}
         <StatusHeader
           prediction={prediction}
           isLive={isLive}
@@ -49,54 +48,59 @@ export default function Home() {
           }}
         />
 
-        <main className="mx-auto max-w-7xl px-4 md:px-6 py-8" role="main" aria-label="Codex Reset Prediction Dashboard">
-          {/* Hero Section - full width */}
+        <main className="mx-auto max-w-3xl px-4 md:px-6 py-10" role="main" aria-label="Codex Reset Prediction Dashboard">
+          {/* The answer */}
           <HeroSection prediction={prediction} />
 
-          {/* Main grid: 8+4 columns */}
-          <div className="grid grid-cols-12 gap-6 mt-8">
-            {/* Left column - Primary data */}
-            <section className="col-span-12 lg:col-span-8 flex flex-col gap-6 min-w-0" aria-label="Primary prediction data">
-              <div className="fade-in-up-delay-1">
-                <ProbabilityCurve curve={prediction.curve} />
-              </div>
+          <hr className="my-10 border-border/30" />
 
-              <div className="fade-in-up-delay-2">
-                <SignalPanel prediction={prediction} loading={signalsLoading} />
-              </div>
+          {/* Probability curve */}
+          <ProbabilityCurve curve={prediction.curve} />
 
-              <div className="fade-in-up-delay-3">
-                <TimeDistribution />
-              </div>
-            </section>
+          <hr className="my-10 border-border/30" />
 
-            {/* Right column - Secondary data */}
-            <aside className="col-span-12 lg:col-span-4 flex flex-col gap-6 min-w-0" aria-label="Tools and history">
-              <div className="fade-in-up-delay-1">
-                <ResetAlertsPanel />
-              </div>
-              <div className="fade-in-up-delay-2">
-                <UsageTracker />
-              </div>
-              <div className="fade-in-up-delay-3">
-                <HistoryBankedPanel />
-              </div>
-              <div className="fade-in-up-delay-3">
-                <ResetCalendar />
-              </div>
-              <div className="fade-in-up-delay-3">
-                <PredictionAccuracy />
-              </div>
-              <div className="fade-in-up-delay-3">
-                <ModelInfo />
-              </div>
-            </aside>
-          </div>
+          {/* Signal radar feed */}
+          <SignalPanel prediction={prediction} loading={signalsLoading} />
+
+          <hr className="my-10 border-border/30" />
+
+          {/* Usage tracker */}
+          <UsageTracker />
+
+          <hr className="my-10 border-border/30" />
+
+          {/* Time distribution */}
+          <TimeDistribution />
+
+          <hr className="my-10 border-border/30" />
+
+          {/* History & banked */}
+          <HistoryBankedPanel />
+
+          <hr className="my-10 border-border/30" />
+
+          {/* Calendar heatmap */}
+          <ResetCalendar />
+
+          <hr className="my-10 border-border/30" />
+
+          {/* Prediction accuracy */}
+          <PredictionAccuracy />
+
+          <hr className="my-10 border-border/30" />
+
+          {/* Alerts */}
+          <ResetAlertsPanel />
+
+          <hr className="my-10 border-border/30" />
+
+          {/* About the model */}
+          <ModelInfo />
 
           {/* Footer */}
-          <footer className="mt-8 pt-6 border-t border-border/10 text-center" role="contentinfo">
+          <footer className="mt-10 pt-6 border-t border-border/30" role="contentinfo">
             <p className="text-xs text-muted-foreground">{t('footer.disclaimer')}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground/60 font-mono">
+            <p className="mt-1 font-mono text-[11px] text-muted-foreground/50">
               {usingRealData ? t('footer.liveData') : t('footer.simulatedData')}
             </p>
           </footer>

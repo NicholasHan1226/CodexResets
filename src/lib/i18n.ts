@@ -10,6 +10,15 @@ const translations: Record<Locale, Record<string, string>> = {
     'common.loading': 'Initializing signal model...',
 
     // Hero Section
+    'hero.signalNo': 'no official reset signal',
+    'hero.signalYes': 'reset signal detected',
+    'hero.answerNo': 'No.',
+    'hero.answerYes': 'Likely.',
+    'hero.lastResetWas': 'The last verified global reset was',
+    'hero.daysAgo': 'days ago',
+    'hero.flatNote': 'Waiting longer does not raise the odds — the 24h number stays flat while the quiet stretch runs.',
+    'hero.medianGap': 'median gap',
+    'hero.adviceLabel': 'Advice —',
     'hero.prob24h': '24h Reset Probability',
     'hero.prob48h': '48h Reset Probability',
     'hero.trend': '+9 pts / 24h',
@@ -207,6 +216,15 @@ const translations: Record<Locale, Record<string, string>> = {
     'common.loading': '正在初始化信号模型...',
 
     // Hero Section
+    'hero.signalNo': '暂无官方重置信号',
+    'hero.signalYes': '检测到重置信号',
+    'hero.answerNo': '不会。',
+    'hero.answerYes': '很可能。',
+    'hero.lastResetWas': '上次已验证的全局重置发生在',
+    'hero.daysAgo': '天前',
+    'hero.flatNote': '等待不会提高概率——在平静期内，24 小时数值保持不变。',
+    'hero.medianGap': '中位间隔',
+    'hero.adviceLabel': '建议 —',
     'hero.prob24h': '24h 内重置概率',
     'hero.prob48h': '48h 内重置概率',
     'hero.trend': '+9 点 / 24h',

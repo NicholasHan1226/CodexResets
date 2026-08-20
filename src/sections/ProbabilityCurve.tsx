@@ -1,8 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot } from "recharts";
 import type { ProbabilityPoint } from "@/types/reset";
-import { TrendingUp, Clock } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
 
 interface ProbabilityCurveProps {
@@ -53,25 +50,16 @@ export function ProbabilityCurve({ curve }: ProbabilityCurveProps) {
   });
 
   return (
-    <Card className="border-border/10 bg-card">
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
-            <TrendingUp className="h-4 w-4 text-primary" />
-            {t("curve.title")}
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs font-mono">
-              {t("curve.peak")}: {Math.round(peak.probability * 100)}%
-            </Badge>
-            <Badge variant="outline" className="text-xs font-mono text-primary border-primary/30">
-              <Clock className="h-3 w-3 mr-1" />
-              {nowLabel}
-            </Badge>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
+    <section aria-label="Probability curve" className="max-w-3xl">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-foreground">
+          {t("curve.title")}
+        </h2>
+        <span className="font-mono text-xs text-muted-foreground">
+          {t("curve.peak")}: {Math.round(peak.probability * 100)}% · {nowLabel}
+        </span>
+      </div>
+      <div className="mt-4">
         <div className="h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
@@ -156,22 +144,15 @@ export function ProbabilityCurve({ curve }: ProbabilityCurveProps) {
           </ResponsiveContainer>
         </div>
 
-        {/* Legend */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-primary" />
-            {t("curve.lowerProb")}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="w-px h-3 bg-foreground/60" />
-            {t("curve.nowMarker")}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-primary" />
-            {t("curve.peak")} {Math.round(peak.probability * 100)}%
-          </span>
-        </div>
-      </CardContent>
-    </Card>
+        {/* Legend — inline text */}
+        <p className="mt-3 font-mono text-xs text-muted-foreground">
+          <span className="text-primary">—</span> {t("curve.lowerProb")}
+          <span className="mx-2 text-border">·</span>
+          <span className="text-foreground/60">┆</span> {t("curve.nowMarker")}
+          <span className="mx-2 text-border">·</span>
+          {t("curve.peak")} {Math.round(peak.probability * 100)}%
+        </p>
+      </div>
+    </section>
   );
 }
