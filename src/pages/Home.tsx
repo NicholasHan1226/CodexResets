@@ -9,6 +9,7 @@ import { UsageTracker } from "@/sections/UsageTracker";
 import { HistoryBankedPanel } from "@/sections/HistoryBankedPanel";
 import { TimeDistribution } from "@/sections/TimeDistribution";
 import { ResetCalendar } from "@/sections/ResetCalendar";
+import { AnchorNav } from "@/components/AnchorNav";
 import { sharePredictionState, copyToClipboard, exportPersonalData } from "@/lib/export-share";
 import { useI18n } from "@/contexts/I18nContext";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
@@ -47,43 +48,51 @@ export default function Home() {
         />
 
         <main className="mx-auto max-w-3xl px-4 md:px-6 py-10" role="main" aria-label="Codex Reset Prediction Dashboard">
-          {/* The answer */}
+          {/* The answer + quick nav */}
           <HeroSection prediction={prediction} />
+          <AnchorNav />
 
           <hr className="my-10 border-border/30" />
 
-          {/* Probability curve */}
-          <ProbabilityCurve curve={prediction.curve} />
+          <div id="curve" className="scroll-mt-16">
+            <ProbabilityCurve curve={prediction.curve} />
+          </div>
 
           <hr className="my-10 border-border/30" />
 
-          {/* Signal radar feed */}
-          <SignalPanel prediction={prediction} loading={signalsLoading} />
+          <div id="signals" className="scroll-mt-16">
+            <SignalPanel prediction={prediction} loading={signalsLoading} />
+          </div>
 
           <hr className="my-10 border-border/30" />
 
-          {/* Usage tracker */}
-          <UsageTracker />
+          <div id="usage" className="scroll-mt-16">
+            <UsageTracker />
+          </div>
 
           <hr className="my-10 border-border/30" />
 
-          {/* Time distribution */}
-          <TimeDistribution />
+          <div id="rhythm" className="scroll-mt-16">
+            <TimeDistribution />
+          </div>
 
           <hr className="my-10 border-border/30" />
 
-          {/* History & banked */}
-          <HistoryBankedPanel />
+          <div id="history" className="scroll-mt-16">
+            <HistoryBankedPanel />
+          </div>
 
           <hr className="my-10 border-border/30" />
 
-          {/* Calendar heatmap */}
-          <ResetCalendar />
+          <div id="calendar" className="scroll-mt-16">
+            <ResetCalendar />
+          </div>
 
           <hr className="my-10 border-border/30" />
 
-          {/* Alerts */}
-          <ResetAlertsPanel />
+          <div id="alerts" className="scroll-mt-16">
+            <ResetAlertsPanel />
+          </div>
 
           {/* Footer */}
           <footer className="mt-10 pt-6 border-t border-border/30" role="contentinfo">

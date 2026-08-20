@@ -34,7 +34,7 @@ export function TimeDistribution() {
       </div>
 
       {/* Bar chart */}
-      <div className="mt-4 flex items-end gap-[3px] h-32">
+      <div className="mt-4 flex items-end gap-[2px] sm:gap-[3px] h-24 sm:h-32">
         {hourlyCounts.map((count, hour) => {
           const height = maxCount > 0 ? (count / maxCount) * 100 : 0;
           const isPeak = hour >= bestStart && hour <= bestStart + 2;

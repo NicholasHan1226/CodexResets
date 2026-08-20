@@ -60,7 +60,7 @@ export function ProbabilityCurve({ curve }: ProbabilityCurveProps) {
         </span>
       </div>
       <div className="mt-4">
-        <div className="h-56 w-full">
+        <div className="h-40 sm:h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
               <defs>

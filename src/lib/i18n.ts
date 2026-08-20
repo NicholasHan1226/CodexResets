@@ -15,6 +15,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.answerNo': 'No.',
     'hero.answerYes': 'Likely.',
     'hero.lastResetWas': 'The last verified global reset was',
+    'hero.lastResetLabel': 'last verified reset',
     'hero.daysAgo': 'days ago',
     'hero.flatNote': 'Waiting longer does not raise the odds — the 24h number stays flat while the quiet stretch runs.',
     'hero.medianGap': 'median gap',
@@ -34,6 +35,15 @@ const translations: Record<Locale, Record<string, string>> = {
     // Header
     'app.title': 'Codex Resets',
     'app.subtitle': 'Next reset prediction',
+
+    // Anchor nav
+    'nav.curve': 'curve',
+    'nav.signals': 'signals',
+    'nav.usage': '/status',
+    'nav.rhythm': 'rhythm',
+    'nav.history': 'history',
+    'nav.calendar': 'calendar',
+    'nav.alerts': 'alerts',
     'header.liveMonitoring': 'LIVE MONITORING',
     'header.simulated': 'SIMULATED',
     'header.model': 'Model',
@@ -179,6 +189,9 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.medianInterval': 'Median interval',
     'history.longestWait': 'Longest wait',
     'history.days': '{n}d',
+    'history.rhythm': 'Reset rhythm',
+    'history.rhythmNote': 'days between resets, oldest → latest',
+    'history.currentWait': 'current wait:',
 
     // Model Info
     'model.title': 'How the model works',
@@ -249,6 +262,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.answerNo': '不会。',
     'hero.answerYes': '很可能。',
     'hero.lastResetWas': '上次已验证的全局重置发生在',
+    'hero.lastResetLabel': '上次已验证重置',
     'hero.daysAgo': '天前',
     'hero.flatNote': '等待不会提高概率——在平静期内，24 小时数值保持不变。',
     'hero.medianGap': '中位间隔',
@@ -268,6 +282,15 @@ const translations: Record<Locale, Record<string, string>> = {
     // Header
     'app.title': 'Codex 重置预判',
     'app.subtitle': '下次重置预测',
+
+    // Anchor nav
+    'nav.curve': '曲线',
+    'nav.signals': '信号',
+    'nav.usage': '/status',
+    'nav.rhythm': '节奏',
+    'nav.history': '历史',
+    'nav.calendar': '日历',
+    'nav.alerts': '订阅',
     'header.liveMonitoring': '实时监控',
     'header.simulated': '模拟数据',
     'header.model': '模型',
@@ -411,6 +434,9 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.totalResets': '总重置次数',
     'history.medianInterval': '中位间隔',
     'history.longestWait': '最长等待',
+    'history.rhythm': '重置节奏',
+    'history.rhythmNote': '相邻重置间隔天数，最旧 → 最新',
+    'history.currentWait': '当前已等待：',
     'history.days': '{n}天',
 
     // Model Info

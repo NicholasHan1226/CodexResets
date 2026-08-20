@@ -55,6 +55,22 @@ export function HistoryBankedPanel() {
     return Math.max(0, Math.ceil(diff / 86400000));
   };
 
+  // Reset rhythm sparkline: days between consecutive resets (oldest → newest)
+  const SPARK_CHARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+  const intervals: number[] = [];
+  for (let i = RESET_HISTORY.length - 1; i > 0; i--) {
+    const gap = (RESET_HISTORY[i - 1].timestamp - RESET_HISTORY[i].timestamp) / 86400000;
+    intervals.push(gap);
+  }
+  const recentIntervals = intervals.slice(-14);
+  const maxGap = Math.max(...recentIntervals, 1);
+  const sparkline = recentIntervals
+    .map((gap) => SPARK_CHARS[Math.min(7, Math.round((gap / maxGap) * 7))])
+    .join('');
+  // Current ongoing wait
+  const currentWait = (Date.now() - RESET_HISTORY[0].timestamp) / 86400000;
+  const currentSpark = SPARK_CHARS[Math.min(7, Math.round((currentWait / maxGap) * 7))];
+
   return (
     <section aria-label="Reset history and banked" className="max-w-3xl">
       <h2 className="text-lg font-semibold text-foreground">
@@ -127,6 +143,21 @@ export function HistoryBankedPanel() {
             );
           })}
         </div>
+      </div>
+
+      {/* Reset rhythm sparkline */}
+      <div className="mt-5">
+        <span className="text-xs text-muted-foreground uppercase tracking-wide">
+          {t('history.rhythm')}
+        </span>
+        <p className="mt-1.5 font-mono text-lg tracking-wider select-none" aria-hidden="true">
+          <span className="text-muted-foreground">{sparkline}</span>
+          <span className="text-primary" title={`current: ${currentWait.toFixed(1)}d`}>{currentSpark}</span>
+        </p>
+        <p className="mt-1 font-mono text-[11px] text-muted-foreground/60">
+          {t('history.rhythmNote')} · {t('history.currentWait')}{' '}
+          <span className="text-primary">{currentWait.toFixed(1)}d</span>
+        </p>
       </div>
 
       {/* Recent resets — timeline */}
