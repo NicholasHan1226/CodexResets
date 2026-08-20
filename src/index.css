@@ -49,10 +49,31 @@
     @apply bg-background text-foreground font-sans;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
   ::selection {
     background: #10a37f;
     color: #fff;
+  }
+  /* Keyboard navigation: visible focus ring, mouse users unaffected */
+  :focus-visible {
+    outline: 2px solid hsl(var(--primary) / 0.7);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    .live-dot,
+    .blink {
+      animation: none;
+    }
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
@@ -62,6 +83,11 @@
   }
   .live-dot {
     animation: liveDot 2s ease-in-out infinite;
+  }
+  /* Skip rendering work for below-fold sections until scrolled near */
+  .cv-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 320px;
   }
 }
 

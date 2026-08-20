@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 export interface SubscriptionResult {
   success: boolean;
@@ -12,6 +12,7 @@ export interface SubscriptionResult {
  */
 export async function subscribeEmail(email: string): Promise<SubscriptionResult> {
   const normalizedEmail = email.trim().toLowerCase();
+  const supabase = await getSupabase();
 
   // Check if already subscribed
   const { data: existing, error: checkError } = await supabase
@@ -75,6 +76,7 @@ export async function subscribeEmail(email: string): Promise<SubscriptionResult>
  * Get the total count of active subscribers.
  */
 export async function getSubscriberCount(): Promise<number> {
+  const supabase = await getSupabase();
   const { count, error } = await supabase
     .from("subscriptions")
     .select("*", { count: "exact", head: true })

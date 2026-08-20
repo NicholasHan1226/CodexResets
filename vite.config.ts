@@ -23,24 +23,12 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          // Vendor chunks
+          // Eager vendor chunks only. recharts and @supabase/supabase-js are
+          // intentionally NOT listed: they are referenced exclusively from
+          // lazily-imported modules, so Rollup splits them into async chunks
+          // automatically and they stay off the first-paint critical path.
           'vendor-react': ['react', 'react-dom', 'react-router'],
           'vendor-ui': ['@radix-ui/react-slot', 'class-variance-authority', 'clsx', 'tailwind-merge'],
-          'vendor-charts': ['recharts'],
-          'vendor-supabase': ['@supabase/supabase-js'],
-          // Feature chunks
-          'sections': [
-            '@/sections/StatusHeader',
-            '@/sections/HeroSection',
-            '@/sections/ProbabilityDisplay',
-            '@/sections/ProbabilityCurve',
-            '@/sections/SignalPanel',
-            '@/sections/HistoryPanel',
-            '@/sections/ResetAlertsPanel',
-            '@/sections/TimeDistribution',
-            '@/sections/ResetCalendar',
-            '@/sections/PredictionAccuracy',
-          ],
         },
         // Optimize chunk naming for caching
         chunkFileNames: 'assets/[name]-[hash].js',

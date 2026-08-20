@@ -55,14 +55,25 @@ src/
 - Monospace font (IBM Plex Mono) for all data/numbers
 
 ## Key Patterns
-- `usePrediction` hook manages prediction state with 30s auto-refresh
-- Prediction data is generated client-side (simulated signals)
+- `usePrediction` renders instantly from local data, network enhances async;
+  records + signals fetched in parallel, 5min auto-refresh
 - Recharts for data visualization with custom dark theme
 - CSS variables for theming (HSL format)
 - Home holds `timeframe` state (24|48) shared by HeroSection + ProbabilityCurve
 - Share: `sharePredictionState()` builds URL with state params, copied via clipboard
 - No localStorage-backed user features — the site is stateless for visitors
   (exception: prediction accuracy samples + locale preference)
+
+## Performance (do not regress)
+- recharts is lazy-loaded via `React.lazy` in Home (ProbabilityCurve) —
+  never import it from an eagerly-loaded module
+- Supabase client is created lazily via `getSupabase()` dynamic import in
+  `lib/supabase.ts` — never use a top-level `createClient`
+- vite.config `manualChunks` lists ONLY eager vendors (react/ui); adding
+  recharts/supabase there would force them back onto the critical path
+- About page is route-level code-split in App.tsx
+- Fonts load non-render-blocking (preload + media=print swap in index.html)
+- Below-fold Home sections use `.cv-auto` (content-visibility: auto)
 
 ## Deployment
 - Cloudflare Pages: `codexresets.cc` (project `codex-resets`)

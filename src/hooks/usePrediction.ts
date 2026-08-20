@@ -12,7 +12,12 @@ import type { ResetPrediction, ResetRecord } from "@/types/reset";
  * Refreshes data every 5 minutes (signals are cached).
  */
 export function usePrediction() {
-  const [prediction, setPrediction] = useState<ResetPrediction | null>(null);
+  // Render instantly from local historical data — network data enhances it async.
+  // This keeps LCP off the Supabase roundtrip critical path.
+  const [prediction, setPrediction] = useState<ResetPrediction | null>(() => {
+    const data = generatePrediction();
+    return { ...data, generatedAt: Date.now() };
+  });
   const [resetRecords, setResetRecords] = useState<ResetRecord[]>([]);
   const isLive = true;
   const [signalsLoading, setSignalsLoading] = useState(true);
@@ -22,29 +27,28 @@ export function usePrediction() {
     setSignalsLoading(true);
     
     try {
-      // Fetch reset records from Supabase
-      const records = await fetchResetRecords();
+      // Records (Supabase) and signals (RSS/status page) are independent
+      // network calls — run them in parallel to halve the refresh latency.
+      const recordsPromise = fetchResetRecords();
+      const signalsPromise = getSignalsWithFallback(generatePrediction().signals);
+
+      const records = await recordsPromise;
       if (records.length > 0) {
         setResetRecords(records);
       }
-      
+
       // Generate base prediction from historical data
       const data = generatePrediction(records.length > 0 ? records : undefined);
-      
-      // Try to fetch real signals
-      const { signals, hasRealData } = await getSignalsWithFallback(data.signals);
-      setUsingRealData(hasRealData);
-      
+
+      const { signals, hasRealData } = await signalsPromise;
+      setUsingRealData(hasRealData || records.length > 0);
+
       // Update prediction with real signals
       setPrediction({
         ...data,
         signals,
         generatedAt: Date.now(),
       });
-      
-      if (records.length > 0) {
-        setUsingRealData(true);
-      }
     } catch (error) {
       console.warn('Error refreshing prediction:', error);
       // Fall back to simulated data

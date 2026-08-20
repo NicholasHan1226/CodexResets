@@ -1,9 +1,7 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { usePrediction } from "@/hooks/usePrediction";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { StatusHeader } from "@/sections/StatusHeader";
 import { HeroSection } from "@/sections/HeroSection";
-import { ProbabilityCurve } from "@/sections/ProbabilityCurve";
 import { SignalPanel } from "@/sections/SignalPanel";
 import { ResetAlertsPanel } from "@/sections/ResetAlertsPanel";
 import { HistoryPanel } from "@/sections/HistoryPanel";
@@ -13,6 +11,12 @@ import { AnchorNav } from "@/components/AnchorNav";
 import { sharePredictionState, copyToClipboard } from "@/lib/export-share";
 import { useI18n } from "@/contexts/I18nContext";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
+
+// Recharts (~108KB gzip) is only used here and sits below the fold —
+// lazy-load it so first paint doesn't pay for the charting library.
+const ProbabilityCurve = lazy(() =>
+  import("@/sections/ProbabilityCurve").then((m) => ({ default: m.ProbabilityCurve }))
+);
 
 export default function Home() {
   const { prediction, isLive, signalsLoading, usingRealData } = usePrediction();
@@ -34,7 +38,6 @@ export default function Home() {
   };
 
   return (
-    <TooltipProvider>
       <div className="min-h-screen bg-background">
         <StatusHeader
           prediction={prediction}
@@ -55,36 +58,38 @@ export default function Home() {
           <hr className="my-10 border-border/30" />
 
           <div id="curve" className="scroll-mt-16">
-            <ProbabilityCurve curve={prediction.curve} hours={timeframe} />
+            <Suspense fallback={<div className="h-40 sm:h-56 w-full animate-pulse rounded bg-muted/30" aria-hidden="true" />}>
+              <ProbabilityCurve curve={prediction.curve} hours={timeframe} />
+            </Suspense>
           </div>
 
           <hr className="my-10 border-border/30" />
 
-          <div id="signals" className="scroll-mt-16">
+          <div id="signals" className="scroll-mt-16 cv-auto">
             <SignalPanel prediction={prediction} loading={signalsLoading} />
           </div>
 
           <hr className="my-10 border-border/30" />
 
-          <div id="rhythm" className="scroll-mt-16">
+          <div id="rhythm" className="scroll-mt-16 cv-auto">
             <TimeDistribution />
           </div>
 
           <hr className="my-10 border-border/30" />
 
-          <div id="history" className="scroll-mt-16">
+          <div id="history" className="scroll-mt-16 cv-auto">
             <HistoryPanel />
           </div>
 
           <hr className="my-10 border-border/30" />
 
-          <div id="calendar" className="scroll-mt-16">
+          <div id="calendar" className="scroll-mt-16 cv-auto">
             <ResetCalendar />
           </div>
 
           <hr className="my-10 border-border/30" />
 
-          <div id="alerts" className="scroll-mt-16">
+          <div id="alerts" className="scroll-mt-16 cv-auto">
             <ResetAlertsPanel />
           </div>
 
@@ -97,6 +102,5 @@ export default function Home() {
           </footer>
         </main>
       </div>
-    </TooltipProvider>
   );
 }

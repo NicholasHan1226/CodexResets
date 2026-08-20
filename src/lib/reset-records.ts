@@ -3,7 +3,7 @@
  * Fetches reset history from Supabase with localStorage caching
  */
 
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 import type { ResetRecord } from '@/types/reset';
 
 const CACHE_KEY = 'codex-resets:records';
@@ -32,6 +32,7 @@ export async function fetchResetRecords(): Promise<ResetRecord[]> {
   }
 
   try {
+    const supabase = await getSupabase();
     const { data, error } = await supabase
       .from('reset_records')
       .select('*')
