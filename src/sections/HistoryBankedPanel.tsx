@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
+import { useCloudSync } from '@/hooks/useCloudSync';
 import { RESET_HISTORY, computeIntervalStats } from '@/lib/reset-data';
 import type { BankedReset } from '@/types/reset';
 
@@ -7,6 +8,7 @@ const STORAGE_KEY = 'codex-resets-banked';
 
 export function HistoryBankedPanel() {
   const { t, locale } = useI18n();
+  const { pushBanked } = useCloudSync();
   const stats = computeIntervalStats();
   const recentResets = RESET_HISTORY.slice(0, 5);
 
@@ -24,6 +26,7 @@ export function HistoryBankedPanel() {
   const saveResets = (newResets: BankedReset[]) => {
     setBankedResets(newResets);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newResets));
+    pushBanked(newResets);
   };
 
   const handleAdd = () => {

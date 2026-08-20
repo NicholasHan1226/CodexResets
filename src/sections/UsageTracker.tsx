@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useI18n } from "@/contexts/I18nContext";
+import { useCloudSync } from "@/hooks/useCloudSync";
 import type { UsageTracking } from "@/types/reset";
 
 const STORAGE_KEY = "codex-resets-usage";
@@ -12,6 +13,7 @@ function asciiBar(pct: number, width: number = 20): string {
 
 export function UsageTracker() {
   const { t } = useI18n();
+  const { pushUsage } = useCloudSync();
   const [tracking, setTracking] = useState<UsageTracking | null>(null);
   const [resetTime, setResetTime] = useState("");
   const [usagePercent, setUsagePercent] = useState(50);
@@ -39,6 +41,7 @@ export function UsageTracker() {
       updatedAt: Date.now(),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    pushUsage(data as unknown as Record<string, unknown>);
     setTracking(data);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -46,6 +49,7 @@ export function UsageTracker() {
 
   const handleReset = () => {
     localStorage.removeItem(STORAGE_KEY);
+    pushUsage({});
     setTracking(null);
     setResetTime("");
     setUsagePercent(50);

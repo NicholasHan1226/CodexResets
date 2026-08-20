@@ -8,6 +8,7 @@ const sections = [
   { id: 'history', key: 'nav.history' },
   { id: 'calendar', key: 'nav.calendar' },
   { id: 'alerts', key: 'nav.alerts' },
+  { id: 'account', key: 'nav.account' },
 ];
 
 export function AnchorNav() {

@@ -6,6 +6,7 @@ import { HeroSection } from "@/sections/HeroSection";
 import { ProbabilityCurve } from "@/sections/ProbabilityCurve";
 import { SignalPanel } from "@/sections/SignalPanel";
 import { ResetAlertsPanel } from "@/sections/ResetAlertsPanel";
+import { AccountPanel } from "@/sections/AccountPanel";
 import { UsageTracker } from "@/sections/UsageTracker";
 import { HistoryBankedPanel } from "@/sections/HistoryBankedPanel";
 import { TimeDistribution } from "@/sections/TimeDistribution";
@@ -43,8 +44,8 @@ export default function Home() {
           onRefresh={() => window.location.reload()}
           onShare={handleShare}
           onExport={() => {
-            const usage = JSON.parse(localStorage.getItem('codex-usage-tracker') || '{}');
-            const resets = JSON.parse(localStorage.getItem('codex-banked-resets') || '[]');
+            const usage = JSON.parse(localStorage.getItem('codex-resets-usage') || '{}');
+            const resets = JSON.parse(localStorage.getItem('codex-resets-banked') || '[]');
             exportPersonalData(usage, resets);
           }}
         />
@@ -98,6 +99,12 @@ export default function Home() {
 
           <div id="alerts" className="scroll-mt-16">
             <ResetAlertsPanel />
+          </div>
+
+          <hr className="my-10 border-border/30" />
+
+          <div id="account" className="scroll-mt-16">
+            <AccountPanel />
           </div>
 
           {/* Footer */}
