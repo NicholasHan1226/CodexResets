@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
-import { sharePredictionState, copyToClipboard } from '@/lib/export-share';
+import {
+  sharePredictionState,
+  copyToClipboard,
+  buildShareTargets,
+  shareViaWebAPI,
+  canNativeShare,
+} from '@/lib/export-share';
 import type { ResetPrediction } from '@/types/reset';
 
 interface HeroSectionProps {
@@ -117,7 +123,46 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
         <span className="text-foreground font-medium">{t('hero.adviceLabel')}</span>{' '}
         {prediction.advice.text}
       </p>
-      <p className="mt-3 font-mono text-xs">
+      <div className="mt-3 font-mono text-xs flex flex-wrap items-center gap-x-1 gap-y-1.5">
+        <span className="text-muted-foreground/50 mr-1">{t('hero.sharePrompt')}</span>
+        {buildShareTargets(
+          t('hero.shareText', { n: pct, h: timeframe }),
+          sharePredictionState({
+            probability24h: prediction.prob24h,
+            probability48h: prediction.prob48h,
+            daysSinceLastReset: prediction.daysSinceLastReset,
+            medianInterval: prediction.medianIntervalDays,
+          })
+        ).map((target) => (
+          <a
+            key={target.id}
+            href={target.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground hover:text-primary transition-colors"
+          >
+            [{target.label}]
+          </a>
+        ))}
+        {canNativeShare() && (
+          <button
+            onClick={() =>
+              shareViaWebAPI(
+                t('app.title'),
+                t('hero.shareText', { n: pct, h: timeframe }),
+                sharePredictionState({
+                  probability24h: prediction.prob24h,
+                  probability48h: prediction.prob48h,
+                  daysSinceLastReset: prediction.daysSinceLastReset,
+                  medianInterval: prediction.medianIntervalDays,
+                })
+              )
+            }
+            className="text-muted-foreground hover:text-primary transition-colors"
+          >
+            [{t('hero.shareMore')}]
+          </button>
+        )}
         <button
           onClick={async () => {
             const url = sharePredictionState({
@@ -135,7 +180,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
         >
           {copied ? t('hero.copied') : t('hero.shareLink')}
         </button>
-      </p>
+      </div>
     </section>
   );
 }

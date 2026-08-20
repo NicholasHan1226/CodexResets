@@ -55,3 +55,45 @@ export async function shareViaWebAPI(title: string, text: string, url: string): 
   }
   return false;
 }
+
+export interface ShareTarget {
+  id: "x" | "hn" | "reddit" | "telegram";
+  label: string;
+  url: string;
+}
+
+/**
+ * Build platform share intent URLs (X / Hacker News / Reddit / Telegram)
+ */
+export function buildShareTargets(text: string, url: string): ShareTarget[] {
+  const e = encodeURIComponent;
+  return [
+    {
+      id: "x",
+      label: "x",
+      url: `https://twitter.com/intent/tweet?text=${e(text)}&url=${e(url)}`,
+    },
+    {
+      id: "hn",
+      label: "hn",
+      url: `https://news.ycombinator.com/submitlink?u=${e(url)}&t=${e(text)}`,
+    },
+    {
+      id: "reddit",
+      label: "reddit",
+      url: `https://www.reddit.com/submit?url=${e(url)}&title=${e(text)}`,
+    },
+    {
+      id: "telegram",
+      label: "telegram",
+      url: `https://t.me/share/url?url=${e(url)}&text=${e(text)}`,
+    },
+  ];
+}
+
+/**
+ * Whether the native Web Share API is available (mostly mobile browsers)
+ */
+export function canNativeShare(): boolean {
+  return typeof navigator !== "undefined" && !!navigator.share;
+}
