@@ -12,6 +12,32 @@ interface ProbabilityCurveProps {
 const HOUR = 3600 * 1000;
 const MONO = "IBM Plex Mono, monospace";
 
+/** Pill-shaped label pinned to the top of the NOW reference line */
+function NowLabel(props: { viewBox?: unknown; text?: string }) {
+  const { viewBox, text = "" } = props;
+  const box = viewBox as { x: number; y: number } | undefined;
+  if (!box) return null;
+  const { x, y } = box;
+  const w = 84;
+  const h = 18;
+  return (
+    <g transform={`translate(${x - w / 2}, ${y + 6})`}>
+      <rect width={w} height={h} rx={4} fill="#F0F2F5" />
+      <text
+        x={w / 2}
+        y={h / 2 + 3.5}
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={700}
+        fontFamily={MONO}
+        fill="#0B0C0F"
+      >
+        {text}
+      </text>
+    </g>
+  );
+}
+
 export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
   const { t } = useI18n();
 
@@ -22,7 +48,9 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
     return () => clearInterval(id);
   }, []);
   const nowTimestamp = now.getTime();
-  const nowUtcLabel = `${String(now.getUTCHours()).padStart(2, "0")}:${String(now.getUTCMinutes()).padStart(2, "0")} UTC`;
+  // Local time, like codex-reset.com — users plan in their own timezone
+  const nowLocalLabel = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const tzLabel = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const allData = curve.map((point) => {
     const pointDate = new Date(point.date);
@@ -30,10 +58,12 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
     return { ...point, timestamp: pointDate.getTime() };
   });
 
-  // Filter to the selected window (include 2h of history so NOW has context)
+  // Filter to the selected window. History must be >= the 3h point spacing,
+  // otherwise NOW falls off the left edge for ~1h out of every 3h and the
+  // marker silently disappears. 4h guarantees a point behind NOW.
   const chartData = hours
     ? allData.filter(
-        (p) => p.timestamp >= nowTimestamp - 2 * HOUR && p.timestamp <= nowTimestamp + hours * HOUR
+        (p) => p.timestamp >= nowTimestamp - 4 * HOUR && p.timestamp <= nowTimestamp + hours * HOUR
       )
     : allData;
 
@@ -68,8 +98,8 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
   const formatXTick = (ts: number) => {
     const d = new Date(ts);
     return hours
-      ? `${String(d.getUTCHours()).padStart(2, "0")}:00`
-      : `${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+      ? `${String(d.getHours()).padStart(2, "0")}:00`
+      : `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   };
 
   // One decimal when needed — avoids duplicate rounded ticks like "2% / 2%"
@@ -91,12 +121,13 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
         </h2>
         <span className="font-mono text-xs text-muted-foreground">
           {t("curve.peak")}: {Math.round(peak.probability * 100)}%
+          <span className="ml-2 text-muted-foreground/50">{tzLabel}</span>
         </span>
       </div>
       <div className="mt-4">
         <div className="h-40 sm:h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+            <AreaChart data={chartData} margin={{ top: 30, right: 8, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="probGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#10A37F" stopOpacity={0.3} />
@@ -121,13 +152,16 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
                 domain={[0, "auto"]}
               />
               <Tooltip
+                cursor={{ stroke: "#7C8494", strokeWidth: 1, strokeDasharray: "3 3", strokeOpacity: 0.5 }}
                 content={({ active, payload }) => {
                   if (!active || !payload?.[0]) return null;
-                  const data = payload[0].payload as ProbabilityPoint;
+                  const data = payload[0].payload as ProbabilityPoint & { timestamp: number };
+                  const local = new Date(data.timestamp);
+                  const dateStr = `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, "0")}-${String(local.getDate()).padStart(2, "0")}`;
                   return (
                     <div className="rounded-md border border-border bg-card px-3 py-2 shadow-lg">
                       <p className="text-xs text-muted-foreground">
-                        {data.date} {String(data.hour).padStart(2, "0")}:00 UTC
+                        {dateStr} {String(local.getHours()).padStart(2, "0")}:00
                       </p>
                       <p className="text-sm font-mono font-semibold text-primary">
                         {Math.round(data.probability * 100)}%
@@ -142,34 +176,6 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
                 strokeDasharray="3 3"
                 strokeOpacity={0.4}
               />
-              {/* NOW — exact current-time position, moves with the ticking clock */}
-              {isNowInRange && (
-                <>
-                  <ReferenceLine
-                    x={nowTimestamp}
-                    stroke="#F0F2F5"
-                    strokeWidth={1}
-                    strokeDasharray="4 4"
-                    strokeOpacity={0.5}
-                    label={{
-                      value: `${t("curve.now")} ${nowUtcLabel}`,
-                      position: "insideTopRight",
-                      fill: "#F0F2F5",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      fontFamily: MONO,
-                    }}
-                  />
-                  <ReferenceDot
-                    x={nowTimestamp}
-                    y={probAtNow}
-                    r={5}
-                    fill="#10A37F"
-                    stroke="#0B0C0F"
-                    strokeWidth={2}
-                  />
-                </>
-              )}
               <Area
                 type="monotone"
                 dataKey="probability"
@@ -178,6 +184,38 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
                 fill="url(#probGradient)"
                 animationDuration={800}
               />
+              {/* NOW — exact current-time position, moves with the ticking clock.
+                  Declared after Area so it paints on top of the curve. */}
+              {isNowInRange && (
+                <>
+                  <ReferenceLine
+                    x={nowTimestamp}
+                    stroke="#F0F2F5"
+                    strokeWidth={1.5}
+                    strokeDasharray="4 3"
+                    strokeOpacity={0.9}
+                    label={<NowLabel text={`${t("curve.now")} ${nowLocalLabel}`} />}
+                  />
+                  {/* Halo ring makes the dot findable at a glance */}
+                  <ReferenceDot
+                    x={nowTimestamp}
+                    y={probAtNow}
+                    r={9}
+                    fill="none"
+                    stroke="#F0F2F5"
+                    strokeOpacity={0.35}
+                    strokeWidth={1.5}
+                  />
+                  <ReferenceDot
+                    x={nowTimestamp}
+                    y={probAtNow}
+                    r={4.5}
+                    fill="#F0F2F5"
+                    stroke="#10A37F"
+                    strokeWidth={2.5}
+                  />
+                </>
+              )}
             </AreaChart>
           </ResponsiveContainer>
         </div>

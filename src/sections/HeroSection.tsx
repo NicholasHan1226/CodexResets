@@ -30,6 +30,12 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
     ? lastResetDate.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
         month: 'short',
         day: 'numeric',
+      }) +
+      ' ' +
+      lastResetDate.toLocaleTimeString(locale === 'zh' ? 'zh-CN' : 'en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
       })
     : null;
 
