@@ -15,6 +15,8 @@ interface HeroSectionProps {
   onTimeframeChange: (tf: 24 | 48) => void;
 }
 
+const BAR_WIDTH = 30;
+
 export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSectionProps) {
   const { t, locale } = useI18n();
   const [copied, setCopied] = useState(false);
@@ -26,18 +28,16 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
   const daysSince = prediction.daysSinceLastReset;
   const isLikely = pct24 >= 50;
 
+  const filled = Math.round((pct / 100) * BAR_WIDTH);
+  const barFilled = '█'.repeat(filled);
+  const barEmpty = '░'.repeat(BAR_WIDTH - filled);
+
   const lastResetStr = lastResetDate
     ? lastResetDate.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
         month: 'short',
         day: 'numeric',
-      }) +
-      ' ' +
-      lastResetDate.toLocaleTimeString(locale === 'zh' ? 'zh-CN' : 'en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
       })
-    : '—';
+    : null;
 
   const windowStart = prediction.windowStart ? new Date(prediction.windowStart) : null;
   const windowStr = windowStart
@@ -53,20 +53,29 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
       })
     : null;
 
+  const shareUrl = () =>
+    sharePredictionState({
+      probability24h: prediction.prob24h,
+      probability48h: prediction.prob48h,
+      daysSinceLastReset: prediction.daysSinceLastReset,
+      medianInterval: prediction.medianIntervalDays,
+    });
+  const shareText = () => t('hero.shareText', { n: pct, h: timeframe });
+
   return (
     <section aria-label="Reset probability">
       {/* Terminal prompt */}
       <p className="font-mono text-sm text-muted-foreground">
         <span className="text-primary">❯</span> will codex reset?{' '}
-        <span className="text-muted-foreground/60">
+        <span className="text-muted-foreground/50">
           {isLikely ? t('hero.signalYes') : t('hero.signalNo')}
         </span>
       </p>
 
-      {/* The probability — the core number */}
-      <div className="mt-6">
+      {/* The probability — the single protagonist */}
+      <div className="mt-10">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground uppercase tracking-wide">
+          <span className="text-[11px] text-muted-foreground/70 uppercase tracking-widest">
             {t('hero.probLabel')}
           </span>
           {/* Timeframe toggle */}
@@ -80,7 +89,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
                 className={`px-2 py-0.5 transition-colors ${
                   timeframe === tf
                     ? 'text-primary font-semibold'
-                    : 'text-muted-foreground/50 hover:text-muted-foreground'
+                    : 'text-muted-foreground/40 hover:text-muted-foreground'
                 }`}
               >
                 [{tf}h]
@@ -89,23 +98,28 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
           </div>
         </div>
 
-        <div className="mt-1 flex items-baseline gap-3">
-          <span className="font-mono text-6xl sm:text-7xl font-semibold tracking-tight text-primary">
+        <div className="mt-3 flex items-baseline">
+          <span className="font-mono text-8xl sm:text-9xl font-semibold leading-none tracking-tighter text-primary">
             {pct}
-            <span className="text-3xl sm:text-4xl text-primary/70">%</span>
           </span>
-          <span className="text-sm text-muted-foreground">
-            {t('hero.withinHours', { n: timeframe })}
-          </span>
+          <span className="font-mono text-4xl sm:text-5xl text-primary/40">%</span>
         </div>
+
+        {/* ASCII probability bar */}
+        <p className="mt-5 font-mono text-sm leading-none select-none" aria-hidden="true">
+          <span className="text-primary">{barFilled}</span>
+          <span className="text-muted-foreground/15">{barEmpty}</span>
+        </p>
+        <p className="mt-3 text-sm text-muted-foreground">
+          {t('hero.withinHours', { n: timeframe })}
+        </p>
       </div>
 
-      {/* Secondary stats — one line */}
-      <p className="mt-5 font-mono text-xs text-muted-foreground">
+      {/* Meta — one quiet line */}
+      <p className="mt-8 font-mono text-xs text-muted-foreground/80">
         {t('hero.lastResetLabel')}{' '}
         <span className="text-foreground">{daysSince.toFixed(1)}d</span>
-        <span className="mx-2 text-border">·</span>
-        {lastResetStr}
+        {lastResetStr && <span className="text-muted-foreground/50"> ({lastResetStr})</span>}
         <span className="mx-2 text-border">·</span>
         {t('hero.medianGap')}{' '}
         <span className="text-foreground">{prediction.medianIntervalDays.toFixed(1)}d</span>
@@ -118,22 +132,16 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
         )}
       </p>
 
-      {/* Advice + share */}
+      {/* Advice */}
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
         <span className="text-foreground font-medium">{t('hero.adviceLabel')}</span>{' '}
         {prediction.advice.text}
       </p>
-      <div className="mt-3 font-mono text-xs flex flex-wrap items-center gap-x-1 gap-y-1.5">
+
+      {/* Share */}
+      <div className="mt-4 font-mono text-xs flex flex-wrap items-center gap-x-1 gap-y-1.5">
         <span className="text-muted-foreground/50 mr-1">{t('hero.sharePrompt')}</span>
-        {buildShareTargets(
-          t('hero.shareText', { n: pct, h: timeframe }),
-          sharePredictionState({
-            probability24h: prediction.prob24h,
-            probability48h: prediction.prob48h,
-            daysSinceLastReset: prediction.daysSinceLastReset,
-            medianInterval: prediction.medianIntervalDays,
-          })
-        ).map((target) => (
+        {buildShareTargets(shareText(), shareUrl()).map((target) => (
           <a
             key={target.id}
             href={target.url}
@@ -146,18 +154,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
         ))}
         {canNativeShare() && (
           <button
-            onClick={() =>
-              shareViaWebAPI(
-                t('app.title'),
-                t('hero.shareText', { n: pct, h: timeframe }),
-                sharePredictionState({
-                  probability24h: prediction.prob24h,
-                  probability48h: prediction.prob48h,
-                  daysSinceLastReset: prediction.daysSinceLastReset,
-                  medianInterval: prediction.medianIntervalDays,
-                })
-              )
-            }
+            onClick={() => shareViaWebAPI(t('app.title'), shareText(), shareUrl())}
             className="text-muted-foreground hover:text-primary transition-colors"
           >
             [{t('hero.shareMore')}]
@@ -165,13 +162,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
         )}
         <button
           onClick={async () => {
-            const url = sharePredictionState({
-              probability24h: prediction.prob24h,
-              probability48h: prediction.prob48h,
-              daysSinceLastReset: prediction.daysSinceLastReset,
-              medianInterval: prediction.medianIntervalDays,
-            });
-            if (await copyToClipboard(url)) {
+            if (await copyToClipboard(shareUrl())) {
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
             }
