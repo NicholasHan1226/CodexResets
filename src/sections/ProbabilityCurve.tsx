@@ -4,15 +4,17 @@ import { useI18n } from "@/contexts/I18nContext";
 
 interface ProbabilityCurveProps {
   curve: ProbabilityPoint[];
+  /** When set, only show points within the next N hours from now */
+  hours?: number;
 }
 
-export function ProbabilityCurve({ curve }: ProbabilityCurveProps) {
+export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
   const { t } = useI18n();
   const now = new Date();
   const nowTimestamp = now.getTime();
 
   // Group data by date for the chart
-  const chartData = curve.map((point) => {
+  const allData = curve.map((point) => {
     const pointDate = new Date(point.date);
     pointDate.setUTCHours(point.hour, 0, 0, 0);
     return {
@@ -23,7 +25,16 @@ export function ProbabilityCurve({ curve }: ProbabilityCurveProps) {
     };
   });
 
-  // Find peak probability
+  // Filter to the selected window (include 2h of history so NOW marker has context)
+  const chartData = hours
+    ? allData.filter(
+        (p) =>
+          p.timestamp >= nowTimestamp - 2 * 60 * 60 * 1000 &&
+          p.timestamp <= nowTimestamp + hours * 60 * 60 * 1000
+      )
+    : allData;
+
+  // Find peak probability within the visible range
   const peak = chartData.reduce(
     (max, point) => (point.probability > max.probability ? point : max),
     chartData[0]
@@ -41,22 +52,19 @@ export function ProbabilityCurve({ curve }: ProbabilityCurveProps) {
     (p) => Math.abs(p.timestamp - nowTimestamp) < 3 * 60 * 60 * 1000
   );
 
-  // Format current time for display
-  const nowLabel = now.toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
   return (
     <section aria-label="Probability curve" className="max-w-3xl">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">
           {t("curve.title")}
+          {hours && (
+            <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
+              next {hours}h
+            </span>
+          )}
         </h2>
         <span className="font-mono text-xs text-muted-foreground">
-          {t("curve.peak")}: {Math.round(peak.probability * 100)}% · {nowLabel}
+          {t("curve.peak")}: {Math.round(peak.probability * 100)}%
         </span>
       </div>
       <div className="mt-4">
@@ -70,11 +78,12 @@ export function ProbabilityCurve({ curve }: ProbabilityCurveProps) {
                 </linearGradient>
               </defs>
               <XAxis
-                dataKey="displayDate"
+                dataKey="label"
                 tick={{ fontSize: 11, fill: "#7C8494" }}
                 tickLine={false}
                 axisLine={{ stroke: "#26272E" }}
-                interval={Math.floor(chartData.length / 7)}
+                interval={Math.max(1, Math.floor(chartData.length / 7))}
+                tickFormatter={(v: string) => (hours ? v.slice(6) : v.slice(0, 5))}
               />
               <YAxis
                 tick={{ fontSize: 11, fill: "#7C8494" }}
@@ -109,7 +118,7 @@ export function ProbabilityCurve({ curve }: ProbabilityCurveProps) {
               {isNowInRange && (
                 <>
                   <ReferenceLine
-                    x={currentPoint.displayDate}
+                    x={currentPoint.label}
                     stroke="#F0F2F5"
                     strokeWidth={1}
                     strokeDasharray="4 4"
@@ -123,7 +132,7 @@ export function ProbabilityCurve({ curve }: ProbabilityCurveProps) {
                     }}
                   />
                   <ReferenceDot
-                    x={currentPoint.displayDate}
+                    x={currentPoint.label}
                     y={currentPoint.probability}
                     r={5}
                     fill="#10A37F"
@@ -138,7 +147,7 @@ export function ProbabilityCurve({ curve }: ProbabilityCurveProps) {
                 stroke="#10A37F"
                 strokeWidth={2}
                 fill="url(#probGradient)"
-                animationDuration={1500}
+                animationDuration={800}
               />
             </AreaChart>
           </ResponsiveContainer>

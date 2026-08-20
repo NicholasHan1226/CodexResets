@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { usePrediction } from "@/hooks/usePrediction";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { StatusHeader } from "@/sections/StatusHeader";
@@ -17,6 +18,7 @@ import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 export default function Home() {
   const { prediction, isLive, signalsLoading, usingRealData } = usePrediction();
   const { t } = useI18n();
+  const [timeframe, setTimeframe] = useState<24 | 48>(24);
 
   if (!prediction) {
     return <DashboardSkeleton />;
@@ -48,14 +50,18 @@ export default function Home() {
         />
 
         <main className="mx-auto max-w-3xl px-4 md:px-6 py-10" role="main" aria-label="Codex Reset Prediction Dashboard">
-          {/* The answer + quick nav */}
-          <HeroSection prediction={prediction} />
+          {/* The probability + quick nav */}
+          <HeroSection
+            prediction={prediction}
+            timeframe={timeframe}
+            onTimeframeChange={setTimeframe}
+          />
           <AnchorNav />
 
           <hr className="my-10 border-border/30" />
 
           <div id="curve" className="scroll-mt-16">
-            <ProbabilityCurve curve={prediction.curve} />
+            <ProbabilityCurve curve={prediction.curve} hours={timeframe} />
           </div>
 
           <hr className="my-10 border-border/30" />

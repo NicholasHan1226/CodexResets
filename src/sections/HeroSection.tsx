@@ -3,16 +3,18 @@ import type { ResetPrediction } from '@/types/reset';
 
 interface HeroSectionProps {
   prediction: ResetPrediction;
+  timeframe: 24 | 48;
+  onTimeframeChange: (tf: 24 | 48) => void;
 }
 
-export function HeroSection({ prediction }: HeroSectionProps) {
+export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSectionProps) {
   const { t, locale } = useI18n();
   const pct24 = Math.round(prediction.prob24h * 100);
   const pct48 = Math.round(prediction.prob48h * 100);
+  const pct = timeframe === 24 ? pct24 : pct48;
 
   const lastResetDate = prediction.lastReset ? new Date(prediction.lastReset) : null;
   const daysSince = prediction.daysSinceLastReset;
-
   const isLikely = pct24 >= 50;
 
   const lastResetStr = lastResetDate
@@ -28,11 +30,22 @@ export function HeroSection({ prediction }: HeroSectionProps) {
       })
     : '—';
 
-  // Split whole days and fractional part for display
-  const wholeDaysSince = Math.floor(daysSince);
+  const windowStart = prediction.windowStart ? new Date(prediction.windowStart) : null;
+  const windowStr = windowStart
+    ? windowStart.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
+        month: 'short',
+        day: 'numeric',
+      }) +
+      ' ' +
+      windowStart.toLocaleTimeString(locale === 'zh' ? 'zh-CN' : 'en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      })
+    : null;
 
   return (
-    <section aria-label="Reset answer">
+    <section aria-label="Reset probability">
       {/* Terminal prompt */}
       <p className="font-mono text-sm text-muted-foreground">
         <span className="text-primary">❯</span> will codex reset?{' '}
@@ -41,43 +54,63 @@ export function HeroSection({ prediction }: HeroSectionProps) {
         </span>
       </p>
 
-      {/* The answer */}
-      <h1 className="mt-4 text-4xl sm:text-5xl font-semibold tracking-tight text-foreground">
-        {isLikely ? t('hero.answerYes') : t('hero.answerNo')}
-      </h1>
-
-      {/* Visual anchor: days since last reset */}
+      {/* The probability — the core number */}
       <div className="mt-6">
-        <p className="text-xs text-muted-foreground uppercase tracking-wide">
-          {t('hero.lastResetLabel')}
-        </p>
-        <p className="mt-1 font-mono text-3xl sm:text-4xl font-semibold text-foreground">
-          {wholeDaysSince}
-          <span className="text-muted-foreground text-xl sm:text-2xl">.{Math.round((daysSince % 1) * 10)}</span>{' '}
-          <span className="text-lg sm:text-xl font-normal text-muted-foreground">{t('hero.daysAgo')}</span>
-        </p>
-        <p className="mt-1 font-mono text-xs text-muted-foreground/60">
-          {lastResetStr}
-        </p>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground uppercase tracking-wide">
+            {t('hero.probLabel')}
+          </span>
+          {/* Timeframe toggle */}
+          <div className="flex items-center font-mono text-sm" role="tablist" aria-label="Timeframe">
+            {([24, 48] as const).map((tf) => (
+              <button
+                key={tf}
+                role="tab"
+                aria-selected={timeframe === tf}
+                onClick={() => onTimeframeChange(tf)}
+                className={`px-2 py-0.5 transition-colors ${
+                  timeframe === tf
+                    ? 'text-primary font-semibold'
+                    : 'text-muted-foreground/50 hover:text-muted-foreground'
+                }`}
+              >
+                [{tf}h]
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-1 flex items-baseline gap-3">
+          <span className="font-mono text-6xl sm:text-7xl font-semibold tracking-tight text-primary">
+            {pct}
+            <span className="text-3xl sm:text-4xl text-primary/70">%</span>
+          </span>
+          <span className="text-sm text-muted-foreground">
+            {t('hero.withinHours', { n: timeframe })}
+          </span>
+        </div>
       </div>
 
-      {/* Inline stats */}
-      <p className="mt-6 font-mono text-sm text-foreground">
-        <span className="text-primary font-semibold">{pct24}%</span>{' '}
-        <span className="text-muted-foreground">in 24h</span>
+      {/* Secondary stats — one line */}
+      <p className="mt-5 font-mono text-xs text-muted-foreground">
+        {t('hero.lastResetLabel')}{' '}
+        <span className="text-foreground">{daysSince.toFixed(1)}d</span>
         <span className="mx-2 text-border">·</span>
-        <span className="text-foreground font-semibold">{pct48}%</span>{' '}
-        <span className="text-muted-foreground">in 48h</span>
+        {lastResetStr}
         <span className="mx-2 text-border">·</span>
-        <span className="text-muted-foreground">{t('hero.medianGap')}</span>{' '}
+        {t('hero.medianGap')}{' '}
         <span className="text-foreground">{prediction.medianIntervalDays.toFixed(1)}d</span>
+        {windowStr && (
+          <>
+            <span className="mx-2 text-border">·</span>
+            {t('hero.windowShort')}{' '}
+            <span className="text-foreground">{windowStr}</span>
+          </>
+        )}
       </p>
 
-      {/* Note + advice */}
+      {/* Advice */}
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-        {t('hero.flatNote')}
-      </p>
-      <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
         <span className="text-foreground font-medium">{t('hero.adviceLabel')}</span>{' '}
         {prediction.advice.text}
       </p>
