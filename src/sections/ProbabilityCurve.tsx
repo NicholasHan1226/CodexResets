@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot } from "recharts";
 import type { ProbabilityPoint } from "@/types/reset";
 import { useI18n } from "@/contexts/I18nContext";
@@ -10,8 +11,17 @@ interface ProbabilityCurveProps {
 
 export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
   const { t } = useI18n();
-  const now = new Date();
+
+  // Ticking clock so the NOW marker and displayed time stay live
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(id);
+  }, []);
   const nowTimestamp = now.getTime();
+
+  // Current UTC time (chart data is UTC-based)
+  const nowUtcLabel = `${String(now.getUTCHours()).padStart(2, "0")}:${String(now.getUTCMinutes()).padStart(2, "0")} UTC`;
 
   // Group data by date for the chart
   const allData = curve.map((point) => {
@@ -64,6 +74,8 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
           )}
         </h2>
         <span className="font-mono text-xs text-muted-foreground">
+          <span className="text-foreground/80">{nowUtcLabel}</span>
+          <span className="mx-2 text-border">·</span>
           {t("curve.peak")}: {Math.round(peak.probability * 100)}%
         </span>
       </div>
@@ -124,8 +136,8 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
                     strokeDasharray="4 4"
                     strokeOpacity={0.5}
                     label={{
-                      value: t("curve.now"),
-                      position: "top",
+                      value: `${t("curve.now")} ${nowUtcLabel}`,
+                      position: "insideTopRight",
                       fill: "#F0F2F5",
                       fontSize: 11,
                       fontWeight: 600,
