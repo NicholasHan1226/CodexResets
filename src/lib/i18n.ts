@@ -181,9 +181,37 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.days': '{n}d',
 
     // Model Info
-    'model.title': 'ABOUT THE MODEL',
-    'model.description': 'This prediction is based on historical reset patterns, time decay analysis, and public signal monitoring. Resets are manually triggered by OpenAI and cannot be precisely predicted.',
-    'model.disclaimer': 'This is a probability estimate, not a guarantee. Use at your own discretion.',
+    'model.title': 'How the model works',
+    'model.signalBased': 'Signal-based',
+    'model.signalBasedDesc': 'The model watches public signals — posts from the Codex engineering lead, OpenAI status changes, and community reports — and weights them by recency and historical reliability.',
+    'model.historicalData': 'Historical intervals',
+    'model.historicalDataDesc': 'Every verified goodwill reset since September 2025 is recorded. The gap distribution between consecutive resets drives the baseline probability curve.',
+    'model.weibullModel': 'Time-decay estimate',
+    'model.weibullModelDesc': 'A survival model over the historical gap distribution yields the 24h / 48h probabilities. Waiting longer does not raise the odds during a quiet stretch — the model avoids the "due for a reset" fallacy.',
+    'model.disclaimerDesc': 'This is a probability estimate, not a guarantee. Resets are manually triggered by OpenAI and cannot be precisely predicted. Use at your own discretion.',
+
+    // Limits (how Codex limits work)
+    'limits.title': 'How Codex usage limits work',
+    'limits.5hTitle': 'The 5-hour window',
+    'limits.5hDesc': 'The short clock. Local messages (CLI, IDE extension, desktop app) and cloud chats draw from one shared 5-hour budget. Your client shows its percentage left and reset time in /status.',
+    'limits.weeklyTitle': 'The weekly window',
+    'limits.weeklyDesc': 'The ceiling behind it, running seven days on its own clock. Each account\'s window anchors to its own first request after the previous reset — there is no universal weekly reset moment shared by everyone.',
+    'limits.resetTitle': 'What a reset actually is',
+    'limits.resetDesc': 'A reset restores your percentage to 100% — it does not add credits or change your plan. The reset time is computed on OpenAI\'s servers and sent as an absolute timestamp with each usage report.',
+    'limits.bankedTitle': 'Goodwill & banked resets',
+    'limits.bankedDesc': 'Separately from scheduled windows, OpenAI keeps resetting everyone\'s usage as a gesture — announced almost only on @thsottiaux\'s X feed. Banked resets sit in your account until you spend them, and expire 30 days after they are granted.',
+
+    // About / Documentation page
+    'about.title': 'Documentation',
+    'about.heading': 'Method, limits, and data sources',
+    'about.intro': 'Everything about how this tracker estimates reset probability, how Codex usage limits actually work, and where the data comes from.',
+    'about.sourcesTitle': 'Data sources',
+    'about.sourcesDesc': 'All inputs are public. No OpenAI account access is required or used — your personal usage numbers never leave this browser.',
+    'about.sourceTibo': 'reset announcements from the Codex lead',
+    'about.sourceStatus': 'official OpenAI service health',
+    'about.sourceHistory': 'Verified reset history',
+    'about.sourceHistoryDesc': 'every confirmed goodwill reset since Sep 2025',
+    'about.backHome': 'back to the tracker',
 
     // Footer
     'footer.modelVersion': 'Model v2.4.1',
@@ -386,9 +414,37 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.days': '{n}天',
 
     // Model Info
-    'model.title': '关于模型',
-    'model.description': '此预测基于历史重置模式、时间衰减分析和公开信号监测。重置由 OpenAI 手动触发，无法精确预测。',
-    'model.disclaimer': '这是概率估计，不是保证。请自行判断使用。',
+    'model.title': '模型如何工作',
+    'model.signalBased': '信号驱动',
+    'model.signalBasedDesc': '模型持续监测公开信号——Codex 工程负责人的帖子、OpenAI 状态变更、社区报告——并按时间近远和历史可靠性加权。',
+    'model.historicalData': '历史间隔',
+    'model.historicalDataDesc': '记录了自 2025 年 9 月以来每一次已验证的全局重置。相邻重置之间的间隔分布驱动基线概率曲线。',
+    'model.weibullModel': '时间衰减估计',
+    'model.weibullModelDesc': '基于历史间隔分布的生存模型给出 24h / 48h 概率。在平静期内等待不会提高概率——模型避免"该重置了"的谬误。',
+    'model.disclaimerDesc': '这是概率估计，不是保证。重置由 OpenAI 手动触发，无法精确预测。请自行判断使用。',
+
+    // Limits
+    'limits.title': 'Codex 限额机制',
+    'limits.5hTitle': '5 小时窗口',
+    'limits.5hDesc': '短时钟。本地消息（CLI、IDE 扩展、桌面应用）和云端对话共用一个 5 小时预算。客户端在 /status 中显示剩余百分比和重置时间。',
+    'limits.weeklyTitle': '每周窗口',
+    'limits.weeklyDesc': '背后的上限，独立运行七天。每个账户的窗口锚定在上次重置后自己的第一个请求——不存在所有人共享的统一每周重置时刻。',
+    'limits.resetTitle': '重置到底是什么',
+    'limits.resetDesc': '重置将你的百分比恢复到 100%——不增加额度也不改变计划。重置时间由 OpenAI 服务器计算，随每次用量报告以绝对时间戳下发。',
+    'limits.bankedTitle': '善意重置与存储重置',
+    'limits.bankedDesc': '在计划窗口之外，OpenAI 持续以善意姿态重置所有人的用量——几乎只在 @thsottiaux 的 X 动态上宣布。存储重置存放在你的账户中，使用后生效，发放 30 天后过期。',
+
+    // About page
+    'about.title': '说明文档',
+    'about.heading': '方法、限额机制与数据来源',
+    'about.intro': '关于此追踪器如何估计重置概率、Codex 限额如何运作、以及数据来自哪里的完整说明。',
+    'about.sourcesTitle': '数据来源',
+    'about.sourcesDesc': '所有输入均为公开信息。不需要也不使用 OpenAI 账户访问——你的个人用量数据永不离开此浏览器。',
+    'about.sourceTibo': 'Codex 负责人的重置公告',
+    'about.sourceStatus': 'OpenAI 官方服务状态',
+    'about.sourceHistory': '已验证的重置历史',
+    'about.sourceHistoryDesc': '自 2025 年 9 月以来每次确认的善意重置',
+    'about.backHome': '返回追踪器',
 
     // Footer
     'footer.modelVersion': '模型 v2.4.1',

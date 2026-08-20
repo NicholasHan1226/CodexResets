@@ -1,6 +1,7 @@
 import { useI18n } from '@/contexts/I18nContext';
 import type { ResetPrediction } from '@/types/reset';
 import { Globe, Share2, Download } from 'lucide-react';
+import { Link } from 'react-router';
 import { useState, useEffect } from 'react';
 
 interface StatusHeaderProps {
@@ -63,6 +64,13 @@ export function StatusHeader({ prediction, isLive, onRefresh, onShare, onExport 
           <span className="hidden md:inline font-mono text-[10px] text-muted-foreground/40">
             {formatTimeAgo(prediction.generatedAt)}
           </span>
+
+          <Link
+            to="/about"
+            className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            [docs]
+          </Link>
 
           <button
             onClick={() => setLocale(locale === 'en' ? 'zh' : 'en')}

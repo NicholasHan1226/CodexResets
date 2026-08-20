@@ -4,13 +4,11 @@ import { StatusHeader } from "@/sections/StatusHeader";
 import { HeroSection } from "@/sections/HeroSection";
 import { ProbabilityCurve } from "@/sections/ProbabilityCurve";
 import { SignalPanel } from "@/sections/SignalPanel";
-import { ModelInfo } from "@/sections/ModelInfo";
 import { ResetAlertsPanel } from "@/sections/ResetAlertsPanel";
 import { UsageTracker } from "@/sections/UsageTracker";
 import { HistoryBankedPanel } from "@/sections/HistoryBankedPanel";
 import { TimeDistribution } from "@/sections/TimeDistribution";
 import { ResetCalendar } from "@/sections/ResetCalendar";
-import { PredictionAccuracy } from "@/sections/PredictionAccuracy";
 import { sharePredictionState, copyToClipboard, exportPersonalData } from "@/lib/export-share";
 import { useI18n } from "@/contexts/I18nContext";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
@@ -84,18 +82,8 @@ export default function Home() {
 
           <hr className="my-10 border-border/30" />
 
-          {/* Prediction accuracy */}
-          <PredictionAccuracy />
-
-          <hr className="my-10 border-border/30" />
-
           {/* Alerts */}
           <ResetAlertsPanel />
-
-          <hr className="my-10 border-border/30" />
-
-          {/* About the model */}
-          <ModelInfo />
 
           {/* Footer */}
           <footer className="mt-10 pt-6 border-t border-border/30" role="contentinfo">
