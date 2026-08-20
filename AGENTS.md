@@ -32,7 +32,8 @@ src/
 ├── pages/             # Home (dashboard), About (/about docs page)
 ├── sections/          # Dashboard sections (doc-flow, no cards)
 │   ├── StatusHeader.tsx      # Sticky header: LIVE status, [docs], share, refresh
-│   ├── HeroSection.tsx       # Big probability number + 24h/48h toggle + share link
+│   ├── HeroSection.tsx       # Prompt + ProbabilityDisplay + meta + advice + share
+│   ├── ProbabilityDisplay.tsx# Giant probability number + ASCII bar + 24h/48h toggle
 │   ├── ProbabilityCurve.tsx  # Area chart, filters to next 24/48h (hours prop)
 │   ├── SignalPanel.tsx       # Signal timeline feed (ACTIVE/WARM/IDLE)
 │   ├── TimeDistribution.tsx  # Reset time-of-day distribution bars

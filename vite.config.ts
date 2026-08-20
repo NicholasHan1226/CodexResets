@@ -32,6 +32,7 @@ export default defineConfig({
           'sections': [
             '@/sections/StatusHeader',
             '@/sections/HeroSection',
+            '@/sections/ProbabilityDisplay',
             '@/sections/ProbabilityCurve',
             '@/sections/SignalPanel',
             '@/sections/HistoryPanel',
