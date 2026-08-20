@@ -9,58 +9,74 @@ interface ProbabilityCurveProps {
   hours?: number;
 }
 
+const HOUR = 3600 * 1000;
+const MONO = "IBM Plex Mono, monospace";
+
 export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
   const { t } = useI18n();
 
-  // Ticking clock so the NOW marker and displayed time stay live
+  // Ticking clock — the NOW marker glides along the curve in real time
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(id);
   }, []);
   const nowTimestamp = now.getTime();
-
-  // Current UTC time (chart data is UTC-based)
   const nowUtcLabel = `${String(now.getUTCHours()).padStart(2, "0")}:${String(now.getUTCMinutes()).padStart(2, "0")} UTC`;
 
-  // Group data by date for the chart
   const allData = curve.map((point) => {
     const pointDate = new Date(point.date);
     pointDate.setUTCHours(point.hour, 0, 0, 0);
-    return {
-      ...point,
-      label: `${point.date.slice(5)} ${String(point.hour).padStart(2, "0")}:00`,
-      displayDate: point.date.slice(5),
-      timestamp: pointDate.getTime(),
-    };
+    return { ...point, timestamp: pointDate.getTime() };
   });
 
-  // Filter to the selected window (include 2h of history so NOW marker has context)
+  // Filter to the selected window (include 2h of history so NOW has context)
   const chartData = hours
     ? allData.filter(
-        (p) =>
-          p.timestamp >= nowTimestamp - 2 * 60 * 60 * 1000 &&
-          p.timestamp <= nowTimestamp + hours * 60 * 60 * 1000
+        (p) => p.timestamp >= nowTimestamp - 2 * HOUR && p.timestamp <= nowTimestamp + hours * HOUR
       )
     : allData;
 
-  // Find peak probability within the visible range
+  if (chartData.length === 0) return null;
+
   const peak = chartData.reduce(
     (max, point) => (point.probability > max.probability ? point : max),
     chartData[0]
   );
 
-  // Find the current time position (nearest data point)
-  const currentPoint = chartData.reduce((nearest, point) => {
-    const dist = Math.abs(point.timestamp - nowTimestamp);
-    const nearestDist = Math.abs(nearest.timestamp - nowTimestamp);
-    return dist < nearestDist ? point : nearest;
-  }, chartData[0]);
+  const minTs = chartData[0].timestamp;
+  const maxTs = chartData[chartData.length - 1].timestamp;
+  const isNowInRange = nowTimestamp >= minTs && nowTimestamp <= maxTs;
 
-  // Check if current time is within the chart range
-  const isNowInRange = chartData.some(
-    (p) => Math.abs(p.timestamp - nowTimestamp) < 3 * 60 * 60 * 1000
-  );
+  // Interpolated probability at the exact current moment — the dot sits on the curve
+  const probAtNow = (() => {
+    if (!isNowInRange) return 0;
+    const nextIdx = chartData.findIndex((p) => p.timestamp >= nowTimestamp);
+    if (nextIdx <= 0) return chartData[0].probability;
+    const a = chartData[nextIdx - 1];
+    const b = chartData[nextIdx];
+    const ratio = (nowTimestamp - a.timestamp) / (b.timestamp - a.timestamp);
+    return a.probability + (b.probability - a.probability) * ratio;
+  })();
+
+  // Round-hour ticks: 6h step for 24h view, 12h for 48h, daily for full curve
+  const range = maxTs - minTs;
+  const step = range <= 26 * HOUR ? 6 * HOUR : range <= 50 * HOUR ? 12 * HOUR : 24 * HOUR;
+  const xTicks: number[] = [];
+  for (let ts = Math.ceil(minTs / step) * step; ts <= maxTs; ts += step) xTicks.push(ts);
+
+  const formatXTick = (ts: number) => {
+    const d = new Date(ts);
+    return hours
+      ? `${String(d.getUTCHours()).padStart(2, "0")}:00`
+      : `${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  };
+
+  // One decimal when needed — avoids duplicate rounded ticks like "2% / 2%"
+  const formatPctTick = (v: number) => {
+    const p = v * 100;
+    return `${Number.isInteger(p) ? p.toFixed(0) : p.toFixed(1)}%`;
+  };
 
   return (
     <section aria-label="Probability curve" className="max-w-3xl">
@@ -74,8 +90,6 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
           )}
         </h2>
         <span className="font-mono text-xs text-muted-foreground">
-          <span className="text-foreground/80">{nowUtcLabel}</span>
-          <span className="mx-2 text-border">·</span>
           {t("curve.peak")}: {Math.round(peak.probability * 100)}%
         </span>
       </div>
@@ -90,24 +104,26 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
                 </linearGradient>
               </defs>
               <XAxis
-                dataKey="label"
-                tick={{ fontSize: 11, fill: "#7C8494" }}
+                type="number"
+                dataKey="timestamp"
+                domain={[minTs, maxTs]}
+                ticks={xTicks}
+                tickFormatter={formatXTick}
+                tick={{ fontSize: 11, fill: "#7C8494", fontFamily: MONO }}
                 tickLine={false}
                 axisLine={{ stroke: "#26272E" }}
-                interval={Math.max(1, Math.floor(chartData.length / 7))}
-                tickFormatter={(v: string) => (hours ? v.slice(6) : v.slice(0, 5))}
               />
               <YAxis
-                tick={{ fontSize: 11, fill: "#7C8494" }}
+                tick={{ fontSize: 11, fill: "#7C8494", fontFamily: MONO }}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
+                tickFormatter={formatPctTick}
                 domain={[0, "auto"]}
               />
               <Tooltip
                 content={({ active, payload }) => {
                   if (!active || !payload?.[0]) return null;
-                  const data = payload[0].payload;
+                  const data = payload[0].payload as ProbabilityPoint;
                   return (
                     <div className="rounded-md border border-border bg-card px-3 py-2 shadow-lg">
                       <p className="text-xs text-muted-foreground">
@@ -126,11 +142,11 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
                 strokeDasharray="3 3"
                 strokeOpacity={0.4}
               />
-              {/* Current time marker */}
+              {/* NOW — exact current-time position, moves with the ticking clock */}
               {isNowInRange && (
                 <>
                   <ReferenceLine
-                    x={currentPoint.label}
+                    x={nowTimestamp}
                     stroke="#F0F2F5"
                     strokeWidth={1}
                     strokeDasharray="4 4"
@@ -141,11 +157,12 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
                       fill: "#F0F2F5",
                       fontSize: 11,
                       fontWeight: 600,
+                      fontFamily: MONO,
                     }}
                   />
                   <ReferenceDot
-                    x={currentPoint.label}
-                    y={currentPoint.probability}
+                    x={nowTimestamp}
+                    y={probAtNow}
                     r={5}
                     fill="#10A37F"
                     stroke="#0B0C0F"
@@ -164,15 +181,6 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
             </AreaChart>
           </ResponsiveContainer>
         </div>
-
-        {/* Legend — inline text */}
-        <p className="mt-3 font-mono text-xs text-muted-foreground">
-          <span className="text-primary">—</span> {t("curve.lowerProb")}
-          <span className="mx-2 text-border">·</span>
-          <span className="text-foreground/60">┆</span> {t("curve.nowMarker")}
-          <span className="mx-2 text-border">·</span>
-          {t("curve.peak")} {Math.round(peak.probability * 100)}%
-        </p>
       </div>
     </section>
   );
