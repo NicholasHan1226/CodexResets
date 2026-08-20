@@ -40,6 +40,7 @@ export default function About() {
         <hr className="my-10 border-border/30" />
         <section aria-label="How the model works">
           <h2 className="text-lg font-semibold text-foreground">
+            <span className="mr-2 font-mono font-normal text-primary">❯</span>
             {t('model.title')}
           </h2>
           <div className="mt-4 space-y-4 text-sm leading-relaxed text-muted-foreground">
@@ -62,6 +63,7 @@ export default function About() {
         <hr className="my-10 border-border/30" />
         <section aria-label="How Codex limits work">
           <h2 className="text-lg font-semibold text-foreground">
+            <span className="mr-2 font-mono font-normal text-primary">❯</span>
             {t('limits.title')}
           </h2>
           <div className="mt-4 space-y-4 text-sm leading-relaxed text-muted-foreground">
@@ -92,6 +94,7 @@ export default function About() {
         <hr className="my-10 border-border/30" />
         <section aria-label="Data sources">
           <h2 className="text-lg font-semibold text-foreground">
+            <span className="mr-2 font-mono font-normal text-primary">❯</span>
             {t('about.sourcesTitle')}
           </h2>
           <div className="mt-4 space-y-3 text-sm leading-relaxed text-muted-foreground">

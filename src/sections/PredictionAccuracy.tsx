@@ -36,6 +36,7 @@ export function PredictionAccuracy() {
   return (
     <section aria-label="Prediction accuracy" className="max-w-3xl">
       <h2 className="text-lg font-semibold text-foreground">
+        <span className="mr-2 font-mono font-normal text-primary">❯</span>
         {t('accuracy.title')}
       </h2>
 

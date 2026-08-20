@@ -68,6 +68,7 @@ export function ResetAlertsPanel() {
   return (
     <section aria-label="Reset alerts" className="max-w-3xl">
       <h2 className="text-lg font-semibold text-foreground">
+        <span className="mr-2 font-mono font-normal text-primary">❯</span>
         {t('subscribe.title')}
       </h2>
       <p className="mt-2 text-sm text-muted-foreground">

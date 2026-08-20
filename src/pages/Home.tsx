@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from "react";
+import { useState } from "react";
 import { usePrediction } from "@/hooks/usePrediction";
 import { StatusHeader } from "@/sections/StatusHeader";
 import { HeroSection } from "@/sections/HeroSection";
@@ -7,16 +7,11 @@ import { ResetAlertsPanel } from "@/sections/ResetAlertsPanel";
 import { HistoryPanel } from "@/sections/HistoryPanel";
 import { TimeDistribution } from "@/sections/TimeDistribution";
 import { ResetCalendar } from "@/sections/ResetCalendar";
+import { ProbabilityCurve } from "@/sections/ProbabilityCurve";
 import { AnchorNav } from "@/components/AnchorNav";
 import { sharePredictionState, copyToClipboard } from "@/lib/export-share";
 import { useI18n } from "@/contexts/I18nContext";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
-
-// Recharts (~108KB gzip) is only used here and sits below the fold —
-// lazy-load it so first paint doesn't pay for the charting library.
-const ProbabilityCurve = lazy(() =>
-  import("@/sections/ProbabilityCurve").then((m) => ({ default: m.ProbabilityCurve }))
-);
 
 export default function Home() {
   const { prediction, isLive, signalsLoading, usingRealData } = usePrediction();
@@ -58,9 +53,7 @@ export default function Home() {
           <hr className="my-10 border-border/30" />
 
           <div id="curve" className="scroll-mt-16">
-            <Suspense fallback={<div className="h-40 sm:h-56 w-full animate-pulse rounded bg-muted/30" aria-hidden="true" />}>
-              <ProbabilityCurve curve={prediction.curve} hours={timeframe} />
-            </Suspense>
+            <ProbabilityCurve curve={prediction.curve} hours={timeframe} />
           </div>
 
           <hr className="my-10 border-border/30" />

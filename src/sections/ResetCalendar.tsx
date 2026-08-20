@@ -76,6 +76,7 @@ export function ResetCalendar() {
   return (
     <section aria-label="Reset calendar" className="max-w-3xl">
       <h2 className="text-lg font-semibold text-foreground">
+        <span className="mr-2 font-mono font-normal text-primary">❯</span>
         {t('calendar.title')}
       </h2>
 

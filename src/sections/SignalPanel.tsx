@@ -39,11 +39,12 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
     <section aria-label="Signal radar" className="max-w-3xl">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">
+          <span className="mr-2 font-mono font-normal text-primary">❯</span>
           {t('signals.title')}
         </h2>
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs text-muted-foreground">
-            {prediction.signals.length} sources
+            {t('signals.sources', { n: prediction.signals.length })}
           </span>
           {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
         </div>

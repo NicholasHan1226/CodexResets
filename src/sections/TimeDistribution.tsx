@@ -28,6 +28,7 @@ export function TimeDistribution() {
     <section aria-label="Hourly distribution" className="max-w-3xl">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">
+          <span className="mr-2 font-mono font-normal text-primary">❯</span>
           {t('timeDistribution.title')}
         </h2>
         <span className="font-mono text-xs text-muted-foreground">{userTz}</span>

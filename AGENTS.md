@@ -8,7 +8,7 @@
 ## Tech Stack
 - **Framework**: Vite 7 + React 19 + TypeScript 5
 - **Styling**: Tailwind CSS 3.4 + shadcn/ui (New York style)
-- **Charts**: Recharts 2
+- **Charts**: Hand-rolled SVG (no chart library)
 - **Router**: React Router 7
 - **Icons**: Lucide React
 
@@ -57,7 +57,7 @@ src/
 ## Key Patterns
 - `usePrediction` renders instantly from local data, network enhances async;
   records + signals fetched in parallel, 5min auto-refresh
-- Recharts for data visualization with custom dark theme
+- Hand-rolled SVG for data visualization (Recharts removed — see Performance)
 - CSS variables for theming (HSL format)
 - Home holds `timeframe` state (24|48) shared by HeroSection + ProbabilityCurve
 - Share: `sharePredictionState()` builds URL with state params, copied via clipboard
@@ -65,12 +65,12 @@ src/
   (exception: prediction accuracy samples + locale preference)
 
 ## Performance (do not regress)
-- recharts is lazy-loaded via `React.lazy` in Home (ProbabilityCurve) —
-  never import it from an eagerly-loaded module
+- Charts are hand-rolled SVG (ProbabilityCurve) — recharts was removed from
+  the bundle; do not re-add a charting library without lazy-loading it
 - Supabase client is created lazily via `getSupabase()` dynamic import in
   `lib/supabase.ts` — never use a top-level `createClient`
 - vite.config `manualChunks` lists ONLY eager vendors (react/ui); adding
-  recharts/supabase there would force them back onto the critical path
+  other deps there would force them onto the critical path
 - About page is route-level code-split in App.tsx
 - Fonts load non-render-blocking (preload + media=print swap in index.html)
 - Below-fold Home sections use `.cv-auto` (content-visibility: auto)
