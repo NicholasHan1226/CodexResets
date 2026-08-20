@@ -91,23 +91,3 @@ export interface HistoricalReset {
   /** Reason text */
   reason: string;
 }
-
-export interface BankedReset {
-  /** Unique ID */
-  id: string;
-  /** Date when the banked reset was issued */
-  issueDate: string;
-  /** Expiry date (issueDate + 30 days) */
-  expiryDate: string;
-  /** Whether it has been used */
-  used: boolean;
-}
-
-export interface UsageTracking {
-  /** Weekly window reset time (HH:MM format) */
-  weeklyResetTime: string;
-  /** Current usage percentage (0-100) */
-  usagePercent: number;
-  /** Last updated timestamp */
-  updatedAt: number;
-}

@@ -1,6 +1,6 @@
 import { useI18n } from '@/contexts/I18nContext';
 import type { ResetPrediction } from '@/types/reset';
-import { Globe, Share2, Download } from 'lucide-react';
+import { Globe, Share2 } from 'lucide-react';
 import { Link } from 'react-router';
 import { useState, useEffect } from 'react';
 
@@ -9,10 +9,9 @@ interface StatusHeaderProps {
   isLive: boolean;
   onRefresh: () => void;
   onShare?: () => void;
-  onExport?: () => void;
 }
 
-export function StatusHeader({ prediction, isLive, onRefresh, onShare, onExport }: StatusHeaderProps) {
+export function StatusHeader({ prediction, isLive, onRefresh, onShare }: StatusHeaderProps) {
   const { locale, setLocale, t } = useI18n();
   const [utcTime, setUtcTime] = useState('');
 
@@ -87,16 +86,6 @@ export function StatusHeader({ prediction, isLive, onRefresh, onShare, onExport 
               aria-label={t('header.share')}
             >
               <Share2 className="w-3.5 h-3.5" />
-            </button>
-          )}
-
-          {onExport && (
-            <button
-              onClick={onExport}
-              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-              aria-label={t('header.export')}
-            >
-              <Download className="w-3.5 h-3.5" />
             </button>
           )}
 

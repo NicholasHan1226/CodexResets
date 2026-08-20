@@ -3,12 +3,10 @@ import { useI18n } from '@/contexts/I18nContext';
 const sections = [
   { id: 'curve', key: 'nav.curve' },
   { id: 'signals', key: 'nav.signals' },
-  { id: 'usage', key: 'nav.usage' },
   { id: 'rhythm', key: 'nav.rhythm' },
   { id: 'history', key: 'nav.history' },
   { id: 'calendar', key: 'nav.calendar' },
   { id: 'alerts', key: 'nav.alerts' },
-  { id: 'account', key: 'nav.account' },
 ];
 
 export function AnchorNav() {

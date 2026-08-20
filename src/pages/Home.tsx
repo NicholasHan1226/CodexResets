@@ -6,13 +6,11 @@ import { HeroSection } from "@/sections/HeroSection";
 import { ProbabilityCurve } from "@/sections/ProbabilityCurve";
 import { SignalPanel } from "@/sections/SignalPanel";
 import { ResetAlertsPanel } from "@/sections/ResetAlertsPanel";
-import { AccountPanel } from "@/sections/AccountPanel";
-import { UsageTracker } from "@/sections/UsageTracker";
-import { HistoryBankedPanel } from "@/sections/HistoryBankedPanel";
+import { HistoryPanel } from "@/sections/HistoryPanel";
 import { TimeDistribution } from "@/sections/TimeDistribution";
 import { ResetCalendar } from "@/sections/ResetCalendar";
 import { AnchorNav } from "@/components/AnchorNav";
-import { sharePredictionState, copyToClipboard, exportPersonalData } from "@/lib/export-share";
+import { sharePredictionState, copyToClipboard } from "@/lib/export-share";
 import { useI18n } from "@/contexts/I18nContext";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 
@@ -43,11 +41,6 @@ export default function Home() {
           isLive={isLive}
           onRefresh={() => window.location.reload()}
           onShare={handleShare}
-          onExport={() => {
-            const usage = JSON.parse(localStorage.getItem('codex-resets-usage') || '{}');
-            const resets = JSON.parse(localStorage.getItem('codex-resets-banked') || '[]');
-            exportPersonalData(usage, resets);
-          }}
         />
 
         <main className="mx-auto max-w-3xl px-4 md:px-6 py-10" role="main" aria-label="Codex Reset Prediction Dashboard">
@@ -73,12 +66,6 @@ export default function Home() {
 
           <hr className="my-10 border-border/30" />
 
-          <div id="usage" className="scroll-mt-16">
-            <UsageTracker />
-          </div>
-
-          <hr className="my-10 border-border/30" />
-
           <div id="rhythm" className="scroll-mt-16">
             <TimeDistribution />
           </div>
@@ -86,7 +73,7 @@ export default function Home() {
           <hr className="my-10 border-border/30" />
 
           <div id="history" className="scroll-mt-16">
-            <HistoryBankedPanel />
+            <HistoryPanel />
           </div>
 
           <hr className="my-10 border-border/30" />
@@ -99,12 +86,6 @@ export default function Home() {
 
           <div id="alerts" className="scroll-mt-16">
             <ResetAlertsPanel />
-          </div>
-
-          <hr className="my-10 border-border/30" />
-
-          <div id="account" className="scroll-mt-16">
-            <AccountPanel />
           </div>
 
           {/* Footer */}

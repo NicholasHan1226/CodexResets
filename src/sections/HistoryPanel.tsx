@@ -1,76 +1,101 @@
 import { useI18n } from '@/contexts/I18nContext';
 import { RESET_HISTORY, computeIntervalStats } from '@/lib/reset-data';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { History, ExternalLink } from 'lucide-react';
 
 export function HistoryPanel() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const stats = computeIntervalStats();
-  const recentResets = RESET_HISTORY.slice(0, 8);
+  const recentResets = RESET_HISTORY.slice(0, 5);
+
+  // Reset rhythm sparkline: days between consecutive resets (oldest → newest)
+  const SPARK_CHARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+  const intervals: number[] = [];
+  for (let i = RESET_HISTORY.length - 1; i > 0; i--) {
+    const gap = (RESET_HISTORY[i - 1].timestamp - RESET_HISTORY[i].timestamp) / 86400000;
+    intervals.push(gap);
+  }
+  const recentIntervals = intervals.slice(-14);
+  const maxGap = Math.max(...recentIntervals, 1);
+  const sparkline = recentIntervals
+    .map((gap) => SPARK_CHARS[Math.min(7, Math.round((gap / maxGap) * 7))])
+    .join('');
+  // Current ongoing wait
+  const currentWait = (Date.now() - RESET_HISTORY[0].timestamp) / 86400000;
+  const currentSpark = SPARK_CHARS[Math.min(7, Math.round((currentWait / maxGap) * 7))];
 
   return (
-    <Card className="p-5 bg-card border-border/50">
-      <div className="flex items-center gap-2 mb-4">
-        <History className="w-4 h-4 text-primary" />
-        <h2 className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-          {t('history.title')}
-        </h2>
-      </div>
-      <div className="space-y-2">
-        {recentResets.map((reset, index) => {
-          const daysSince = index < RESET_HISTORY.length - 1
-            ? ((new Date(RESET_HISTORY[RESET_HISTORY.length - 2 - index]?.timestamp || Date.now()).getTime() - new Date(reset.timestamp).getTime()) / (1000 * 60 * 60 * 24)).toFixed(1)
-            : null;
+    <section aria-label="Reset history" className="max-w-3xl">
+      <h2 className="text-lg font-semibold text-foreground">
+        {t('history.title')}
+      </h2>
 
-          return (
-            <div
-              key={reset.id}
-              className="flex items-center justify-between p-2 rounded-lg bg-muted/20 hover:bg-muted/40 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-mono text-muted-foreground w-20">
-                  {new Date(reset.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+      {/* Reset rhythm sparkline */}
+      <div className="mt-3">
+        <span className="text-xs text-muted-foreground uppercase tracking-wide">
+          {t('history.rhythm')}
+        </span>
+        <p className="mt-1.5 font-mono text-lg tracking-wider select-none" aria-hidden="true">
+          <span className="text-muted-foreground">{sparkline}</span>
+          <span className="text-primary" title={`current: ${currentWait.toFixed(1)}d`}>{currentSpark}</span>
+        </p>
+        <p className="mt-1 font-mono text-[11px] text-muted-foreground/60">
+          {t('history.rhythmNote')} · {t('history.currentWait')}{' '}
+          <span className="text-primary">{currentWait.toFixed(1)}d</span>
+        </p>
+      </div>
+
+      {/* Recent resets — timeline */}
+      <div className="mt-6">
+        <span className="text-xs text-muted-foreground uppercase tracking-wide">
+          {t('history.recent')}
+        </span>
+        <div className="mt-2 space-y-0">
+          {recentResets.map((reset, i) => {
+            const nextReset = RESET_HISTORY[RESET_HISTORY.length - 2 - i];
+            const daysSince = nextReset
+              ? ((new Date(nextReset.timestamp).getTime() - new Date(reset.timestamp).getTime()) / 86400000).toFixed(1)
+              : null;
+            return (
+              <div
+                key={reset.id}
+                className={`flex items-baseline gap-3 py-1.5 ${i > 0 ? 'border-t border-border/10' : ''}`}
+              >
+                <span className="shrink-0 font-mono text-sm text-foreground">
+                  {new Date(reset.timestamp).toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric' })}
                 </span>
-                <span className="text-xs text-foreground truncate max-w-[120px]">
+                {daysSince && (
+                  <span className="shrink-0 font-mono text-xs text-muted-foreground/60">
+                    +{daysSince}d
+                  </span>
+                )}
+                <span className="text-sm text-muted-foreground truncate">
                   {reset.reason}
                 </span>
-              </div>
-              <div className="flex items-center gap-2">
-                {daysSince && (
-                  <Badge variant="outline" className="text-xs font-mono">
-                    {daysSince}d
-                  </Badge>
-                )}
                 {reset.source && (
                   <a
                     href={reset.source}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-muted-foreground hover:text-primary transition-colors"
+                    className="shrink-0 font-mono text-xs text-primary hover:underline ml-auto"
                   >
-                    <ExternalLink className="w-3 h-3" />
+                    src →
                   </a>
                 )}
               </div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="mt-4 pt-4 border-t border-border/50 grid grid-cols-3 gap-2 text-center">
-        <div>
-          <p className="text-lg font-mono font-bold text-primary">{stats.totalResets}</p>
-          <p className="text-xs text-muted-foreground">{t('history.totalResets')}</p>
-        </div>
-        <div>
-          <p className="text-lg font-mono font-bold text-foreground">{stats.medianDays.toFixed(1)}d</p>
-          <p className="text-xs text-muted-foreground">{t('history.medianInterval')}</p>
-        </div>
-        <div>
-          <p className="text-lg font-mono font-bold text-amber-400">{stats.maxDays.toFixed(1)}d</p>
-          <p className="text-xs text-muted-foreground">{t('history.longestWait')}</p>
+            );
+          })}
         </div>
       </div>
-    </Card>
+
+      {/* Stats — inline */}
+      <p className="mt-4 font-mono text-xs text-muted-foreground">
+        <span className="text-foreground">{stats.totalResets}</span> {t('history.totalResets').toLowerCase()}
+        <span className="mx-2 text-border">·</span>
+        <span className="text-primary">{stats.medianDays.toFixed(1)}d</span> {t('history.medianInterval').toLowerCase()}
+        <span className="mx-2 text-border">·</span>
+        <span className="text-warning">{stats.maxDays.toFixed(1)}d</span> {t('history.longestWait').toLowerCase()}
+      </p>
+    </section>
   );
 }
+
+export default HistoryPanel;

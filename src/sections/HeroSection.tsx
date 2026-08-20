@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
+import { sharePredictionState, copyToClipboard } from '@/lib/export-share';
 import type { ResetPrediction } from '@/types/reset';
 
 interface HeroSectionProps {
@@ -9,6 +11,7 @@ interface HeroSectionProps {
 
 export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSectionProps) {
   const { t, locale } = useI18n();
+  const [copied, setCopied] = useState(false);
   const pct24 = Math.round(prediction.prob24h * 100);
   const pct48 = Math.round(prediction.prob48h * 100);
   const pct = timeframe === 24 ? pct24 : pct48;
@@ -109,10 +112,29 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
         )}
       </p>
 
-      {/* Advice */}
+      {/* Advice + share */}
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
         <span className="text-foreground font-medium">{t('hero.adviceLabel')}</span>{' '}
         {prediction.advice.text}
+      </p>
+      <p className="mt-3 font-mono text-xs">
+        <button
+          onClick={async () => {
+            const url = sharePredictionState({
+              probability24h: prediction.prob24h,
+              probability48h: prediction.prob48h,
+              daysSinceLastReset: prediction.daysSinceLastReset,
+              medianInterval: prediction.medianIntervalDays,
+            });
+            if (await copyToClipboard(url)) {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }
+          }}
+          className="text-primary hover:text-primary/80 transition-colors"
+        >
+          {copied ? t('hero.copied') : t('hero.shareLink')}
+        </button>
       </p>
     </section>
   );

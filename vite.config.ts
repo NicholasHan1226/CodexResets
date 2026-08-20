@@ -31,15 +31,11 @@ export default defineConfig({
           // Feature chunks
           'sections': [
             '@/sections/StatusHeader',
-            '@/sections/CountdownPanel',
-            '@/sections/ProbabilityGauges',
+            '@/sections/HeroSection',
             '@/sections/ProbabilityCurve',
             '@/sections/SignalPanel',
             '@/sections/HistoryPanel',
-            '@/sections/ModelInfo',
-            '@/sections/SubscribePanel',
-            '@/sections/UsageTracker',
-            '@/sections/BankedResets',
+            '@/sections/ResetAlertsPanel',
             '@/sections/TimeDistribution',
             '@/sections/ResetCalendar',
             '@/sections/PredictionAccuracy',

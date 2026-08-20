@@ -1,63 +1,6 @@
 /**
- * Export and share utilities
+ * Share utilities
  */
-
-import type { UsageTracking, BankedReset } from "@/types/reset";
-
-interface ExportData {
-  usageTracking: UsageTracking | null;
-  bankedResets: BankedReset[];
-  exportedAt: string;
-  version: string;
-}
-
-/**
- * Export personal data (usage tracking + banked resets) as JSON file
- */
-export function exportPersonalData(
-  usageTracking: UsageTracking | null,
-  bankedResets: BankedReset[]
-): void {
-  const data: ExportData = {
-    usageTracking,
-    bankedResets,
-    exportedAt: new Date().toISOString(),
-    version: "1.0.0",
-  };
-
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `codex-resets-data-${new Date().toISOString().split("T")[0]}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-/**
- * Import personal data from JSON file
- */
-export function importPersonalData(file: File): Promise<ExportData> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = JSON.parse(e.target?.result as string) as ExportData;
-        if (!data.version || !data.exportedAt) {
-          reject(new Error("Invalid data format"));
-          return;
-        }
-        resolve(data);
-      } catch {
-        reject(new Error("Failed to parse JSON file"));
-      }
-    };
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsText(file);
-  });
-}
 
 /**
  * Share current prediction state via URL
