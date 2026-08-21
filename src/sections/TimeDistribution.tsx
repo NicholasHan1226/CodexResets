@@ -73,7 +73,7 @@ export function TimeDistribution() {
         <span className="font-mono text-primary">
           {Math.round((bestCount / history.length) * 100)}%
         </span>{" "}
-        {t('timeDistribution.resets').toLowerCase()}
+        {t('timeDistribution.ofResets')}
       </p>
     </section>
   );

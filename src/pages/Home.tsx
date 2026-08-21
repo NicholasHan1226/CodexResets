@@ -83,7 +83,7 @@ export default function Home() {
           <hr className="my-10 border-border/30" />
 
           <div id="alerts" className="scroll-mt-16 cv-auto">
-            <ResetAlertsPanel />
+            <ResetAlertsPanel prob24h={prediction.prob24h} />
           </div>
 
           {/* Footer */}

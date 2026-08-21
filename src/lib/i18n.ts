@@ -149,14 +149,19 @@ const translations: Record<Locale, Record<string, string>> = {
     'signals.launchQuiet': 'No product launch signals',
 
     // Time Distribution
-    'distribution.title': 'RESET TIMING',
-    'distribution.subtitle': 'When resets typically happen',
-    'distribution.peakHours': 'Peak hours',
-    'distribution.events': '{n} events',
+    'timeDistribution.title': 'RESET TIMING',
+    'timeDistribution.resets': 'resets',
+    'timeDistribution.ofResets': 'of resets',
+    'timeDistribution.peakWindow': 'peak window',
 
     // Subscribe
     'subscribe.title': 'RESET RADAR',
     'subscribe.description': "We'll email at 70%, then once more if the button actually gets pressed.",
+    'subscribe.command': 'watch resets --threshold 70% --channel email',
+    'subscribe.nowLabel': 'now',
+    'subscribe.alertAt': 'alert at {n}%',
+    'subscribe.armed': 'ARMED',
+    'subscribe.standby': 'STANDBY',
     'subscribe.placeholder': 'your@email.com',
     'subscribe.button': 'Subscribe',
     'subscribe.subscribed': 'Subscribed!',
@@ -227,6 +232,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'footer.modelVersion': 'Model v2.4.1',
     'footer.dataSources': 'Data: @thsottiaux posts · OpenAI Status · Historical patterns',
     'footer.disclaimer': 'Not affiliated with OpenAI. Resets are manually triggered and cannot be precisely predicted.',
+    'footer.liveData': 'data: live — verified resets + pipeline signals',
+    'footer.simulatedData': 'data: simulated — demo mode',
 
     // Calendar
     'calendar.title': 'Reset Calendar',
@@ -381,6 +388,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'signals.productHint': '产品暗示："{text}"',
     'signals.milestoneReached': '达成里程碑',
     'signals.liveData': '实时数据',
+    'signals.loading': '信号加载中…',
     'signals.cachedData': '已缓存',
     'signals.fallbackData': '降级数据',
     'signals.tiboUnavailable': '推文源暂时不可用 — 管道持续监控中',
@@ -392,14 +400,19 @@ const translations: Record<Locale, Record<string, string>> = {
     'signals.launchQuiet': '无产品发布信号',
 
     // Time Distribution
-    'distribution.title': '重置时间分布',
-    'distribution.subtitle': '重置通常发生的时间',
-    'distribution.peakHours': '高峰时段',
-    'distribution.events': '{n} 次事件',
+    'timeDistribution.title': '重置时间分布',
+    'timeDistribution.resets': '次重置',
+    'timeDistribution.ofResets': '的重置',
+    'timeDistribution.peakWindow': '高峰窗口',
 
     // Subscribe
     'subscribe.title': '重置雷达',
     'subscribe.description': '概率达到70%时邮件通知，重置确认后再次通知。',
+    'subscribe.command': 'watch resets --threshold 70% --channel email',
+    'subscribe.nowLabel': '当前',
+    'subscribe.alertAt': '{n}% 时触发',
+    'subscribe.armed': '已生效',
+    'subscribe.standby': '待命',
     'subscribe.placeholder': '你的邮箱',
     'subscribe.button': '订阅',
     'subscribe.subscribed': '已订阅！',
@@ -470,6 +483,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'footer.modelVersion': '模型 v2.4.1',
     'footer.dataSources': '数据源：@thsottiaux 推文 · OpenAI 状态页 · 历史模式',
     'footer.disclaimer': '非 OpenAI 官方产品。重置由手动触发，无法精确预测。',
+    'footer.liveData': '数据：实时——已验证重置记录 + 管道信号',
+    'footer.simulatedData': '数据：模拟——演示模式',
 
     // Calendar
     'calendar.title': '重置日历',
