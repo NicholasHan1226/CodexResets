@@ -73,6 +73,10 @@ export interface RunReport {
   scrapeInstance?: string;
   tweetsSeen: number;
   candidates: number;
+  /** reset+context mentions that lacked announcement phrasing (never auto-inserted) */
+  weakCandidates?: number;
+  /** First few candidate excerpts — lets ops eyeball false positives in /api/health */
+  candidateSamples?: { tier: 'strong' | 'weak'; ts: string; link: string; text: string }[];
   inserted: number;
   notifiedEmails: number;
   notifiedPush: number;

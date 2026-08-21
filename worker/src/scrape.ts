@@ -152,15 +152,34 @@ function parseNitterDate(title: string): number | null {
   return Date.UTC(Number(m[3]), month, Number(m[2]), hour, Number(m[5]));
 }
 
+// Reset detection patterns — module scope so the signal builder shares them
+export const RESET_RE = /\breset(s|ting)?\b/i;
+export const CONTEXT_RE = /(limit|usage|quota|credit|paid|users?|codex|weekly|bank|everyone)/i;
+// Announcement-style phrasing: an actual reset notice asserts a completed or
+// current event. Without one of these tokens the mention is almost always
+// noise ("Occasional resets ✅" feature lists, "when do limits reset" questions).
+export const ANNOUNCE_RE = /(now|today|tonight|just|again|live|everyone|all users|rolled|fresh|has been|have been|should be|got reset|went out|effective|resetting)/i;
+
+export interface ResetDetection {
+  /** reset + context + announcement phrasing — safe to auto-insert */
+  strong: ResetEvent[];
+  /** reset + context only — logged for manual review, never auto-inserted */
+  weak: ResetEvent[];
+}
+
 /**
  * Detect reset announcements. Every verified historical reset came from a
  * post mentioning a reset, so require "reset" plus a usage-limit context
- * word to avoid "reset my password" style noise.
+ * word; auto-insert additionally requires announcement-style phrasing.
+ * Precision beats recall here: a missed reset self-corrects via the news
+ * fallback and the next mention, while a false reset corrupts the
+ * prediction model for days.
  */
-export function detectResetEvents(tweets: Tweet[]): ResetEvent[] {
-  const RESET_RE = /\breset(s|ting)?\b/i;
-  const CONTEXT_RE = /(limit|usage|quota|credit|paid|users?|codex|weekly|bank|everyone)/i;
-  return tweets
-    .filter((t) => RESET_RE.test(t.text) && CONTEXT_RE.test(t.text))
-    .map((t) => ({ ts: t.ts, text: t.text.slice(0, 280), link: t.link }));
+export function detectResetEvents(tweets: Tweet[]): ResetDetection {
+  const toEvent = (t: Tweet): ResetEvent => ({ ts: t.ts, text: t.text.slice(0, 280), link: t.link });
+  const matched = tweets.filter((t) => RESET_RE.test(t.text) && CONTEXT_RE.test(t.text));
+  return {
+    strong: matched.filter((t) => ANNOUNCE_RE.test(t.text)).map(toEvent),
+    weak: matched.filter((t) => !ANNOUNCE_RE.test(t.text)).map(toEvent),
+  };
 }

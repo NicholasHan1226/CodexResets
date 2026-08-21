@@ -1,4 +1,5 @@
 import type { Env, ScrapeResult, SignalSnapshot, SignalsPayload } from './types';
+import { RESET_RE, CONTEXT_RE, ANNOUNCE_RE } from './scrape';
 
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
@@ -80,12 +81,18 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
     };
   }
 
-  const RESET_RE = /\breset(s|ting)?\b/i;
   const latest = scrape.tweets[0];
-  const latestResetTweet = scrape.tweets.find((t) => RESET_RE.test(t.text));
+  // Same filters as the event detector: a reset mention needs the usage-limit
+  // context word; the ACTIVE tier additionally needs announcement phrasing.
+  const latestResetTweet = scrape.tweets.find((t) => RESET_RE.test(t.text) && CONTEXT_RE.test(t.text));
   const hoursSinceResetMention = latestResetTweet ? Math.floor((now - latestResetTweet.ts) / HOUR) : null;
 
-  if (hoursSinceResetMention !== null && hoursSinceResetMention < 24) {
+  if (
+    hoursSinceResetMention !== null &&
+    hoursSinceResetMention < 24 &&
+    latestResetTweet &&
+    ANNOUNCE_RE.test(latestResetTweet.text)
+  ) {
     return {
       ...base,
       status: 'active',
@@ -99,7 +106,7 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
       ...base,
       status: 'weak',
       value: 0.4,
-      description: 'signals.resetAnnouncedDays',
+      description: 'signals.resetMentionedDays',
       descriptionParams: { n: Math.floor(hoursSinceResetMention / 24) },
     };
   }

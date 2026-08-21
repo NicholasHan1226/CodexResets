@@ -39,15 +39,22 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   }
 
   // 3. Detect reset candidates, dedupe against known records, insert new ones.
-  //    When every tweet mirror is down, fall back to Google News mentions so
-  //    widely-reported resets are still caught automatically.
-  let candidates = detectResetEvents(scrape.tweets);
+  //    Only strong (announcement-phrased) candidates are auto-inserted; weak
+  //    mentions are logged for manual review. When every tweet mirror is
+  //    down, fall back to Google News mentions.
+  let detection = detectResetEvents(scrape.tweets);
   if (!scrape.ok) {
     const news = await scrapeNewsMentions();
-    candidates = detectResetEvents(news);
+    detection = detectResetEvents(news);
     if (news.length > 0) report.scrapeInstance = (report.scrapeInstance || '') + ' +news-fallback';
   }
+  const candidates = detection.strong;
   report.candidates = candidates.length;
+  report.weakCandidates = detection.weak.length;
+  report.candidateSamples = [
+    ...detection.strong.map((c) => ({ tier: 'strong' as const, ts: new Date(c.ts).toISOString(), link: c.link, text: c.text.slice(0, 160) })),
+    ...detection.weak.map((c) => ({ tier: 'weak' as const, ts: new Date(c.ts).toISOString(), link: c.link, text: c.text.slice(0, 160) })),
+  ].slice(0, 4);
   const fresh = candidates.filter(
     (c) =>
       !records.some(
