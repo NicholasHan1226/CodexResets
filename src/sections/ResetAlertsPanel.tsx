@@ -1,15 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
-import { subscribeEmail, type SubscriptionResult } from '@/lib/subscription';
+import { subscribeEmail, type SubscribeStatus } from '@/lib/subscription';
 import { subscribeToPush, unsubscribeFromPush, isSubscribedToPush, isPushSupported } from '@/lib/push-notifications';
+
+const statusMessageKey: Record<SubscribeStatus, string> = {
+  new: 'subscribe.success',
+  existing: 'subscribe.alreadySubscribed',
+  reactivated: 'subscribe.welcomeBack',
+  invalid: 'subscribe.invalidEmail',
+};
 
 export function ResetAlertsPanel() {
   const { t } = useI18n();
 
   const [email, setEmail] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
-  const [emailSuccess, setEmailSuccess] = useState(false);
+  const [emailDone, setEmailDone] = useState(false);
   const [emailMessage, setEmailMessage] = useState('');
+  const [emailError, setEmailError] = useState(false);
 
   const [pushSupported, setPushSupported] = useState(false);
   const [pushSubscribed, setPushSubscribed] = useState(false);
@@ -32,17 +40,19 @@ export function ResetAlertsPanel() {
     e.preventDefault();
     if (!email || emailLoading) return;
     setEmailLoading(true);
+    setEmailError(false);
     try {
-      const result: SubscriptionResult = await subscribeEmail(email);
-      if (result.success) {
-        setEmailSuccess(true);
-        setEmailMessage(result.message);
-        setEmail('');
+      const status = await subscribeEmail(email);
+      setEmailMessage(t(statusMessageKey[status]));
+      if (status === 'invalid') {
+        setEmailError(true);
       } else {
-        setEmailMessage(result.message);
+        setEmailDone(true);
+        setEmail('');
       }
     } catch {
       setEmailMessage(t('subscribe.errorRetry'));
+      setEmailError(true);
     } finally {
       setEmailLoading(false);
     }
@@ -75,51 +85,60 @@ export function ResetAlertsPanel() {
         {t('subscribe.description')}
       </p>
 
-      {/* Email */}
-      {emailSuccess ? (
-        <p className="mt-3 text-sm text-primary">
-          {emailMessage || t('subscribe.success')}
+      {/* Email — terminal prompt well + reverse-video CTA */}
+      {emailDone ? (
+        <p className="mt-4 font-mono text-sm text-primary">
+          ✓ {emailMessage}
         </p>
       ) : (
-        <form onSubmit={handleEmailSubmit} className="mt-3 flex gap-2 max-w-sm">
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder={t('subscribe.placeholder')}
-            className="flex-1 min-w-0 bg-muted border border-border/20 rounded-md px-3 py-1.5 text-sm font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/40 transition-colors"
-            required
-          />
+        <form onSubmit={handleEmailSubmit} className="mt-4 flex max-w-md items-stretch gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2 border border-border/40 bg-muted px-3 transition-colors focus-within:border-primary/50">
+            <span className="shrink-0 font-mono text-sm text-primary">❯</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={t('subscribe.placeholder')}
+              className="w-full min-w-0 bg-transparent py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+              required
+            />
+          </div>
           <button
             type="submit"
             disabled={emailLoading}
-            className="shrink-0 font-mono text-xs text-primary hover:underline disabled:opacity-50"
+            className="shrink-0 bg-primary px-4 font-mono text-xs font-semibold uppercase tracking-wider text-background transition-colors hover:bg-primary/85 disabled:opacity-50"
           >
-            {emailLoading ? '...' : `[${t('subscribe.subscribe')}]`}
+            {emailLoading ? '···' : t('subscribe.button')}
           </button>
         </form>
       )}
-      {emailMessage && !emailSuccess && (
-        <p className="mt-1 text-xs text-destructive">{emailMessage}</p>
+      {emailMessage && !emailDone && (
+        <p className={`mt-2 font-mono text-xs ${emailError ? 'text-destructive' : 'text-muted-foreground'}`}>
+          {emailMessage}
+        </p>
       )}
 
-      {/* Browser push */}
+      {/* Browser push — secondary bordered action */}
       {!pushInit && pushSupported && (
-        <div className="mt-3">
+        <div className="mt-3 flex items-center gap-3">
           <button
             onClick={handlePushToggle}
             disabled={pushLoading}
-            className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            className={`border px-3 py-1.5 font-mono text-xs transition-colors disabled:opacity-50 ${
+              pushSubscribed
+                ? 'border-primary/40 text-primary hover:border-primary/60'
+                : 'border-border/40 text-muted-foreground hover:border-primary/40 hover:text-foreground'
+            }`}
           >
             {pushLoading
-              ? '...'
+              ? '···'
               : pushSubscribed
-                ? `[${t('push.unsubscribe')}]`
-                : `[${t('push.disabled')}]`}
+                ? t('push.unsubscribe')
+                : t('push.disabled')}
           </button>
           {pushSubscribed && (
-            <span className="ml-2 font-mono text-xs text-primary">
-              {t('push.enabled')}
+            <span className="font-mono text-xs text-primary">
+              ● {t('push.enabled')}
             </span>
           )}
         </div>

@@ -49,6 +49,13 @@
 - 排序：状态严重度优先（ACTIVE>WARM>IDLE），同档按时间倒序
 - ACTIVE 行允许 `bg-primary/5` 极浅底色（-mx-2 px-2 呼吸），其余行无底色
 
+### 订阅 CTA（ResetAlertsPanel）
+- 主按钮用**实心反色块**：`bg-primary text-background` + mono uppercase 追踪加宽——全站唯一的主行动点，允许最响
+- 输入区是终端命令行：`❯` 提示符前缀 + `bg-muted` 无圆角井，`focus-within:border-primary/50`
+- 次级动作（推送开关）用**描边块**而非实心：`border-border/40`  hover 提边色——层级次于主 CTA
+- 成功态：`✓` 字形 + 主色 mono 单行，不弹 toast
+- 全站按钮三档词汇固定：实心反色（主）/ 描边块（次）/ 纯文字链接（弱）
+
 ## 设计禁忌
 - 禁止蓝紫渐变、发光边框、脉冲动画、入场级联动画
 - 禁止大数字 + glow 的"AI 仪表盘"风格

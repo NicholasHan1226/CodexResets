@@ -162,6 +162,10 @@ const translations: Record<Locale, Record<string, string>> = {
     'subscribe.subscribed': 'Subscribed!',
     'subscribe.subscribers': '{n} subscribers',
     'subscribe.invalidEmail': 'Please enter a valid email',
+    'subscribe.success': "Subscribed — we'll email you at 70%.",
+    'subscribe.alreadySubscribed': 'This email is already subscribed.',
+    'subscribe.welcomeBack': 'Subscription re-activated — welcome back.',
+    'subscribe.errorRetry': 'Something went wrong — please try again.',
 
     // Push Notifications
     'push.title': 'BROWSER NOTIFICATIONS',
@@ -401,6 +405,10 @@ const translations: Record<Locale, Record<string, string>> = {
     'subscribe.subscribed': '已订阅！',
     'subscribe.subscribers': '{n} 位订阅者',
     'subscribe.invalidEmail': '请输入有效的邮箱地址',
+    'subscribe.success': '已订阅——概率到 70% 时邮件通知你。',
+    'subscribe.alreadySubscribed': '该邮箱已订阅。',
+    'subscribe.welcomeBack': '订阅已重新激活。',
+    'subscribe.errorRetry': '出错了，请稍后重试。',
 
     // Push Notifications
     'push.title': '浏览器通知',
