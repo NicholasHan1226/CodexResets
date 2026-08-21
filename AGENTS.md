@@ -45,6 +45,19 @@ some regions — do not rely on it).
   notification fan-out), RESEND_API_KEY (email sends). Pipeline degrades
   gracefully and reports gaps in /api/health `configured`.
 
+### Database state (Volces-hosted Supabase-compatible, PostgREST)
+- `reset_records` — 47 verified rows (2026-03-18 → 2026-08-16), richer than
+  the bundled static history. RLS on + policy `anon read reset_records`
+  (SELECT to anon). Writes: service role only.
+- `subscriptions` — RLS on + policy `anon insert subscriptions` (INSERT to
+  anon, no SELECT policy) — subscribe form works, emails are NOT readable
+  via anon key.
+- `push_subscriptions` — created 2026-08-21, RLS on, zero policies, granted
+  to service_role only. Worker upserts with `?on_conflict=endpoint`.
+- WARNING: with RLS on and no policies, PostgREST SELECT returns `[]`
+  silently — an "empty table" REST response does NOT prove emptiness.
+  Verify via `exec_sql` before concluding anything about row counts.
+
 ## Project Structure
 ```
 src/

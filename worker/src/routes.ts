@@ -61,7 +61,9 @@ export async function handleSubscribePush(request: Request, env: Env): Promise<R
   if (!env.SUPABASE_SERVICE_ROLE_KEY) {
     return json({ error: 'server not configured (service role key missing)' }, 503);
   }
-  const res = await sbUpsert(env, 'push_subscriptions', [
+  // Upsert keyed on endpoint — without on_conflict PostgREST would key on the
+  // generated id PK and every re-subscribe would 409 on the unique endpoint.
+  const res = await sbUpsert(env, 'push_subscriptions?on_conflict=endpoint', [
     {
       endpoint,
       p256dh: keys.p256dh,
