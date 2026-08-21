@@ -1,18 +1,21 @@
-/// <reference lib="webworker" />
+/* Codex Resets — push notification service worker (plain JS, no build step) */
 
-declare const self: ServiceWorkerGlobalScope;
-
-// Push notification handler
-self.addEventListener('push', (event: PushEvent) => {
+self.addEventListener('push', function (event) {
   if (!event.data) return;
 
-  const data = event.data.json();
-  
-  const options: NotificationOptions = {
+  var data;
+  try {
+    data = event.data.json();
+  } catch (e) {
+    data = { title: 'Codex Reset Alert', body: event.data.text() };
+  }
+
+  var options = {
     body: data.body || 'Reset probability has increased',
-    icon: '/icon-192.png',
-    badge: '/badge-72.png',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/badge-72.png',
     tag: 'codex-reset-alert',
+    renotify: true,
     data: {
       url: data.url || '/',
       probability: data.probability,
@@ -21,7 +24,6 @@ self.addEventListener('push', (event: PushEvent) => {
       { action: 'view', title: 'View Dashboard' },
       { action: 'dismiss', title: 'Dismiss' },
     ],
-    requireInteraction: true,
     vibrate: [200, 100, 200],
   };
 
@@ -30,38 +32,30 @@ self.addEventListener('push', (event: PushEvent) => {
   );
 });
 
-// Notification click handler
-self.addEventListener('notificationclick', (event: NotificationEvent) => {
+self.addEventListener('notificationclick', function (event) {
   event.notification.close();
 
-  if (event.action === 'dismiss') {
-    return;
-  }
+  if (event.action === 'dismiss') return;
 
-  const url = event.notification.data?.url || '/';
-  
+  var url = (event.notification.data && event.notification.data.url) || '/';
+
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      // Focus existing window if available
-      for (const client of clients) {
-        if (client.url.includes(url) && 'focus' in client) {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clients) {
+      for (var i = 0; i < clients.length; i++) {
+        var client = clients[i];
+        if (client.url.indexOf(url) !== -1 && 'focus' in client) {
           return client.focus();
         }
       }
-      // Open new window if none found
       return self.clients.openWindow(url);
     })
   );
 });
 
-// Install handler - activate immediately
-self.addEventListener('install', (event: ExtendableEvent) => {
-  event.waitUntil(self.skipWaiting());
+self.addEventListener('install', function () {
+  self.skipWaiting();
 });
 
-// Activate handler - claim all clients immediately
-self.addEventListener('activate', (event: ExtendableEvent) => {
+self.addEventListener('activate', function (event) {
   event.waitUntil(self.clients.claim());
 });
-
-export {};

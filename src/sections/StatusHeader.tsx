@@ -1,6 +1,5 @@
 import { useI18n } from '@/contexts/I18nContext';
 import type { ResetPrediction } from '@/types/reset';
-import { Globe, Share2 } from 'lucide-react';
 import { Link } from 'react-router';
 import { useState, useEffect } from 'react';
 
@@ -73,19 +72,19 @@ export function StatusHeader({ prediction, isLive, onRefresh, onShare }: StatusH
 
           <button
             onClick={() => setLocale(locale === 'en' ? 'zh' : 'en')}
-            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+            className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors"
             aria-label={t('header.language')}
           >
-            <Globe className="w-3.5 h-3.5" />
+            {locale === 'en' ? '[中文]' : '[EN]'}
           </button>
 
           {onShare && (
             <button
               onClick={onShare}
-              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+              className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors"
               aria-label={t('header.share')}
             >
-              <Share2 className="w-3.5 h-3.5" />
+              [share]
             </button>
           )}
 

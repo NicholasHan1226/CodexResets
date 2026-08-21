@@ -143,8 +143,8 @@ export function showLocalNotification(title: string, options?: NotificationOptio
 
   if (Notification.permission === 'granted') {
     new Notification(title, {
-      icon: '/icon-192.png',
-      badge: '/badge-72.png',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-72.png',
       ...options,
     });
   }

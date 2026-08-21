@@ -110,6 +110,12 @@ src/
 - Share: `sharePredictionState()` builds URL with state params, copied via clipboard
 - No localStorage-backed user features — the site is stateless for visitors
   (exception: prediction accuracy samples + locale preference)
+- `public/sw.js` is hand-written **plain JS** served as-is — never add TS
+  syntax (type annotations break SW registration in browsers). Icons it and
+  manifest.json reference live in `public/icons/` (PIL-generated, favicon motif)
+- i18n discipline: every `t('key')` must exist in BOTH en/zh dictionaries —
+  audit with a key cross-reference script after touching copy (missing keys
+  render as raw `[key]` on screen)
 
 ## Performance (do not regress)
 - Charts are hand-rolled SVG (ProbabilityCurve) — recharts was removed from
