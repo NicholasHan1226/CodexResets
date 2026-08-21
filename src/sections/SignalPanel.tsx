@@ -7,11 +7,28 @@ interface SignalPanelProps {
   loading?: boolean;
 }
 
-const statusTagMap: Record<string, { label: string; className: string }> = {
-  active: { label: 'ACTIVE', className: 'text-primary' },
-  weak: { label: 'WARM', className: 'text-warning' },
-  idle: { label: 'IDLE', className: 'text-muted-foreground/60' },
+/**
+ * Terminal reverse-video status badges: ACTIVE/WARM pop as inverted blocks,
+ * IDLE stays plain dim text — inactive things should not compete for attention.
+ */
+const statusTagMap: Record<string, { label: string; badge: string; bar: string }> = {
+  active: { label: 'ACTIVE', badge: 'bg-primary text-background', bar: 'text-primary' },
+  weak: { label: 'WARM', badge: 'bg-warning text-background', bar: 'text-warning' },
+  idle: { label: 'IDLE', badge: 'text-muted-foreground/60', bar: 'text-muted-foreground/50' },
 };
+
+const statusWeight: Record<string, number> = { active: 0, weak: 1, idle: 2 };
+
+/** ASCII strength bar — same █░ vocabulary as the hero probability display */
+function AsciiBar({ value, length, className = '' }: { value: number; length: number; className?: string }) {
+  const filled = Math.max(0, Math.min(length, Math.round(value * length)));
+  return (
+    <span className={`font-mono ${className}`} aria-hidden="true">
+      {'█'.repeat(filled)}
+      <span className="text-muted-foreground/30">{'░'.repeat(length - filled)}</span>
+    </span>
+  );
+}
 
 function timeAgo(timestamp: number, locale: string): string {
   const diff = Date.now() - timestamp;
@@ -34,8 +51,14 @@ function timeAgo(timestamp: number, locale: string): string {
 export function SignalPanel({ prediction, loading }: SignalPanelProps) {
   const { t, locale } = useI18n();
 
-  // Sort signals by updatedAt descending — most recent first
-  const sortedSignals = [...prediction.signals].sort((a, b) => b.updatedAt - a.updatedAt);
+  // Radar ordering: severity first (ACTIVE > WARM > IDLE), recency within tier
+  const sortedSignals = [...prediction.signals].sort(
+    (a, b) => (statusWeight[a.status] ?? 3) - (statusWeight[b.status] ?? 3) || b.updatedAt - a.updatedAt
+  );
+
+  const total = prediction.signals.length;
+  const activeCount = prediction.signals.filter((s) => s.status === 'active').length;
+  const composite = total > 0 ? prediction.signals.reduce((sum, s) => sum + s.value, 0) / total : 0;
 
   return (
     <section aria-label="Signal radar" className="max-w-3xl">
@@ -46,10 +69,20 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
         </h2>
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs text-muted-foreground">
-            {t('signals.sources', { n: prediction.signals.length })}
+            {t('signals.sources', { n: total })}
           </span>
           {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
         </div>
+      </div>
+
+      {/* Composite readout — instant-scan summary of the whole radar */}
+      <div className="mt-3 flex items-center gap-3 font-mono text-xs text-muted-foreground">
+        <span>{t('signals.composite')}</span>
+        <AsciiBar value={composite} length={16} className="text-primary" />
+        <span className="text-sm font-semibold text-foreground">{Math.round(composite * 100)}%</span>
+        <span className="text-muted-foreground/60">
+          · {t('signals.activeCount', { a: activeCount, n: total })}
+        </span>
       </div>
 
       {/* Timeline feed */}
@@ -59,11 +92,14 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
           const desc = signal.descriptionParams
             ? t(signal.description, signal.descriptionParams)
             : t(signal.description);
+          const pct = Math.round(signal.value * 100);
 
           return (
             <div
               key={signal.label}
-              className={`flex gap-4 py-3 ${i > 0 ? 'border-t border-border/20' : ''}`}
+              className={`flex gap-4 py-3 ${i > 0 ? 'border-t border-border/20' : ''} ${
+                signal.status === 'active' ? '-mx-2 bg-primary/5 px-2' : ''
+              }`}
             >
               {/* Timestamp */}
               <span className="shrink-0 w-16 pt-0.5 font-mono text-xs text-muted-foreground/60">
@@ -73,7 +109,7 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
               {/* Content */}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className={`font-mono text-xs font-medium ${tag.className}`}>
+                  <span className={`px-1.5 py-px font-mono text-[10px] font-semibold tracking-wider ${tag.badge}`}>
                     {tag.label}
                   </span>
                   <span className="text-sm font-medium text-foreground">
@@ -95,9 +131,10 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
                 )}
               </div>
 
-              {/* Signal strength — text-based */}
-              <span className="shrink-0 pt-0.5 font-mono text-xs text-muted-foreground/40">
-                {Math.round(signal.value * 100)}%
+              {/* Signal strength — ASCII bar + number */}
+              <span className="shrink-0 pt-0.5 font-mono text-xs whitespace-nowrap">
+                <AsciiBar value={signal.value} length={8} className={tag.bar} />
+                <span className="ml-2 text-foreground/70">{pct}%</span>
               </span>
             </div>
           );

@@ -96,6 +96,8 @@ const translations: Record<Locale, Record<string, string>> = {
     // Signal Radar
     'signals.title': 'SIGNAL RADAR',
     'signals.sources': '{n} sources',
+    'signals.composite': 'composite',
+    'signals.activeCount': '{a}/{n} active',
     'signals.tibo': 'Tibo Posts',
     'signals.status': 'OpenAI Status',
     'signals.cooldown': 'Time Cooldown',
@@ -334,6 +336,8 @@ const translations: Record<Locale, Record<string, string>> = {
     // Signal Radar
     'signals.title': '信号雷达',
     'signals.sources': '{n} 个信号源',
+    'signals.composite': '综合强度',
+    'signals.activeCount': '{a}/{n} 活跃',
     'signals.tibo': 'Tibo 推文',
     'signals.status': 'OpenAI 状态',
     'signals.cooldown': '时间冷却',
