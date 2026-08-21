@@ -22,11 +22,13 @@ function timeAgo(timestamp: number, locale: string): string {
   if (locale === 'zh') {
     if (days > 0) return `${days}天前`;
     if (hours > 0) return `${hours}小时前`;
-    return `${minutes}分钟前`;
+    if (minutes > 0) return `${minutes}分钟前`;
+    return '刚刚';
   }
   if (days > 0) return `${days}d ago`;
   if (hours > 0) return `${hours}h ago`;
-  return `${minutes}m ago`;
+  if (minutes > 0) return `${minutes}m ago`;
+  return 'just now';
 }
 
 export function SignalPanel({ prediction, loading }: SignalPanelProps) {

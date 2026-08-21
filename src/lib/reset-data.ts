@@ -39,14 +39,27 @@ export const RESET_HISTORY: ResetRecord[] = [
   { id: "27", date: "2026-03-17", timestamp: new Date("2026-03-17T17:00:00Z").getTime(), reason: "Monday reset.", source: "", verified: true },
 ];
 
+// Allow overriding the bundled history with fresher records (e.g. from Supabase).
+// Single source of truth: every panel reads through getEffectiveHistory().
+let dynamicResetHistory: ResetRecord[] | null = null;
+
+export function setDynamicResetHistory(records: ResetRecord[] | null): void {
+  dynamicResetHistory = records && records.length > 0 ? records : null;
+}
+
+export function getEffectiveHistory(): ResetRecord[] {
+  return dynamicResetHistory || RESET_HISTORY;
+}
+
 /**
  * Compute interval statistics from reset history.
  */
 export function computeIntervalStats() {
+  const history = getEffectiveHistory();
   const intervals: number[] = [];
-  for (let i = 0; i < RESET_HISTORY.length - 1; i++) {
-    const curr = RESET_HISTORY[i].timestamp;
-    const prev = RESET_HISTORY[i + 1].timestamp;
+  for (let i = 0; i < history.length - 1; i++) {
+    const curr = history[i].timestamp;
+    const prev = history[i + 1].timestamp;
     intervals.push((curr - prev) / (1000 * 60 * 60)); // hours
   }
 
@@ -59,7 +72,7 @@ export function computeIntervalStats() {
   // Recent 30 days intervals
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
   const recentIntervals = intervals.filter((_, i) => {
-    const resetTime = RESET_HISTORY[i].timestamp;
+    const resetTime = history[i].timestamp;
     return resetTime > thirtyDaysAgo;
   });
   const recentMedian = recentIntervals.length > 0
@@ -77,7 +90,7 @@ export function computeIntervalStats() {
     minDays: min / 24,
     recentMedianHours: recentMedian,
     recentMedianDays: recentMedian / 24,
-    totalResets: RESET_HISTORY.length,
+    totalResets: history.length,
   };
 }
 
@@ -87,7 +100,7 @@ export function computeIntervalStats() {
  */
 export function computeHourlyDistribution(): number[] {
   const distribution = new Array(24).fill(0);
-  for (const record of RESET_HISTORY) {
+  for (const record of getEffectiveHistory()) {
     const hour = new Date(record.timestamp).getUTCHours();
     distribution[hour]++;
   }

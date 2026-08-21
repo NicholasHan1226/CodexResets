@@ -1,16 +1,17 @@
 import { useI18n } from '@/contexts/I18nContext';
-import { RESET_HISTORY, computeIntervalStats } from '@/lib/reset-data';
+import { getEffectiveHistory, computeIntervalStats } from '@/lib/reset-data';
 
 export function HistoryPanel() {
   const { t, locale } = useI18n();
+  const history = getEffectiveHistory();
   const stats = computeIntervalStats();
-  const recentResets = RESET_HISTORY.slice(0, 5);
+  const recentResets = history.slice(0, 5);
 
   // Reset rhythm sparkline: days between consecutive resets (oldest → newest)
   const SPARK_CHARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
   const intervals: number[] = [];
-  for (let i = RESET_HISTORY.length - 1; i > 0; i--) {
-    const gap = (RESET_HISTORY[i - 1].timestamp - RESET_HISTORY[i].timestamp) / 86400000;
+  for (let i = history.length - 1; i > 0; i--) {
+    const gap = (history[i - 1].timestamp - history[i].timestamp) / 86400000;
     intervals.push(gap);
   }
   const recentIntervals = intervals.slice(-14);
@@ -19,7 +20,7 @@ export function HistoryPanel() {
     .map((gap) => SPARK_CHARS[Math.min(7, Math.round((gap / maxGap) * 7))])
     .join('');
   // Current ongoing wait
-  const currentWait = (Date.now() - RESET_HISTORY[0].timestamp) / 86400000;
+  const currentWait = (Date.now() - history[0].timestamp) / 86400000;
   const currentSpark = SPARK_CHARS[Math.min(7, Math.round((currentWait / maxGap) * 7))];
 
   return (
@@ -51,9 +52,11 @@ export function HistoryPanel() {
         </span>
         <div className="mt-2 space-y-0">
           {recentResets.map((reset, i) => {
-            const nextReset = RESET_HISTORY[RESET_HISTORY.length - 2 - i];
+            // Gap to the reset that FOLLOWED this one (list is newest-first).
+            // For the latest reset (i=0) there is no follower yet — hide the gap.
+            const nextReset = i > 0 ? history[i - 1] : null;
             const daysSince = nextReset
-              ? ((new Date(nextReset.timestamp).getTime() - new Date(reset.timestamp).getTime()) / 86400000).toFixed(1)
+              ? ((nextReset.timestamp - reset.timestamp) / 86400000).toFixed(1)
               : null;
             return (
               <div

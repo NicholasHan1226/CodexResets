@@ -14,7 +14,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 
 export default function Home() {
-  const { prediction, isLive, signalsLoading, usingRealData } = usePrediction();
+  const { prediction, isLive, signalsLoading, usingRealData, refresh } = usePrediction();
   const { t } = useI18n();
   const [timeframe, setTimeframe] = useState<24 | 48>(24);
 
@@ -37,7 +37,7 @@ export default function Home() {
         <StatusHeader
           prediction={prediction}
           isLive={isLive}
-          onRefresh={() => window.location.reload()}
+          onRefresh={() => { void refresh(); }}
           onShare={handleShare}
         />
 

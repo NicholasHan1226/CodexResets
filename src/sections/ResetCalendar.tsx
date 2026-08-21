@@ -1,16 +1,17 @@
 import { useMemo } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
-import { RESET_HISTORY } from '@/lib/reset-data';
+import { getEffectiveHistory } from '@/lib/reset-data';
 
 /**
  * Reset Calendar View - Heatmap showing historical reset patterns
  */
 export function ResetCalendar() {
   const { t } = useI18n();
+  const history = getEffectiveHistory();
 
   const calendarData = useMemo(() => {
     const today = new Date();
-    const days: Array<{ date: Date; count: number; resets: typeof RESET_HISTORY }> = [];
+    const days: Array<{ date: Date; count: number; resets: typeof history }> = [];
 
     for (let i = 364; i >= 0; i--) {
       const date = new Date(today);
@@ -20,7 +21,7 @@ export function ResetCalendar() {
       const nextDate = new Date(date);
       nextDate.setDate(nextDate.getDate() + 1);
 
-      const dayResets = RESET_HISTORY.filter((reset) => {
+      const dayResets = history.filter((reset) => {
         const resetDate = new Date(reset.timestamp);
         return resetDate >= date && resetDate < nextDate;
       });
@@ -29,7 +30,7 @@ export function ResetCalendar() {
     }
 
     return days;
-  }, []);
+  }, [history]);
 
   const weeks = useMemo(() => {
     const result: typeof calendarData[] = [];
@@ -67,11 +68,11 @@ export function ResetCalendar() {
   };
 
   const stats = useMemo(() => {
-    const totalResets = RESET_HISTORY.length;
+    const totalResets = history.length;
     const daysWithResets = calendarData.filter((d) => d.count > 0).length;
     const maxResetsInDay = Math.max(...calendarData.map((d) => d.count));
     return { totalResets, daysWithResets, maxResetsInDay };
-  }, [calendarData]);
+  }, [calendarData, history]);
 
   return (
     <section aria-label="Reset calendar" className="max-w-3xl">
@@ -91,9 +92,11 @@ export function ResetCalendar() {
                     day.count > 0 ? 'cursor-default' : ''
                   }`}
                   title={
-                    day.count >= 0
-                      ? `${day.date.toLocaleDateString()}: ${day.count} reset(s)`
-                      : ''
+                    day.count > 0
+                      ? `${day.date.toLocaleDateString()} — ${day.resets[0].reason}`
+                      : day.count === 0
+                        ? day.date.toLocaleDateString()
+                        : ''
                   }
                 />
               ))}

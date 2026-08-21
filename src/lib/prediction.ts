@@ -1,16 +1,8 @@
 import type { ResetPrediction, ResetSignal, ProbabilityPoint, PlanningAdvice, ResetRecord } from "@/types/reset";
-import { RESET_HISTORY, computeIntervalStats, computeHourlyDistribution } from "@/lib/reset-data";
+import { computeIntervalStats, computeHourlyDistribution, getEffectiveHistory, setDynamicResetHistory } from "@/lib/reset-data";
 
-// Allow overriding reset history with dynamic data
-let dynamicResetHistory: ResetRecord[] | null = null;
-
-export function setDynamicResetHistory(records: ResetRecord[] | null): void {
-  dynamicResetHistory = records;
-}
-
-function getEffectiveHistory(): ResetRecord[] {
-  return dynamicResetHistory || RESET_HISTORY;
-}
+// Re-export so existing imports from "@/lib/prediction" keep working
+export { setDynamicResetHistory };
 
 /**
  * Calculate base probability from time elapsed since last reset.
@@ -150,9 +142,8 @@ function generateAdvice(prob24h: number, prob48h: number, daysSince: number, med
  */
 function generateSignals(now: Date): ResetSignal[] {
   const stats = computeIntervalStats();
-  const lastReset = RESET_HISTORY[0];
-  const lastResetDate = new Date(lastReset.date);
-  const daysSinceLast = (now.getTime() - lastResetDate.getTime()) / (1000 * 60 * 60 * 24);
+  const lastReset = getEffectiveHistory()[0];
+  const daysSinceLast = (now.getTime() - lastReset.timestamp) / (1000 * 60 * 60 * 24);
 
   // Cooldown signal: based on time since last reset vs median
   const cooldownRatio = daysSinceLast / (stats.medianDays / 24);
@@ -165,11 +156,19 @@ function generateSignals(now: Date): ResetSignal[] {
   const isUSActive = hour >= 14 && hour <= 23; // US business hours
   const tiboValue = isUSActive ? 0.4 + cooldownRatio * 0.3 : 0.1 + cooldownRatio * 0.2;
 
-  // Status page signal: simulate checking OpenAI status
-  const statusValue = cooldownRatio >= 1.0 ? 0.3 + Math.random() * 0.2 : 0.05 + Math.random() * 0.1;
+  // Status page signal: simulate checking OpenAI status.
+  // Deterministic — same inputs always yield the same value, so the radar
+  // doesn't dance randomly between refreshes.
+  const statusValue = cooldownRatio >= 1.0 ? 0.35 : 0.08;
 
   // Launch noise: product announcements often precede resets
-  const launchValue = cooldownRatio >= 0.8 ? 0.2 + Math.random() * 0.3 : 0.05 + Math.random() * 0.1;
+  const launchValue = cooldownRatio >= 0.8
+    ? Math.min(0.4, 0.22 + (cooldownRatio - 0.8) * 0.4)
+    : 0.08;
+
+  // Fallback signals are computed as of this refresh — timestamp them honestly
+  // instead of faking random "Xm ago" offsets.
+  const computedAt = Date.now();
 
   return [
     {
@@ -182,7 +181,7 @@ function generateSignals(now: Date): ResetSignal[] {
           : "No recent reset-related posts",
       value: tiboValue,
       status: tiboValue >= 0.5 ? "active" : tiboValue >= 0.25 ? "weak" : "idle",
-      updatedAt: Date.now() - Math.floor(Math.random() * 1800000),
+      updatedAt: computedAt,
       sourceUrl: "https://x.com/thsottiaux",
     },
     {
@@ -191,7 +190,7 @@ function generateSignals(now: Date): ResetSignal[] {
       description: statusValue >= 0.3 ? "Codex-specific incidents detected" : "No open Codex incidents",
       value: statusValue,
       status: statusValue >= 0.3 ? "active" : "idle",
-      updatedAt: Date.now() - Math.floor(Math.random() * 600000),
+      updatedAt: computedAt,
       sourceUrl: "https://status.openai.com/history",
     },
     {
@@ -200,7 +199,7 @@ function generateSignals(now: Date): ResetSignal[] {
       description: `${daysSinceLast.toFixed(1)} days since last reset (median: ${(stats.medianDays / 24).toFixed(1)}d)`,
       value: cooldownValue,
       status: cooldownStatus,
-      updatedAt: Date.now(),
+      updatedAt: computedAt,
     },
     {
       source: "launch_noise",
@@ -208,7 +207,7 @@ function generateSignals(now: Date): ResetSignal[] {
       description: launchValue >= 0.3 ? "Possible release hint detected" : "No product launch signals",
       value: launchValue,
       status: launchValue >= 0.3 ? "active" : launchValue >= 0.15 ? "weak" : "idle",
-      updatedAt: Date.now() - Math.floor(Math.random() * 3600000),
+      updatedAt: computedAt,
     },
   ];
 }

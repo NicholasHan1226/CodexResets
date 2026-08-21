@@ -1,12 +1,13 @@
 import { useI18n } from "@/contexts/I18nContext";
-import { RESET_HISTORY } from "@/lib/reset-data";
+import { getEffectiveHistory } from "@/lib/reset-data";
 
 export function TimeDistribution() {
   const { t } = useI18n();
+  const history = getEffectiveHistory();
   const hourlyCounts = new Array(24).fill(0);
   const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  RESET_HISTORY.forEach((event) => {
+  history.forEach((event) => {
     const hour = new Date(event.timestamp).getHours();
     hourlyCounts[hour]++;
   });
@@ -70,7 +71,7 @@ export function TimeDistribution() {
         </span>
         <span className="mx-2 text-border">·</span>
         <span className="font-mono text-primary">
-          {Math.round((bestCount / RESET_HISTORY.length) * 100)}%
+          {Math.round((bestCount / history.length) * 100)}%
         </span>{" "}
         {t('timeDistribution.resets').toLowerCase()}
       </p>

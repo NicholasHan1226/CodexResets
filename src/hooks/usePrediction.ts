@@ -19,9 +19,11 @@ export function usePrediction() {
     return { ...data, generatedAt: Date.now() };
   });
   const [resetRecords, setResetRecords] = useState<ResetRecord[]>([]);
-  const isLive = true;
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [usingRealData, setUsingRealData] = useState(false);
+  // Honest badge: LIVE only when real signals/records actually flowed in,
+  // SIM when we're showing the bundled fallback model.
+  const isLive = usingRealData;
 
   const refresh = useCallback(async () => {
     setSignalsLoading(true);
