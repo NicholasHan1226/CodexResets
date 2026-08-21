@@ -3,6 +3,8 @@ export interface Env {
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
+  /** Fallback privileged auth: security-definer RPCs gated by this secret */
+  PIPELINE_SECRET?: string;
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT: string;

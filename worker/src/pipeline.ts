@@ -1,6 +1,7 @@
 import type { Env, ResetRecordRow, RunReport } from './types';
 import { scrapeTweets, scrapeNewsMentions, detectResetEvents } from './scrape';
-import { sbSelect, sbInsert } from './supabase';
+import { sbSelect } from './supabase';
+import { hasPrivilegedAccess, privInsertResets } from './privileged';
 import { buildSignalsSnapshot } from './signals';
 import { notifyAll } from './notify';
 
@@ -65,8 +66,8 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   );
 
   if (fresh.length > 0) {
-    if (!env.SUPABASE_SERVICE_ROLE_KEY) {
-      report.errors.push('insert skipped: SUPABASE_SERVICE_ROLE_KEY not configured');
+    if (!hasPrivilegedAccess(env)) {
+      report.errors.push('insert skipped: no privileged DB access (service key or pipeline secret)');
     } else {
       const rows = fresh.map((c) => ({
         reset_date: new Date(c.ts).toISOString(),
@@ -74,7 +75,7 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
         source_url: c.link,
         verified: false,
       }));
-      const res = await sbInsert(env, 'reset_records', rows);
+      const res = await privInsertResets(env, rows);
       if (res.ok) {
         report.inserted = rows.length;
         records = [

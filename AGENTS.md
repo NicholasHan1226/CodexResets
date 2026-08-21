@@ -40,10 +40,17 @@ some regions — do not rely on it).
   POST /api/subscribe/push, POST /api/unsubscribe/push,
   GET /api/unsubscribe (HMAC email), POST /api/run (Bearer CRON_SECRET)
 - Deploy: `cd worker && CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... npx wrangler deploy`
-- Secrets set: VAPID_PRIVATE_KEY, UNSUBSCRIBE_SECRET, CRON_SECRET
-- Secrets PENDING (user): SUPABASE_SERVICE_ROLE_KEY (record inserts +
-  notification fan-out), RESEND_API_KEY (email sends). Pipeline degrades
-  gracefully and reports gaps in /api/health `configured`.
+- Secrets set: VAPID_PRIVATE_KEY, UNSUBSCRIBE_SECRET, CRON_SECRET,
+  RESEND_API_KEY (send-only restricted key), PIPELINE_SECRET
+- Privileged DB access (`src/privileged.ts`): service-role REST if
+  SUPABASE_SERVICE_ROLE_KEY present, else security-definer RPCs gated by
+  PIPELINE_SECRET (`pipeline_insert_resets/list_emails/list_push/
+  upsert_push/delete_push/deactivate_email`, EXECUTE granted to anon only,
+  secret checked inside each function). This host's platform dashboard does
+  not expose the service_role JWT — the RPC path is the primary mode.
+- Resend: key works but codexresets.cc domain NOT verified → email sends
+  403 until the user verifies the domain (resend.com/domains) and the DNS
+  records land in Cloudflare. Push notifications are unaffected.
 
 ### Database state (Volces-hosted Supabase-compatible, PostgREST)
 - `reset_records` — 47 verified rows (2026-03-18 → 2026-08-16), richer than

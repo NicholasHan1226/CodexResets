@@ -1,16 +1,10 @@
 import { buildPushPayload, type PushMessage, type PushSubscription, type VapidKeys } from '@block65/webcrypto-web-push';
 import type { Env, ResetEvent } from './types';
-import { sbSelect, sbDelete } from './supabase';
+import { hasPrivilegedAccess, privListEmails, privListPush, privDeletePush, type PushSubRow } from './privileged';
 import { signToken, escapeHtml } from './util';
 
 interface SubscriptionRow {
   email: string;
-}
-
-interface PushRow {
-  endpoint: string;
-  p256dh: string;
-  auth: string;
 }
 
 export interface NotifyResult {
@@ -22,19 +16,19 @@ export interface NotifyResult {
 /** Fan out a freshly detected reset to every subscriber (email + web push) */
 export async function notifyAll(env: Env, event: ResetEvent): Promise<NotifyResult> {
   const errors: string[] = [];
-  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
-    return { emails: 0, pushes: 0, errors: ['notify skipped: SUPABASE_SERVICE_ROLE_KEY not configured'] };
+  if (!hasPrivilegedAccess(env)) {
+    return { emails: 0, pushes: 0, errors: ['notify skipped: no privileged DB access'] };
   }
 
   let emails: SubscriptionRow[] = [];
-  let pushes: PushRow[] = [];
+  let pushes: PushSubRow[] = [];
   try {
-    emails = await sbSelect<SubscriptionRow>(env, 'subscriptions?select=email&is_active=eq.true', true);
+    emails = await privListEmails(env);
   } catch (err) {
     errors.push(`fetch emails: ${err instanceof Error ? err.message : String(err)}`);
   }
   try {
-    pushes = await sbSelect<PushRow>(env, 'push_subscriptions?select=endpoint,p256dh,auth', true);
+    pushes = await privListPush(env);
   } catch (err) {
     errors.push(`fetch pushes: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -52,7 +46,7 @@ export async function notifyAll(env: Env, event: ResetEvent): Promise<NotifyResu
     if (r.status === 'fulfilled') {
       if (r.value === 'gone') {
         // Endpoint is dead — prune it so the list stays clean
-        await sbDelete(env, `push_subscriptions?endpoint=eq.${encodeURIComponent(pushes[i].endpoint)}`).catch(() => {});
+        await privDeletePush(env, pushes[i].endpoint).catch(() => {});
       } else if (r.value === 'sent') {
         sentPushes++;
       }
@@ -108,7 +102,7 @@ function emailHtml(env: Env, excerpt: string, resetLocal: string, unsubUrl: stri
 
 // --- Web Push (VAPID + aes128gcm via Web Crypto) ----------------------------
 
-async function sendPush(env: Env, row: PushRow, event: ResetEvent): Promise<'sent' | 'gone' | 'skipped'> {
+async function sendPush(env: Env, row: PushSubRow, event: ResetEvent): Promise<'sent' | 'gone' | 'skipped'> {
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return 'skipped';
 
   const vapid: VapidKeys = {

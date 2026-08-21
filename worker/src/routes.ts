@@ -1,6 +1,6 @@
 import type { Env } from './types';
 import { json, html, escapeHtml, verifyToken } from './util';
-import { sbUpsert, sbDelete, sbUpdate } from './supabase';
+import { hasPrivilegedAccess, privUpsertPush, privDeletePush, privDeactivateEmail } from './privileged';
 import { runPipeline } from './pipeline';
 
 /** GET /api/signals — the snapshot the browser consumes */
@@ -28,6 +28,7 @@ export async function handleHealth(env: Env): Promise<Response> {
     signalsGeneratedAt: signals ? JSON.parse(signals).generatedAt : null,
     configured: {
       serviceRole: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
+      pipelineSecret: Boolean(env.PIPELINE_SECRET),
       resend: Boolean(env.RESEND_API_KEY),
       vapid: Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY),
       unsubscribe: Boolean(env.UNSUBSCRIBE_SECRET),
@@ -58,19 +59,15 @@ export async function handleSubscribePush(request: Request, env: Env): Promise<R
   if (endpoint.length > 1024 || keys.p256dh.length > 256 || keys.auth.length > 64) {
     return json({ error: 'payload too large' }, 400);
   }
-  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
-    return json({ error: 'server not configured (service role key missing)' }, 503);
+  if (!hasPrivilegedAccess(env)) {
+    return json({ error: 'server not configured (no privileged DB access)' }, 503);
   }
-  // Upsert keyed on endpoint — without on_conflict PostgREST would key on the
-  // generated id PK and every re-subscribe would 409 on the unique endpoint.
-  const res = await sbUpsert(env, 'push_subscriptions?on_conflict=endpoint', [
-    {
-      endpoint,
-      p256dh: keys.p256dh,
-      auth: keys.auth,
-      user_agent: request.headers.get('user-agent')?.slice(0, 256) ?? null,
-    },
-  ]);
+  const res = await privUpsertPush(env, {
+    endpoint,
+    p256dh: keys.p256dh,
+    auth: keys.auth,
+    user_agent: request.headers.get('user-agent')?.slice(0, 256) ?? null,
+  });
   if (!res.ok) return json({ error: `db: ${res.status} ${await res.text()}` }, 502);
   return json({ ok: true });
 }
@@ -86,10 +83,10 @@ export async function handleUnsubscribePush(request: Request, env: Env): Promise
   if (!body.endpoint || typeof body.endpoint !== 'string') {
     return json({ error: 'missing endpoint' }, 400);
   }
-  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!hasPrivilegedAccess(env)) {
     return json({ error: 'server not configured' }, 503);
   }
-  await sbDelete(env, `push_subscriptions?endpoint=eq.${encodeURIComponent(body.endpoint)}`);
+  await privDeletePush(env, body.endpoint);
   return json({ ok: true });
 }
 
@@ -99,16 +96,13 @@ export async function handleUnsubscribeEmail(url: URL, env: Env): Promise<Respon
   const token = url.searchParams.get('t') || '';
   const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   if (!validEmail || !token) return html(unsubPage('Invalid unsubscribe link.', false), 400);
-  if (!env.UNSUBSCRIBE_SECRET || !env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!env.UNSUBSCRIBE_SECRET || !hasPrivilegedAccess(env)) {
     return html(unsubPage('Server not configured.', false), 503);
   }
   const ok = await verifyToken(email, token, env.UNSUBSCRIBE_SECRET);
   if (!ok) return html(unsubPage('Invalid or expired unsubscribe link.', false), 403);
 
-  await sbUpdate(env, `subscriptions?email=eq.${encodeURIComponent(email)}`, {
-    is_active: false,
-    unsubscribed_at: new Date().toISOString(),
-  });
+  await privDeactivateEmail(env, email);
   return html(unsubPage(`<b>${escapeHtml(email)}</b> has been unsubscribed. You will no longer receive reset alerts.`, true));
 }
 
