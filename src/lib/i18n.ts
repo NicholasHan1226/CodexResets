@@ -38,6 +38,12 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.lastReset': 'Last reset',
     'hero.prob48hHint': 'Most likely window entering 48h range',
 
+    // Planning advice (model emits only a level; copy lives here)
+    'advice.wait': 'High reset probability — consider waiting for heavy tasks.',
+    'advice.cautious': 'Moderate probability — use sparingly on critical tasks.',
+    'advice.use_freely': 'Low near-term probability — normal building conditions.',
+    'advice.approaching': 'Approaching median interval — plan accordingly.',
+
     // Header
     'app.title': 'Codex Resets',
     'app.subtitle': 'Next reset prediction',
@@ -288,6 +294,12 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.waitProgress': '等待进度',
     'hero.lastReset': '上次重置',
     'hero.prob48hHint': '最可能窗口进入 48h 射程',
+
+    // Planning advice
+    'advice.wait': '重置概率高——重任务建议等重置后再跑。',
+    'advice.cautious': '概率中等——关键任务节省使用。',
+    'advice.use_freely': '近期概率低——正常使用即可。',
+    'advice.approaching': '接近历史间隔中位数——提前规划用量。',
 
     // Header
     'app.title': 'Codex 重置预判',

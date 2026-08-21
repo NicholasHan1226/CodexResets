@@ -68,7 +68,7 @@ some regions — do not rely on it).
 ## Project Structure
 ```
 src/
-├── components/ui/     # shadcn/ui components (card, badge, progress, etc.)
+├── components/ui/     # shadcn/ui components (button, card — only what's used)
 │   └── AnchorNav.tsx  # Terminal-style section quick nav
 ├── contexts/          # I18nContext (en/zh)
 ├── hooks/             # Custom hooks (usePrediction)
@@ -104,6 +104,12 @@ src/
 - Signals: `getSignalsWithFallback` is three-tier — pipeline snapshot
   (`VITE_PIPELINE_API_URL/api/signals`) → direct browser fetch → simulated.
   Worker snapshot descriptions are i18n keys (`signals.*`) rendered via `t()`.
+- Simulated-fallback honesty: when network sources fail, signals must say
+  "unavailable" (idle, low value) — never fabricate activity from cooldown
+  arithmetic. Cooldown is the only honestly computable offline signal
+  (watch units: `computeIntervalStats().medianDays` is ALREADY in days)
+- Model layer emits no display copy: advice is `{ level }` → `advice.<level>`
+  i18n keys; signal descriptions are i18n keys + `descriptionParams`
 - Hand-rolled SVG for data visualization (Recharts removed — see Performance)
 - CSS variables for theming (HSL format)
 - Home holds `timeframe` state (24|48) shared by HeroSection + ProbabilityCurve

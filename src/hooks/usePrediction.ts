@@ -53,9 +53,10 @@ export function usePrediction() {
       });
     } catch (error) {
       console.warn('Error refreshing prediction:', error);
-      // Fall back to simulated data
+      // Fall back to simulated data — timestamp it honestly so the header's
+      // "updated Xm ago" reflects this refresh, not a stale generation time.
       const data = generatePrediction();
-      setPrediction(data);
+      setPrediction({ ...data, generatedAt: Date.now() });
       setUsingRealData(false);
     } finally {
       setSignalsLoading(false);

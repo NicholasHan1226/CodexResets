@@ -10,17 +10,17 @@ interface I18nContextType {
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>('en');
+  // Lazy initializer reads the saved/browser locale once — no cascading
+  // setState-in-effect on mount (react-hooks lint + an extra render).
+  const [locale, setLocaleState] = useState<Locale>(() => detectLocale());
 
   useEffect(() => {
-    const detected = detectLocale();
-    setLocaleState(detected);
-  }, []);
+    document.documentElement.lang = locale;
+  }, [locale]);
 
   const setLocale = (newLocale: Locale) => {
     setLocaleState(newLocale);
     localStorage.setItem('locale', newLocale);
-    document.documentElement.lang = newLocale;
   };
 
   const t = (key: string, params?: Record<string, string | number>) => {

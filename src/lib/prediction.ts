@@ -104,37 +104,16 @@ function findResetWindow(curve: ProbabilityPoint[]): { start: string; end: strin
 }
 
 /**
- * Generate planning advice based on probability levels.
+ * Planning advice level — copy lives in i18n (`advice.<level>`), not here,
+ * so zh visitors don't get English sentences from the model layer.
  */
 function generateAdvice(prob24h: number, prob48h: number, daysSince: number, medianDays: number): PlanningAdvice {
   const ratio = daysSince / medianDays;
 
-  if (prob24h >= 0.5 || ratio >= 1.5) {
-    return {
-      level: "wait",
-      text: "High reset probability. Consider waiting for heavy tasks.",
-      color: "text-primary",
-    };
-  }
-  if (prob48h >= 0.4 || ratio >= 1.0) {
-    return {
-      level: "cautious",
-      text: "Moderate probability. Use sparingly on critical tasks.",
-      color: "text-amber-500",
-    };
-  }
-  if (ratio < 0.5) {
-    return {
-      level: "use_freely",
-      text: "Low near-term probability. Normal building conditions.",
-      color: "text-muted-foreground",
-    };
-  }
-  return {
-    level: "cautious",
-    text: "Approaching median interval. Plan accordingly.",
-    color: "text-amber-500",
-  };
+  if (prob24h >= 0.5 || ratio >= 1.5) return { level: "wait" };
+  if (prob48h >= 0.4 || ratio >= 1.0) return { level: "cautious" };
+  if (ratio < 0.5) return { level: "use_freely" };
+  return { level: "approaching" };
 }
 
 /**
@@ -145,58 +124,41 @@ function generateSignals(now: Date): ResetSignal[] {
   const lastReset = getEffectiveHistory()[0];
   const daysSinceLast = (now.getTime() - lastReset.timestamp) / (1000 * 60 * 60 * 24);
 
-  // Cooldown signal: based on time since last reset vs median
-  const cooldownRatio = daysSinceLast / (stats.medianDays / 24);
+  // Cooldown is the ONLY signal the offline model can honestly compute —
+  // everything else needs network sources that have already failed by the
+  // time this fallback runs. Mark those unavailable instead of fabricating
+  // activity from cooldown arithmetic.
+  // NOTE: stats.medianDays is already in days — do not divide again.
+  const cooldownRatio = stats.medianDays > 0 ? daysSinceLast / stats.medianDays : 0;
   const cooldownValue = Math.min(1, cooldownRatio);
   const cooldownStatus: ResetSignal["status"] = cooldownRatio >= 1.2 ? "active" : cooldownRatio >= 0.7 ? "weak" : "idle";
 
-  // Tibo posting signal: check if recent posts contain reset-related keywords
-  // In production, this would fetch from RSS. For now, simulate based on patterns.
-  const hour = now.getUTCHours();
-  const isUSActive = hour >= 14 && hour <= 23; // US business hours
-  const tiboValue = isUSActive ? 0.4 + cooldownRatio * 0.3 : 0.1 + cooldownRatio * 0.2;
-
-  // Status page signal: simulate checking OpenAI status.
-  // Deterministic — same inputs always yield the same value, so the radar
-  // doesn't dance randomly between refreshes.
-  const statusValue = cooldownRatio >= 1.0 ? 0.35 : 0.08;
-
-  // Launch noise: product announcements often precede resets
-  const launchValue = cooldownRatio >= 0.8
-    ? Math.min(0.4, 0.22 + (cooldownRatio - 0.8) * 0.4)
-    : 0.08;
-
-  // Fallback signals are computed as of this refresh — timestamp them honestly
-  // instead of faking random "Xm ago" offsets.
   const computedAt = Date.now();
 
   return [
     {
       source: "tibopost",
       label: "Tibo Posting",
-      description: daysSinceLast <= 2
-        ? `Tibo posted a reset ${Math.floor(daysSinceLast)}d ago`
-        : cooldownRatio >= 1.0
-          ? "Increased posting activity detected"
-          : "No recent reset-related posts",
-      value: tiboValue,
-      status: tiboValue >= 0.5 ? "active" : tiboValue >= 0.25 ? "weak" : "idle",
+      description: "signals.tiboUnavailable",
+      value: 0.1,
+      status: "idle",
       updatedAt: computedAt,
       sourceUrl: "https://x.com/thsottiaux",
     },
     {
       source: "status_page",
       label: "OpenAI Status",
-      description: statusValue >= 0.3 ? "Codex-specific incidents detected" : "No open Codex incidents",
-      value: statusValue,
-      status: statusValue >= 0.3 ? "active" : "idle",
+      description: "signals.statusDown",
+      value: 0.08,
+      status: "idle",
       updatedAt: computedAt,
       sourceUrl: "https://status.openai.com/history",
     },
     {
       source: "cooldown",
       label: "Time Cooldown",
-      description: `${daysSinceLast.toFixed(1)} days since last reset (median: ${(stats.medianDays / 24).toFixed(1)}d)`,
+      description: "signals.cooldownDesc",
+      descriptionParams: { d: daysSinceLast.toFixed(1), m: stats.medianDays.toFixed(1) },
       value: cooldownValue,
       status: cooldownStatus,
       updatedAt: computedAt,
@@ -204,9 +166,9 @@ function generateSignals(now: Date): ResetSignal[] {
     {
       source: "launch_noise",
       label: "Launch Noise",
-      description: launchValue >= 0.3 ? "Possible release hint detected" : "No product launch signals",
-      value: launchValue,
-      status: launchValue >= 0.3 ? "active" : launchValue >= 0.15 ? "weak" : "idle",
+      description: "signals.launchQuiet",
+      value: 0.08,
+      status: "idle",
       updatedAt: computedAt,
     },
   ];

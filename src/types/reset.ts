@@ -70,15 +70,11 @@ export interface ResetPrediction {
   generatedAt: number;
 }
 
-export type AdviceLevel = "use_freely" | "cautious" | "wait" | "critical";
+export type AdviceLevel = "use_freely" | "cautious" | "approaching" | "wait";
 
 export interface PlanningAdvice {
-  /** Advice level */
+  /** Advice level — display copy resolved via i18n key `advice.<level>` */
   level: AdviceLevel;
-  /** Human-readable advice text */
-  text: string;
-  /** Advice color class */
-  color: string;
 }
 
 export interface HistoricalReset {

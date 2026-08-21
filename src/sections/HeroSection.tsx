@@ -106,7 +106,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
       {/* Advice */}
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
         <span className="text-foreground font-medium">{t('hero.adviceLabel')}</span>{' '}
-        {prediction.advice.text}
+        {t(`advice.${prediction.advice.level}`)}
       </p>
 
       {/* Share — one button */}
