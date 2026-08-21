@@ -9,7 +9,7 @@ import { TimeDistribution } from "@/sections/TimeDistribution";
 import { ResetCalendar } from "@/sections/ResetCalendar";
 import { ProbabilityCurve } from "@/sections/ProbabilityCurve";
 import { AnchorNav } from "@/components/AnchorNav";
-import { sharePredictionState, copyToClipboard } from "@/lib/export-share";
+import { buildShareSummary, shareUrl, copyToClipboard } from "@/lib/export-share";
 import { useI18n } from "@/contexts/I18nContext";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 
@@ -23,13 +23,14 @@ export default function Home() {
   }
 
   const handleShare = async () => {
-    const url = sharePredictionState({
-      probability24h: prediction.prob24h,
-      probability48h: prediction.prob48h,
-      daysSinceLastReset: prediction.daysSinceLastReset,
-      medianInterval: prediction.medianIntervalDays,
+    const pct = Math.round((timeframe === 24 ? prediction.prob24h : prediction.prob48h) * 100);
+    const text = buildShareSummary({
+      pct,
+      hours: timeframe,
+      daysSince: prediction.daysSinceLastReset,
+      medianDays: prediction.medianIntervalDays,
     });
-    await copyToClipboard(url);
+    await copyToClipboard(`${text}\n${shareUrl()}`);
   };
 
   return (

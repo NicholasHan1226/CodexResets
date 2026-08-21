@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
 import { ProbabilityDisplay } from '@/sections/ProbabilityDisplay';
 import {
-  sharePredictionState,
+  buildShareSummary,
+  shareUrl,
   copyToClipboard,
   shareViaWebAPI,
   canNativeShare,
@@ -54,18 +55,18 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
     : null;
 
   const handleShare = async () => {
-    const url = sharePredictionState({
-      probability24h: prediction.prob24h,
-      probability48h: prediction.prob48h,
-      daysSinceLastReset: prediction.daysSinceLastReset,
-      medianInterval: prediction.medianIntervalDays,
+    const summary = buildShareSummary({
+      pct,
+      hours: timeframe,
+      daysSince: prediction.daysSinceLastReset,
+      medianDays: prediction.medianIntervalDays,
     });
-    // Mobile: native share sheet. Desktop: copy link.
+    // Mobile: native share sheet. Desktop: copy summary + link.
     if (canNativeShare()) {
-      const ok = await shareViaWebAPI(t('app.title'), t('hero.shareText', { n: pct, h: timeframe }), url);
+      const ok = await shareViaWebAPI(t('app.title'), summary, shareUrl());
       if (ok) return;
     }
-    if (await copyToClipboard(url)) {
+    if (await copyToClipboard(`${summary}\n${shareUrl()}`)) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -73,11 +74,14 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
 
   return (
     <section aria-label="Reset probability">
-      {/* Terminal prompt */}
+      {/* Terminal prompt — answer first, then the evidence in dim text */}
       <p className="font-mono text-sm text-muted-foreground">
-        <span className="text-primary">❯</span> will codex reset?{' '}
+        <span className="text-primary">❯</span> will codex reset? →{' '}
+        <span className="text-foreground font-semibold">
+          {isLikely ? t('hero.answerYes') : t('hero.answerNo')}
+        </span>{' '}
         <span className="text-muted-foreground/50">
-          {isLikely ? t('hero.signalYes') : t('hero.signalNo')}
+          ({isLikely ? t('hero.signalYes') : t('hero.signalNo')})
         </span>
       </p>
 

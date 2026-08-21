@@ -3,21 +3,27 @@
  */
 
 /**
- * Share current prediction state via URL
+ * Wordle-style shareable summary — terminal vocabulary, plain text.
+ * The URL stays clean (shared state params were never read back; the
+ * destination always shows fresher live data anyway).
  */
-export function sharePredictionState(state: {
-  probability24h: number;
-  probability48h: number;
-  daysSinceLastReset: number;
-  medianInterval: number;
+export function buildShareSummary(state: {
+  pct: number;
+  hours: 24 | 48;
+  daysSince: number;
+  medianDays: number;
 }): string {
-  const params = new URLSearchParams({
-    p24: state.probability24h.toFixed(0),
-    p48: state.probability48h.toFixed(0),
-    days: state.daysSinceLastReset.toFixed(1),
-    median: state.medianInterval.toFixed(1),
-  });
-  return `${window.location.origin}?${params.toString()}`;
+  const filled = Math.max(0, Math.min(10, Math.round((state.pct / 100) * 10)));
+  const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
+  return [
+    `codex resets ❯ ${state.pct}% in ${state.hours}h`,
+    `${bar} ${state.pct}% · waited ${state.daysSince.toFixed(1)}d · median ${state.medianDays.toFixed(1)}d`,
+  ].join('\n');
+}
+
+/** Canonical share target — the live site root. */
+export function shareUrl(): string {
+  return window.location.origin;
 }
 
 /**

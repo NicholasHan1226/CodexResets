@@ -113,7 +113,9 @@ src/
 - Hand-rolled SVG for data visualization (Recharts removed — see Performance)
 - CSS variables for theming (HSL format)
 - Home holds `timeframe` state (24|48) shared by HeroSection + ProbabilityCurve
-- Share: `sharePredictionState()` builds URL with state params, copied via clipboard
+- Share: `buildShareSummary()` emits a Wordle-style terminal text (ASCII bar +
+  waited/median), copied with the clean root URL — no state params in the URL
+  (they were never read back; the destination always shows fresher live data)
 - No localStorage-backed user features — the site is stateless for visitors
   (exception: prediction accuracy samples + locale preference)
 - `public/sw.js` is hand-written **plain JS** served as-is — never add TS
