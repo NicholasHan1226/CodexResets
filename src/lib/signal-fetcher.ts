@@ -1,10 +1,42 @@
 /**
- * Real signal fetcher - pulls live data from public sources
- * - Tibo's X/Twitter posts via RSS proxy
- * - OpenAI status page via public API
+ * Real signal fetcher — three-tier strategy:
+ * 1. Pipeline snapshot (Cloudflare Worker scrapes server-side every 30min,
+ *    far more reliable than browser-side attempts)
+ * 2. Direct browser fetch (RSS proxy + OpenAI status API)
+ * 3. Simulated fallback handled by the caller
  */
 
 import type { ResetSignal } from '@/types/reset';
+
+const PIPELINE_API_URL = (import.meta.env.VITE_PIPELINE_API_URL || '').replace(/\/+$/, '');
+
+interface PipelineSnapshot {
+  signals: ResetSignal[];
+  generatedAt: number;
+}
+
+// Fetch the server-side signal snapshot built by the pipeline worker
+export async function fetchPipelineSignals(): Promise<ResetSignal[] | null> {
+  if (!PIPELINE_API_URL) return null;
+
+  const cacheKey = 'pipeline_signals';
+  const cached = getCached<ResetSignal[]>(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const res = await fetch(`${PIPELINE_API_URL}/api/signals`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as PipelineSnapshot;
+    if (!Array.isArray(data.signals) || data.signals.length === 0) return null;
+    // Snapshot is refreshed every 30min server-side; cache for 5min locally
+    setCache(cacheKey, data.signals, 5 * 60 * 1000);
+    return data.signals;
+  } catch {
+    return null;
+  }
+}
 
 // RSS proxies for Twitter/X feeds (fallback chain)
 const RSS_PROXIES = [
@@ -250,6 +282,15 @@ export async function fetchRealSignals(): Promise<ResetSignal[]> {
 
 // Check if we have real signal data or should fall back to simulated
 export async function getSignalsWithFallback(simulatedSignals: ResetSignal[]): Promise<{ signals: ResetSignal[]; hasRealData: boolean }> {
+  // Tier 1: server-side pipeline snapshot (most reliable)
+  const pipelineSignals = await fetchPipelineSignals();
+  if (pipelineSignals && pipelineSignals.length > 0) {
+    const pipelineSources = new Set(pipelineSignals.map((s) => s.source));
+    const missing = simulatedSignals.filter((s) => !pipelineSources.has(s.source));
+    return { signals: [...pipelineSignals, ...missing], hasRealData: true };
+  }
+
+  // Tier 2: direct browser fetch
   const realSignals = await fetchRealSignals();
   
   if (realSignals.length === 0) {

@@ -21,6 +21,30 @@ pnpm run lint         # ESLint check
 npx tsc -b --noEmit  # TypeScript check
 ```
 
+## Backend Pipeline (worker/)
+`codex-resets-pipeline` — Cloudflare Worker, cron `*/30 * * * *`, served at
+`https://api.codexresets.cc` (custom domain; workers.dev is DNS-poisoned in
+some regions — do not rely on it).
+
+- `src/scrape.ts`    — tweet scraping: RSSHub instances → nitter mirrors
+  (xcancel.com currently works from the edge) → Google News RSS fallback for
+  reset detection. All instance errors collected into `attempted[]`.
+- `src/signals.ts`   — builds the 4-signal snapshot (tibopost / status_page /
+  cooldown / launch_noise), mirrors the frontend model
+- `src/pipeline.ts`  — orchestration: scrape → detect → insert (service role)
+  → notify → snapshot to KV (`signals:latest`) → health report
+  (`health:last_run`)
+- `src/notify.ts`    — Resend email (HMAC-signed unsubscribe links) +
+  Web Push via @block65/webcrypto-web-push (prunes 404/410 endpoints)
+- `src/routes.ts`    — GET /api/signals, GET /api/health,
+  POST /api/subscribe/push, POST /api/unsubscribe/push,
+  GET /api/unsubscribe (HMAC email), POST /api/run (Bearer CRON_SECRET)
+- Deploy: `cd worker && CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... npx wrangler deploy`
+- Secrets set: VAPID_PRIVATE_KEY, UNSUBSCRIBE_SECRET, CRON_SECRET
+- Secrets PENDING (user): SUPABASE_SERVICE_ROLE_KEY (record inserts +
+  notification fan-out), RESEND_API_KEY (email sends). Pipeline degrades
+  gracefully and reports gaps in /api/health `configured`.
+
 ## Project Structure
 ```
 src/
@@ -57,6 +81,9 @@ src/
 ## Key Patterns
 - `usePrediction` renders instantly from local data, network enhances async;
   records + signals fetched in parallel, 5min auto-refresh
+- Signals: `getSignalsWithFallback` is three-tier — pipeline snapshot
+  (`VITE_PIPELINE_API_URL/api/signals`) → direct browser fetch → simulated.
+  Worker snapshot descriptions are i18n keys (`signals.*`) rendered via `t()`.
 - Hand-rolled SVG for data visualization (Recharts removed — see Performance)
 - CSS variables for theming (HSL format)
 - Home holds `timeframe` state (24|48) shared by HeroSection + ProbabilityCurve

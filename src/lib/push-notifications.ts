@@ -4,6 +4,37 @@
  */
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
+const PIPELINE_API_URL = (import.meta.env.VITE_PIPELINE_API_URL || '').replace(/\/+$/, '');
+
+// Report the subscription to the pipeline so the server can fan out alerts.
+// Fire-and-forget: a failed report must not break the local subscription UX.
+async function reportSubscription(data: PushSubscriptionData): Promise<void> {
+  if (!PIPELINE_API_URL) return;
+  try {
+    await fetch(`${PIPELINE_API_URL}/api/subscribe/push`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(data),
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch (err) {
+    console.warn('Failed to report push subscription:', err);
+  }
+}
+
+async function reportUnsubscription(endpoint: string): Promise<void> {
+  if (!PIPELINE_API_URL || !endpoint) return;
+  try {
+    await fetch(`${PIPELINE_API_URL}/api/unsubscribe/push`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ endpoint }),
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch (err) {
+    console.warn('Failed to report push unsubscription:', err);
+  }
+}
 
 export interface PushSubscriptionData {
   endpoint: string;
@@ -48,13 +79,16 @@ export async function subscribeToPush(): Promise<PushSubscriptionData | null> {
     });
 
     const subscriptionData = subscription.toJSON();
-    return {
+    const data: PushSubscriptionData = {
       endpoint: subscriptionData.endpoint || '',
       keys: {
         p256dh: subscriptionData.keys?.p256dh || '',
         auth: subscriptionData.keys?.auth || '',
       },
     };
+    // Server-side fan-out needs this subscription — report it async
+    void reportSubscription(data);
+    return data;
   } catch (error) {
     console.error('Failed to subscribe to push:', error);
     return null;
@@ -70,11 +104,12 @@ export async function unsubscribeFromPush(): Promise<boolean> {
   try {
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
-    
+
     if (subscription) {
+      void reportUnsubscription(subscription.endpoint);
       await subscription.unsubscribe();
     }
-    
+
     return true;
   } catch (error) {
     console.error('Failed to unsubscribe from push:', error);

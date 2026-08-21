@@ -1,0 +1,80 @@
+export interface Env {
+  CACHE: KVNamespace;
+  SUPABASE_URL: string;
+  SUPABASE_ANON_KEY: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT: string;
+  RESEND_API_KEY?: string;
+  RESEND_FROM: string;
+  UNSUBSCRIBE_SECRET?: string;
+  CRON_SECRET?: string;
+  RSSHUB_INSTANCES: string;
+  TARGET_ACCOUNT: string;
+  SITE_URL: string;
+}
+
+export interface Tweet {
+  text: string;
+  link: string;
+  ts: number;
+}
+
+export interface ScrapeResult {
+  ok: boolean;
+  instance?: string;
+  tweets: Tweet[];
+  error?: string;
+  attempted?: string[];
+}
+
+export interface ResetEvent {
+  ts: number;
+  text: string;
+  link: string;
+}
+
+export interface ResetRecordRow {
+  id: string;
+  reset_date: string;
+  source_url: string | null;
+  description: string | null;
+  verified: boolean;
+}
+
+export type SignalStatus = 'active' | 'weak' | 'idle';
+
+export interface SignalSnapshot {
+  source: string;
+  label: string;
+  status: SignalStatus;
+  value: number;
+  description: string;
+  descriptionParams?: Record<string, string | number>;
+  updatedAt: number;
+  sourceUrl?: string;
+}
+
+export interface SignalsPayload {
+  signals: SignalSnapshot[];
+  generatedAt: number;
+  sources: {
+    tweets: 'live' | 'stale' | 'down';
+    statusPage: 'live' | 'down';
+    database: 'live' | 'fallback' | 'down';
+  };
+}
+
+export interface RunReport {
+  startedAt: string;
+  trigger: string;
+  scrape: 'ok' | 'failed';
+  scrapeInstance?: string;
+  tweetsSeen: number;
+  candidates: number;
+  inserted: number;
+  notifiedEmails: number;
+  notifiedPush: number;
+  errors: string[];
+}

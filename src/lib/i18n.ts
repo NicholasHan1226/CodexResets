@@ -137,6 +137,13 @@ const translations: Record<Locale, Record<string, string>> = {
     'signals.liveData': 'Live data',
     'signals.cachedData': 'Cached',
     'signals.fallbackData': 'Fallback',
+    'signals.tiboUnavailable': 'Post feed temporarily unavailable — monitoring via pipeline',
+    'signals.statusActiveIncidents': '{n} open Codex-related incidents',
+    'signals.statusClear': 'No open incidents',
+    'signals.statusDown': 'Status page unreachable',
+    'signals.cooldownDesc': '{d}d since last reset (median gap: {m}d)',
+    'signals.launchActive': 'Elevated launch-window noise',
+    'signals.launchQuiet': 'No product launch signals',
 
     // Time Distribution
     'distribution.title': 'RESET TIMING',
@@ -366,6 +373,13 @@ const translations: Record<Locale, Record<string, string>> = {
     'signals.liveData': '实时数据',
     'signals.cachedData': '已缓存',
     'signals.fallbackData': '降级数据',
+    'signals.tiboUnavailable': '推文源暂时不可用 — 管道持续监控中',
+    'signals.statusActiveIncidents': '{n} 个进行中的 Codex 相关事故',
+    'signals.statusClear': '无进行中事故',
+    'signals.statusDown': '状态页无法访问',
+    'signals.cooldownDesc': '距上次重置 {d} 天（间隔中位数：{m} 天）',
+    'signals.launchActive': '发布窗口噪音升高',
+    'signals.launchQuiet': '无产品发布信号',
 
     // Time Distribution
     'distribution.title': '重置时间分布',
