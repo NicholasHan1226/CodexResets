@@ -106,6 +106,17 @@ describe('pipeline read endpoints', () => {
     expect(response.status).toBe(401);
   });
 
+  it('preserves full diagnostics only for the authorized operations path', async () => {
+    const now = new Date().toISOString();
+    const response = await handleHealthDetails(new Request('https://api.example.test/api/health/details', {
+      headers: { authorization: 'Bearer cron-test-secret' },
+    }), emailEnv({
+      'health:last_run': JSON.stringify({ startedAt: now, scrape: 'failed', errors: ['scrape: internal detail'] }),
+    }));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ lastRun: { errors: ['scrape: internal detail'] } });
+  });
+
   it('returns a failing health status when the cron report is stale or failed', async () => {
     const response = await handleHealth(envWith({
       'health:last_run': JSON.stringify({
