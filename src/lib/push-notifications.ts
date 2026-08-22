@@ -24,17 +24,19 @@ async function reportSubscription(data: PushSubscriptionData): Promise<boolean> 
   }
 }
 
-async function reportUnsubscription(endpoint: string): Promise<void> {
-  if (!PIPELINE_API_URL || !endpoint) return;
+async function reportUnsubscription(endpoint: string): Promise<boolean> {
+  if (!PIPELINE_API_URL || !endpoint) return false;
   try {
-    await fetch(`${PIPELINE_API_URL}/api/unsubscribe/push`, {
+    const response = await fetch(`${PIPELINE_API_URL}/api/unsubscribe/push`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ endpoint }),
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(6000),
     });
+    return response.ok;
   } catch (err) {
     console.warn('Failed to report push unsubscription:', err);
+    return false;
   }
 }
 
@@ -115,8 +117,10 @@ export async function unsubscribeFromPush(): Promise<boolean> {
     const subscription = await registration.pushManager.getSubscription();
 
     if (subscription) {
-      void reportUnsubscription(subscription.endpoint);
-      await subscription.unsubscribe();
+      // A local removal alone can leave the server retaining an endpoint when
+      // a constrained network drops the request. Synchronize first.
+      if (!await reportUnsubscription(subscription.endpoint)) return false;
+      return subscription.unsubscribe();
     }
 
     return true;

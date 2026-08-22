@@ -45,6 +45,7 @@ export function ResetAlertsPanel({ prob24h }: ResetAlertsPanelProps) {
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
   const [pushInit, setPushInit] = useState(true);
+  const [pushError, setPushError] = useState(false);
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -89,16 +90,20 @@ export function ResetAlertsPanel({ prob24h }: ResetAlertsPanelProps) {
 
   const handlePushToggle = async () => {
     setPushLoading(true);
+    setPushError(false);
     try {
       if (pushSubscribed) {
-        await unsubscribeFromPush();
+        const removed = await unsubscribeFromPush();
+        if (!removed) throw new Error('Push unsubscription was not acknowledged');
         setPushSubscribed(false);
       } else {
         const result = await subscribeToPush();
-        if (result) setPushSubscribed(true);
+        if (!result) throw new Error('Push subscription was not acknowledged');
+        setPushSubscribed(true);
       }
     } catch (error) {
       console.error('Push toggle failed:', error);
+      setPushError(true);
     } finally {
       setPushLoading(false);
     }
@@ -210,6 +215,11 @@ export function ResetAlertsPanel({ prob24h }: ResetAlertsPanelProps) {
               {pushSubscribed && (
                 <span className="font-mono text-xs text-primary">
                   ● {t('push.enabled')}
+                </span>
+              )}
+              {pushError && (
+                <span className="font-mono text-xs text-destructive">
+                  {t('push.errorRetry')}
                 </span>
               )}
             </div>

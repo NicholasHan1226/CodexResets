@@ -78,6 +78,10 @@ some regions — do not rely on it).
   alert and keep automatic confirmation paused. An active official Codex or
   usage-limit incident is a contradiction gate: it can hold delivery but never
   creates a reset. KV retains a 31-day non-PII delivery roll-up.
+- When the Worker cannot be reached, production browsers stay on the local
+  prediction model instead of fanning out to external RSS/status proxies.
+  This keeps the site responsive on constrained networks. Email is the primary
+  alert channel; Web Push is optional for browsers that support it.
 
 ## Project Structure
 ```

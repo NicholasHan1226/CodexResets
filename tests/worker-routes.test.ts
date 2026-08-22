@@ -73,12 +73,12 @@ describe('pipeline read endpoints', () => {
     const body = await response.json() as {
       ok: boolean;
       signalsGeneratedAt: number;
-      configured: { serviceRole: boolean; resend: boolean; vapid: boolean };
+      configured: { serviceRole: boolean; resend: boolean; vapid: boolean; healthAlert: boolean };
     };
 
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
-    expect(body.configured).toMatchObject({ serviceRole: false, resend: false, vapid: false });
+    expect(body.configured).toMatchObject({ serviceRole: false, resend: false, vapid: false, healthAlert: false });
   });
 
   it('returns a failing health status when the cron report is stale or failed', async () => {
@@ -219,7 +219,7 @@ describe('pipeline read endpoints', () => {
       const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
       expect(JSON.parse(String(init.body))).toMatchObject({
         to: ['reader@example.test'],
-        subject: 'Confirm your Codex Resets subscription',
+        subject: 'Confirm Codex Resets subscription / 确认 Codex 重置提醒订阅',
       });
       expect(Object.keys(cache).some((key) => key.startsWith('subscribe:confirm:'))).toBe(true);
       expect(Object.keys(cache).some((key) => key.includes('reader@example.test'))).toBe(false);
@@ -401,7 +401,7 @@ describe('pipeline read endpoints', () => {
       const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
       expect(JSON.parse(String(init.body))).toMatchObject({
         to: ['reader@example.test'],
-        subject: '[Test] Codex Resets alert delivery',
+        subject: '[Test] Codex Resets alert delivery / 提醒投递测试',
       });
     } finally {
       vi.unstubAllGlobals();
@@ -426,7 +426,7 @@ describe('pipeline read endpoints', () => {
       const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
       expect(JSON.parse(String(init.body))).toMatchObject({
         to: ['ops@example.test'],
-        subject: '[Action required] Codex Resets Worker health failed',
+        subject: '[Action required] Codex Resets Worker health failed / 运行异常',
       });
     } finally {
       vi.unstubAllGlobals();

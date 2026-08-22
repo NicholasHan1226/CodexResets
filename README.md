@@ -39,6 +39,16 @@ a reset. Daily non-PII run and delivery metrics are retained in Worker KV for
 Resend `email.bounced` and `email.complained` webhooks are HMAC-verified at
 `POST /api/webhooks/resend` and delete the affected subscription.
 
+## Mainland-user behavior
+
+The public site uses Cloudflare's global network, not a mainland China
+deployment, and does not claim a mainland-network SLA or ICP filing. When the
+Worker API is unreachable, the browser remains usable with its local prediction
+model rather than trying multiple third-party RSS and status hosts. Email is
+the primary alert channel and uses concise bilingual English/Chinese messages;
+Web Push remains optional because device, browser, and notification policies
+vary across mainland networks and mobile platforms.
+
 ## Local development
 
 ```bash

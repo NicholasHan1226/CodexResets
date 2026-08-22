@@ -191,6 +191,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'push.enabled': 'Browser push enabled',
     'push.disabled': 'Enable browser push',
     'push.unsubscribe': 'Disable notifications',
+    'push.errorRetry': 'Could not update notification settings. Try again.',
 
     // History
     'history.title': 'Reset History',
@@ -455,6 +456,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'push.enabled': '浏览器推送已开启',
     'push.disabled': '开启浏览器推送',
     'push.unsubscribe': '关闭通知',
+    'push.errorRetry': '通知设置未同步，请重试。',
 
     // History
     'history.title': '重置历史',

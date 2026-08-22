@@ -79,9 +79,9 @@ async function sendEmail(env: Env, email: string, event: ResetEvent): Promise<bo
     body: JSON.stringify({
       from: env.RESEND_FROM,
       to: [email],
-      subject: 'Codex usage limits were reset',
+      subject: 'Codex usage limits were reset / Codex 使用额度已重置',
       headers: { 'List-Unsubscribe': `<${unsubUrl}>` },
-      html: emailHtml(env, event.text, resetLocal, unsubUrl),
+      html: emailHtml(env, resetLocal, unsubUrl),
     }),
   });
   if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
@@ -98,7 +98,7 @@ export async function sendSubscriptionConfirmation(env: Env, email: string, toke
     body: JSON.stringify({
       from: env.RESEND_FROM,
       to: [email],
-      subject: 'Confirm your Codex Resets subscription',
+      subject: 'Confirm Codex Resets subscription / 确认 Codex 重置提醒订阅',
       html: confirmationHtml(confirmUrl),
     }),
   });
@@ -114,7 +114,7 @@ export async function sendTestEmail(env: Env, email: string): Promise<void> {
     body: JSON.stringify({
       from: env.RESEND_FROM,
       to: [email],
-      subject: '[Test] Codex Resets alert delivery',
+      subject: '[Test] Codex Resets alert delivery / 提醒投递测试',
       html: testEmailHtml(env),
     }),
   });
@@ -130,25 +130,24 @@ export async function sendHealthAlert(env: Env, report: RunReport): Promise<void
     body: JSON.stringify({
       from: env.RESEND_FROM,
       to: [env.HEALTH_ALERT_EMAIL],
-      subject: '[Action required] Codex Resets Worker health failed',
+      subject: '[Action required] Codex Resets Worker health failed / 运行异常',
       html: healthAlertHtml(env, report),
     }),
   });
   if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
 }
 
-function emailHtml(env: Env, excerpt: string, resetLocal: string, unsubUrl: string): string {
+function emailHtml(env: Env, resetLocal: string, unsubUrl: string): string {
   return `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
   <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
     <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#10a37f">❯ codex resets</p>
-    <h1 style="margin:0 0 12px;font-size:20px">Usage limits were reset</h1>
-    <p style="margin:0 0 8px;font-size:14px;color:#3d4250">A new reset was detected from @thsottiaux:</p>
-    <blockquote style="margin:0 0 12px;padding:10px 12px;border-left:3px solid #10a37f;background:#f0fdf9;font-size:13px;color:#3d4250">${escapeHtml(excerpt)}</blockquote>
+    <h1 style="margin:0 0 12px;font-size:20px">Usage limits were reset / 使用额度已重置</h1>
+    <p style="margin:0 0 12px;font-size:14px;color:#3d4250">A confirmed Codex reset is available. / 已确认 Codex 使用额度重置。</p>
     <p style="margin:0 0 16px;font-family:Menlo,monospace;font-size:12px;color:#7c8494">${escapeHtml(resetLocal)}</p>
     <a href="${env.SITE_URL}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open dashboard</a>
     <hr style="margin:20px 0 12px;border:none;border-top:1px solid #e4e6ea" />
-    <p style="margin:0;font-size:11px;color:#9aa0ac">You received this because you subscribed at codexresets.cc · <a href="${unsubUrl}" style="color:#9aa0ac">Unsubscribe</a></p>
+    <p style="margin:0;font-size:11px;color:#9aa0ac">You subscribed at codexresets.cc · <a href="${unsubUrl}" style="color:#9aa0ac">Unsubscribe / 退订</a></p>
   </div>
 </body></html>`;
 }
@@ -158,10 +157,10 @@ function confirmationHtml(confirmUrl: string): string {
 <html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
   <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
     <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#10a37f">❯ codex resets</p>
-    <h1 style="margin:0 0 12px;font-size:20px">Confirm your subscription</h1>
-    <p style="margin:0 0 16px;font-size:14px;color:#3d4250">Confirm this address to receive Codex usage-reset alerts. If you did not request this, you can safely ignore this email.</p>
-    <a href="${confirmUrl}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Confirm subscription</a>
-    <p style="margin:20px 0 0;font-size:11px;color:#9aa0ac">This confirmation link expires in 24 hours.</p>
+    <h1 style="margin:0 0 12px;font-size:20px">Confirm your subscription / 确认订阅</h1>
+    <p style="margin:0 0 16px;font-size:14px;color:#3d4250">Confirm this address to receive Codex reset alerts. If you did not request this, ignore this email. / 确认后即可接收 Codex 重置提醒；若非本人操作，请忽略。</p>
+    <a href="${confirmUrl}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Confirm subscription / 确认订阅</a>
+    <p style="margin:20px 0 0;font-size:11px;color:#9aa0ac">This confirmation link expires in 24 hours. / 链接 24 小时内有效。</p>
   </div>
 </body></html>`;
 }
@@ -171,8 +170,8 @@ function testEmailHtml(env: Env): string {
 <html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
   <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
     <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#10a37f">❯ codex resets</p>
-    <h1 style="margin:0 0 12px;font-size:20px">Test alert delivery</h1>
-    <p style="margin:0 0 16px;font-size:14px;color:#3d4250">This is an administrator-initiated delivery test. It does not indicate a Codex reset and does not change your subscription.</p>
+    <h1 style="margin:0 0 12px;font-size:20px">Test alert delivery / 提醒投递测试</h1>
+    <p style="margin:0 0 16px;font-size:14px;color:#3d4250">This test does not indicate a Codex reset and does not change your subscription. / 这是一封测试邮件，不表示发生重置，也不会修改你的订阅。</p>
     <a href="${env.SITE_URL}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open dashboard</a>
   </div>
 </body></html>`;

@@ -47,6 +47,7 @@ export async function handleHealth(env: Env): Promise<Response> {
       resend: Boolean(env.RESEND_API_KEY),
       vapid: Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY),
       unsubscribe: Boolean(env.UNSUBSCRIBE_SECRET),
+      healthAlert: Boolean(env.HEALTH_ALERT_EMAIL && env.RESEND_API_KEY),
     },
   }, ok ? 200 : 503);
 }

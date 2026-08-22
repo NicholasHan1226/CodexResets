@@ -9,6 +9,7 @@
 import type { ResetSignal } from '@/types/reset';
 
 const PIPELINE_API_URL = (import.meta.env.VITE_PIPELINE_API_URL || '').replace(/\/+$/, '');
+const PIPELINE_TIMEOUT_MS = 6000;
 
 interface PipelineSnapshot {
   signals: ResetSignal[];
@@ -25,7 +26,7 @@ export async function fetchPipelineSignals(): Promise<ResetSignal[] | null> {
 
   try {
     const res = await fetch(`${PIPELINE_API_URL}/api/signals`, {
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(PIPELINE_TIMEOUT_MS),
     });
     if (!res.ok) return null;
     const data = (await res.json()) as PipelineSnapshot;
@@ -289,6 +290,11 @@ export async function getSignalsWithFallback(simulatedSignals: ResetSignal[]): P
     const missing = simulatedSignals.filter((s) => !pipelineSources.has(s.source));
     return { signals: [...pipelineSignals, ...missing], hasRealData: true };
   }
+
+  // In production, falling through to several third-party proxy/status hosts
+  // makes a Worker outage slower and less reliable on constrained networks.
+  // The local model is the honest, immediately usable fallback instead.
+  if (PIPELINE_API_URL) return { signals: simulatedSignals, hasRealData: false };
 
   // Tier 2: direct browser fetch
   const realSignals = await fetchRealSignals();

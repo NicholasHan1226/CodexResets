@@ -11,6 +11,7 @@ export async function subscribeEmail(email: string, turnstileToken: string): Pro
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email: email.trim().toLowerCase(), turnstileToken }),
+    signal: AbortSignal.timeout(10_000),
   });
   const data = await response.json().catch(() => null) as { status?: string; error?: string } | null;
   if (!response.ok) {
