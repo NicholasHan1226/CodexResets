@@ -430,11 +430,19 @@ async function valueHash(value: string): Promise<string> {
 
 async function allowRateLimitedRequest(env: Env, scope: string, clientIp: string, limit: number): Promise<boolean> {
   const ipKey = await valueHash(clientIp);
-  const rateLimitKey = `rate:${scope}:ip:${ipKey}`;
-  const attempts = Number.parseInt((await env.CACHE.get(rateLimitKey)) || '0', 10) || 0;
-  if (attempts >= limit) return false;
-  await env.CACHE.put(rateLimitKey, String(attempts + 1), { expirationTtl: IP_RATE_WINDOW_SECONDS });
-  return true;
+  try {
+    const id = env.RATE_LIMITER.idFromName(`${scope}:${ipKey}`);
+    const response = await env.RATE_LIMITER.get(id).fetch('https://rate-limit/check', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ limit, windowSeconds: IP_RATE_WINDOW_SECONDS }),
+    });
+    if (!response.ok) return false;
+    return (await response.json() as { allowed?: unknown }).allowed === true;
+  } catch {
+    // Subscription intake fails closed if the coordination boundary is unavailable.
+    return false;
+  }
 }
 
 function isAllowedPushEndpoint(value: unknown): value is string {

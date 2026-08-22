@@ -38,5 +38,13 @@ SUPABASE_ANON_KEY = "sb_publishable_xC9TYkofqqQ6f181k7FQ8w_zZFzjeAQ"
 binding = "CACHE"
 id = "dce055cfe41c4e819b3af1c2dd735a14"
 
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RateLimiter"]
+
 [triggers]
 crons = ["*/30 * * * *"]

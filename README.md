@@ -20,6 +20,10 @@ The Worker runs every 30 minutes. Its public read endpoints are:
 - `GET /api/health/details` — full diagnostics for an administrator with the
   `CRON_SECRET` bearer token; raw upstream errors are excluded from public
   health.
+
+Public subscription intake uses a per-client Durable Object quota, so concurrent
+requests cannot race the quota counter. The quota state is isolated by hashed
+client address and scope; it does not store the address itself.
 - `POST /api/subscribe/email` — starts a confirmation email; the address is
   activated only by `GET /api/subscribe/confirm?t=...` within 24 hours.
 

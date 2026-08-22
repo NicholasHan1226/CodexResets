@@ -11,6 +11,24 @@ import type { Env, RunReport } from '../worker/src/types';
 import { detectResetEvents, detectResetRetractions, isRetractionForCandidate, isTimelyAutomatedCandidate, scrapeTweets } from '../worker/src/scrape';
 
 function envWith(cacheEntries: Record<string, string | null>): Env {
+  const rateLimiter = {
+    idFromName: (name: string) => name,
+    get: (id: string) => ({
+      fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body || '{}')) as { limit?: number; windowSeconds?: number };
+        const key = `test:rate-limit:${id}`;
+        const now = Date.now();
+        const existing = JSON.parse(cacheEntries[key] || 'null') as { startedAt: number; attempts: number } | null;
+        const current = !existing || now - existing.startedAt >= (body.windowSeconds || 0) * 1000
+          ? { startedAt: now, attempts: 0 }
+          : existing;
+        if (!body.limit || current.attempts >= body.limit) return new Response(JSON.stringify({ allowed: false }), { status: 429 });
+        current.attempts += 1;
+        cacheEntries[key] = JSON.stringify(current);
+        return new Response(JSON.stringify({ allowed: true }));
+      },
+    }),
+  };
   return {
     CACHE: {
       get: async (key: string) => cacheEntries[key] ?? null,
@@ -21,6 +39,7 @@ function envWith(cacheEntries: Record<string, string | null>): Env {
         list_complete: true,
       }),
     },
+    RATE_LIMITER: rateLimiter,
   } as unknown as Env;
 }
 

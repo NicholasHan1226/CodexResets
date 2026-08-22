@@ -16,6 +16,8 @@ import {
 } from './routes';
 import { runPipeline } from './pipeline';
 
+export { RateLimiter } from './rate-limit';
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method === 'OPTIONS') {
