@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
 
 interface PredictionRecord {
@@ -14,15 +14,17 @@ const STORAGE_KEY = 'codex_prediction_history';
 
 export function PredictionAccuracy() {
   const { t } = useI18n();
-  const [records, setRecords] = useState<PredictionRecord[]>([]);
-  const [showDetails, setShowDetails] = useState(false);
-
-  useEffect(() => {
+  const [records] = useState<PredictionRecord[]>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try { setRecords(JSON.parse(stored)); } catch { setRecords([]); }
+    if (!stored) return [];
+
+    try {
+      return JSON.parse(stored) as PredictionRecord[];
+    } catch {
+      return [];
     }
-  }, []);
+  });
+  const [showDetails, setShowDetails] = useState(false);
 
   const stats = {
     total: records.filter((r) => r.actualReset !== null).length,

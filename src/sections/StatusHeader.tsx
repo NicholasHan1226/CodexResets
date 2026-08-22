@@ -13,6 +13,7 @@ interface StatusHeaderProps {
 export function StatusHeader({ prediction, isLive, onRefresh, onShare }: StatusHeaderProps) {
   const { locale, setLocale, t } = useI18n();
   const [utcTime, setUtcTime] = useState('');
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const tick = () => {
@@ -20,6 +21,7 @@ export function StatusHeader({ prediction, isLive, onRefresh, onShare }: StatusH
       const hh = String(d.getUTCHours()).padStart(2, '0');
       const mm = String(d.getUTCMinutes()).padStart(2, '0');
       setUtcTime(`${hh}:${mm} UTC`);
+      setNow(d.getTime());
     };
     tick();
     const id = setInterval(tick, 30000);
@@ -27,7 +29,7 @@ export function StatusHeader({ prediction, isLive, onRefresh, onShare }: StatusH
   }, []);
 
   const formatTimeAgo = (timestamp: number): string => {
-    const diff = Date.now() - timestamp;
+    const diff = now - timestamp;
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     if (minutes < 1) return t('header.justNow');

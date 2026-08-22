@@ -59,7 +59,7 @@ export default {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-    } catch (error) {
+    } catch {
       return new Response(JSON.stringify({ error: 'Internal server error' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -138,7 +138,7 @@ async function handleHistory(env: Env): Promise<Response> {
   });
 }
 
-async function handleSignals(_env: Env): Promise<Response> {
+async function handleSignals(): Promise<Response> {
   // Return current signal states (simplified)
   return new Response(JSON.stringify({
     signals: [

@@ -1,8 +1,16 @@
+import { useEffect, useState } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
 import { getEffectiveHistory, computeIntervalStats } from '@/lib/reset-data';
 
 export function HistoryPanel() {
   const { t, locale } = useI18n();
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const history = getEffectiveHistory();
   const stats = computeIntervalStats();
   const recentResets = history.slice(0, 5);
@@ -20,7 +28,7 @@ export function HistoryPanel() {
     .map((gap) => SPARK_CHARS[Math.min(7, Math.round((gap / maxGap) * 7))])
     .join('');
   // Current ongoing wait
-  const currentWait = (Date.now() - history[0].timestamp) / 86400000;
+  const currentWait = (now - history[0].timestamp) / 86400000;
   const currentSpark = SPARK_CHARS[Math.min(7, Math.round((currentWait / maxGap) * 7))];
 
   return (

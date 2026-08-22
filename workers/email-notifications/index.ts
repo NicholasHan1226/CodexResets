@@ -23,6 +23,14 @@ interface Subscription {
   is_active: boolean;
 }
 
+interface Prediction {
+  probability24h: number;
+  probability48h: number;
+  mostLikelyWindow: string;
+  daysSinceLastReset: number;
+  medianInterval: number;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -124,7 +132,7 @@ async function checkAndNotify(env: Env): Promise<{ sent: number; skipped: number
   return { sent, skipped };
 }
 
-async function fetchCurrentPrediction() {
+async function fetchCurrentPrediction(): Promise<Prediction> {
   // In production, this would fetch from your prediction API
   // For now, return a mock prediction
   return {
@@ -151,7 +159,7 @@ async function fetchSubscribers(env: Env): Promise<Subscription[]> {
   return response.json();
 }
 
-async function sendEmail(env: Env, email: string, prediction: any): Promise<boolean> {
+async function sendEmail(env: Env, email: string, prediction: Prediction): Promise<boolean> {
   const subject = `🔔 Codex Reset Alert - ${prediction.probability24h}% probability`;
   
   const html = `

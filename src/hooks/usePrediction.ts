@@ -65,9 +65,17 @@ export function usePrediction() {
 
   // Initial load and periodic refresh (every 5 minutes)
   useEffect(() => {
-    refresh();
+    // Run the first network refresh after the initial paint. The state above
+    // already provides an immediate local prediction, so this avoids a
+    // synchronous state update while the effect is being mounted.
+    const initialRefresh = window.setTimeout(() => {
+      void refresh();
+    }, 0);
     const interval = setInterval(refresh, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    return () => {
+      window.clearTimeout(initialRefresh);
+      clearInterval(interval);
+    };
   }, [refresh]);
 
   return {
