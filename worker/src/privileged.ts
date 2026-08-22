@@ -46,8 +46,11 @@ export async function privUpsertPush(env: Env, row: PushSubRow & { user_agent: s
   }, true);
 }
 
-export async function privDeletePush(env: Env, endpoint: string): Promise<Response> {
-  return sb(env, `push_subscriptions?endpoint=eq.${encodeURIComponent(endpoint)}`, { method: 'DELETE' }, true);
+export async function privDeletePush(env: Env, endpoint: string, auth?: string, p256dh?: string): Promise<Response> {
+  const proofFilter = auth && p256dh
+    ? `&auth=eq.${encodeURIComponent(auth)}&p256dh=eq.${encodeURIComponent(p256dh)}`
+    : '';
+  return sb(env, `push_subscriptions?endpoint=eq.${encodeURIComponent(endpoint)}${proofFilter}`, { method: 'DELETE' }, true);
 }
 
 /** Remove an address after an explicit unsubscribe, hard bounce, or complaint. */

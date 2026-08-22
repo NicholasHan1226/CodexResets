@@ -9,9 +9,9 @@ as a general data-ingestion or notification interface.
 ## Public reads
 
 - `GET /api/signals` — latest Worker-produced signal snapshot for the browser.
-- `GET /api/health` — safe operational status, capability booleans, and compact
-  delivery totals. It deliberately excludes raw errors, source URLs, and
-  candidate text.
+- `GET /api/health` — coarse pipeline health and snapshot freshness. Detailed
+  diagnostics, delivery totals, capabilities, raw errors, source URLs, and
+  candidate text are not public.
 
 ## Subscription lifecycle
 
@@ -24,7 +24,8 @@ as a general data-ingestion or notification interface.
 - `POST /api/subscribe/push` — accepts a bounded browser Push subscription for
   a supported Web Push authority; it applies an IP quota and sends a delivery
   test without following redirects.
-- `POST /api/unsubscribe/push` — removes the browser-provided endpoint.
+- `POST /api/unsubscribe/push` — removes a browser-provided endpoint only when
+  the subscription's browser-held key material is supplied too.
 
 ## Provider and administrator routes
 
@@ -37,6 +38,7 @@ as a general data-ingestion or notification interface.
 
 ## Data boundary
 
-The browser uses the Supabase publishable key only for confirmed reset history.
-Subscriptions, Push endpoints, pending lifecycle rows, email delivery, and all
+The browser uses the Supabase publishable key only for `id`, `reset_date`, and
+`verified` on confirmed reset history. Source URLs, original announcement text,
+subscriptions, Push endpoints, pending lifecycle rows, email delivery, and all
 write operations are Worker service-role operations.

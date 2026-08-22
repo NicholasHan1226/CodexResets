@@ -1,8 +1,0 @@
-name = "codex-resets-api"
-main = "index.ts"
-compatibility_date = "2024-09-23"
-
-[vars]
-# Environment variables to be set in Cloudflare dashboard:
-# SUPABASE_URL = "your-supabase-url"
-# SUPABASE_ANON_KEY = "your-supabase-anon-key"

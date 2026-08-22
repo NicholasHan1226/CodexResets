@@ -24,13 +24,13 @@ async function reportSubscription(data: PushSubscriptionData): Promise<boolean> 
   }
 }
 
-async function reportUnsubscription(endpoint: string): Promise<boolean> {
-  if (!PIPELINE_API_URL || !endpoint) return false;
+async function reportUnsubscription(data: PushSubscriptionData): Promise<boolean> {
+  if (!PIPELINE_API_URL || !data.endpoint || !data.keys.p256dh || !data.keys.auth) return false;
   try {
     const response = await fetch(`${PIPELINE_API_URL}/api/unsubscribe/push`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ endpoint }),
+      body: JSON.stringify(data),
       signal: AbortSignal.timeout(6000),
     });
     return response.ok;
@@ -119,7 +119,12 @@ export async function unsubscribeFromPush(): Promise<boolean> {
     if (subscription) {
       // A local removal alone can leave the server retaining an endpoint when
       // a constrained network drops the request. Synchronize first.
-      if (!await reportUnsubscription(subscription.endpoint)) return false;
+      const data = subscription.toJSON();
+      const proof: PushSubscriptionData = {
+        endpoint: data.endpoint || '',
+        keys: { p256dh: data.keys?.p256dh || '', auth: data.keys?.auth || '' },
+      };
+      if (!await reportUnsubscription(proof)) return false;
       return subscription.unsubscribe();
     }
 

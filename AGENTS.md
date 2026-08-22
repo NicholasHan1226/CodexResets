@@ -69,8 +69,9 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   the Supabase database migration.
 
 ### Database state (Supabase project `wwhypilqiognyxkpqkss`)
-- `reset_records` — RLS on + policy `public read reset records` (SELECT to
-  anon/authenticated). Writes: service role only.
+- `reset_records` — RLS on + verified-only SELECT policy. Anonymous browser
+  access is column-limited to `id`, `reset_date`, and `verified`; all other
+  fields and writes are service-role-only.
 - `subscriptions` — RLS on, zero public policies; double-opt-in confirmation
   is completed by the Worker service role.
 - `push_subscriptions` — RLS on, zero public policies; Worker upserts with

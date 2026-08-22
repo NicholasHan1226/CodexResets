@@ -53,24 +53,14 @@ export async function handleHealth(env: Env): Promise<Response> {
   const signals = await env.CACHE.get('signals:latest');
   const report = parseJson<RunReport>(lastRun);
   const snapshot = parseJson<{ generatedAt?: number }>(signals);
-  const todayMetrics = parseJson<DeliveryMetrics>(await env.CACHE.get(`metrics:delivery:${new Date().toISOString().slice(0, 10)}`));
   const checks = healthChecks(report, snapshot?.generatedAt);
   const ok = checks.lastRun === 'ok' && checks.signals === 'ok';
   return json({
     ok,
     now: new Date().toISOString(),
     lastRun: publicRunReport(report),
-    deliveryToday: todayMetrics,
     signalsGeneratedAt: snapshot?.generatedAt ?? null,
     checks,
-    configured: {
-      serviceRole: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
-      resend: Boolean(env.RESEND_API_KEY),
-      vapid: Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY),
-      unsubscribe: Boolean(env.UNSUBSCRIBE_SECRET),
-      healthAlert: Boolean(env.HEALTH_ALERT_EMAIL && env.RESEND_API_KEY),
-      xApi: Boolean(env.X_BEARER_TOKEN),
-    },
   }, ok ? 200 : 503);
 }
 
@@ -89,13 +79,9 @@ export async function handleHealthDetails(request: Request, env: Env): Promise<R
   return json({ now: new Date().toISOString(), lastRun: report, deliveryToday, forecastCalibration, officialDiscovery, subscriptionQuality, xWebhookQuality });
 }
 
-function publicRunReport(report: RunReport | null): Omit<RunReport, 'errors' | 'candidateSamples' | 'scrapeInstance'> & { errorCount: number } | null {
+function publicRunReport(report: RunReport | null): Pick<RunReport, 'startedAt' | 'scrape'> & { errorCount: number } | null {
   if (!report) return null;
-  const { errors, ...rest } = report;
-  const safe = { ...rest } as Omit<RunReport, 'errors' | 'candidateSamples' | 'scrapeInstance'>;
-  delete (safe as Partial<RunReport>).candidateSamples;
-  delete (safe as Partial<RunReport>).scrapeInstance;
-  return { ...safe, errorCount: errors.length };
+  return { startedAt: report.startedAt, scrape: report.scrape, errorCount: report.errors.length };
 }
 
 const HEALTH_STALE_MS = 90 * 60 * 1000;
@@ -179,19 +165,22 @@ export async function handleSubscribePush(request: Request, env: Env): Promise<R
   return json({ ok: true });
 }
 
-/** POST /api/unsubscribe/push — remove a push subscription by endpoint */
+/** POST /api/unsubscribe/push — remove a push subscription with its browser-held key proof. */
 export async function handleUnsubscribePush(request: Request, env: Env): Promise<Response> {
-  const parsed = await readJsonWithin<{ endpoint?: string }>(request, SUBSCRIPTION_BODY_MAX_BYTES);
+  const parsed = await readJsonWithin<PushSubscribeBody>(request, SUBSCRIPTION_BODY_MAX_BYTES);
   if (parsed === null) return json({ error: 'payload too large' }, 413);
   if (!parsed) return json({ error: 'invalid json' }, 400);
   const body = parsed;
-  if (!body.endpoint || typeof body.endpoint !== 'string') {
-    return json({ error: 'missing endpoint' }, 400);
+  const { endpoint, keys } = body;
+  if (!isAllowedPushEndpoint(endpoint) || !keys?.p256dh || !keys?.auth
+    || !isPushKey(keys.p256dh, 80, 256) || !isPushKey(keys.auth, 16, 64)) {
+    return json({ error: 'invalid subscription proof' }, 400);
   }
   if (!hasPrivilegedAccess(env)) {
     return json({ error: 'server not configured' }, 503);
   }
-  await privDeletePush(env, body.endpoint);
+  const result = await privDeletePush(env, endpoint, keys.auth, keys.p256dh);
+  if (!result.ok) return json({ error: 'subscription storage unavailable' }, 502);
   await recordSubscriptionMetric(env, 'push_unsubscribed').catch(() => {});
   return json({ ok: true });
 }
@@ -269,7 +258,9 @@ export async function handleXWebhook(request: Request, url: URL, env: Env, ctx: 
 
   if (request.method === 'GET') {
     const token = url.searchParams.get('crc_token') || '';
-    if (!token || token.length > 4096) return json({ error: 'missing crc token' }, 400);
+    // CRC proves endpoint ownership, but it must not become an arbitrary-message
+    // HMAC oracle for the POST signature. X issues URL-safe opaque tokens.
+    if (!/^[A-Za-z0-9_-]{1,512}$/.test(token)) return json({ error: 'invalid crc token' }, 400);
     return json({ response_token: `sha256=${await hmacBase64(secret, new TextEncoder().encode(token))}` });
   }
 

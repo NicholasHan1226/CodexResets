@@ -42,8 +42,8 @@ export function usePrediction() {
       const { signals, hasRealData } = await signalsPromise;
       setUsingRealData(hasRealData || records.length > 0);
 
-      // Strong direct-source signals affect the short-term numerical forecast,
-      // while weaker/status signals remain informational only.
+      // Signals remain informational; probabilities are derived from the
+      // forward-looking reset history only.
       setPrediction(generatePrediction(records.length > 0 ? records : undefined, signals));
     } catch (error) {
       console.warn('Error refreshing prediction:', error);

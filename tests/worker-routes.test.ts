@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { handleConfirmEmail, handleHealth, handleHealthDetails, handleResendWebhook, handleSignals, handleSubscribeEmail, handleSubscribePush, handleTestEmail, handleUnsubscribeEmail, handleXWebhook } from '../worker/src/routes';
+import { handleConfirmEmail, handleHealth, handleHealthDetails, handleResendWebhook, handleSignals, handleSubscribeEmail, handleSubscribePush, handleTestEmail, handleUnsubscribeEmail, handleUnsubscribePush, handleXWebhook } from '../worker/src/routes';
 import { isExpiredPushEndpoint, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
 import { signToken } from '../worker/src/util';
 import { getStatusEvidence } from '../worker/src/signals';
@@ -82,21 +82,18 @@ describe('pipeline read endpoints', () => {
     await expect(response.json()).resolves.toEqual({ error: 'no snapshot yet' });
   });
 
-  it('reports configured delivery capabilities without exposing secret values', async () => {
+  it('keeps public health to coarse pipeline freshness only', async () => {
     const now = new Date().toISOString();
     const response = await handleHealth(envWith({
       'health:last_run': JSON.stringify({ startedAt: now, scrape: 'ok', errors: [] }),
       'signals:latest': JSON.stringify({ generatedAt: Date.now() }),
     }));
-    const body = await response.json() as {
-      ok: boolean;
-      signalsGeneratedAt: number;
-      configured: { serviceRole: boolean; resend: boolean; vapid: boolean; healthAlert: boolean };
-    };
+    const body = await response.json() as Record<string, unknown>;
 
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
-    expect(body.configured).toMatchObject({ serviceRole: false, resend: false, vapid: false, healthAlert: false });
+    expect(body).not.toHaveProperty('configured');
+    expect(body).not.toHaveProperty('deliveryToday');
   });
 
   it('keeps source URLs and raw errors out of public health', async () => {
@@ -117,6 +114,7 @@ describe('pipeline read endpoints', () => {
     expect(body.lastRun).not.toHaveProperty('errors');
     expect(body.lastRun).not.toHaveProperty('scrapeInstance');
     expect(body.lastRun).not.toHaveProperty('candidateSamples');
+    expect(body.lastRun).not.toHaveProperty('notificationsSent');
   });
 
   it('requires the private cron credential for detailed health diagnostics', async () => {
@@ -136,6 +134,18 @@ describe('pipeline read endpoints', () => {
     expect(response.status).toBe(200);
     expect(body.response_token).toMatch(/^sha256=/);
     expect(body.response_token).not.toContain(secret);
+  });
+
+  it('rejects CRC values that could be replayed as a signed webhook body', async () => {
+    const token = JSON.stringify({ data: { event_uuid: 'evt-forged', event_type: 'post.create' } });
+    const response = await handleXWebhook(
+      new Request(`https://api.example.test/api/webhooks/x?crc_token=${encodeURIComponent(token)}`),
+      new URL(`https://api.example.test/api/webhooks/x?crc_token=${encodeURIComponent(token)}`),
+      { ...envWith({}), X_CONSUMER_SECRET: 'x-consumer-test-secret' },
+      { waitUntil: vi.fn() } as unknown as ExecutionContext,
+    );
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: 'invalid crc token' });
   });
 
   it('rejects unsigned X webhook deliveries and accepts safely ignored signed events', async () => {
@@ -238,7 +248,7 @@ describe('pipeline read endpoints', () => {
     });
   });
 
-  it('reports a compact non-PII daily delivery roll-up in operational health', async () => {
+  it('keeps delivery roll-ups on the protected diagnostics endpoint', async () => {
     const now = new Date().toISOString();
     const date = now.slice(0, 10);
     const response = await handleHealth(envWith({
@@ -246,7 +256,8 @@ describe('pipeline read endpoints', () => {
       'signals:latest': JSON.stringify({ generatedAt: Date.now() }),
       [`metrics:delivery:${date}`]: JSON.stringify({ date, runs: 2, emails: 1, pushes: 0 }),
     }));
-    await expect(response.json()).resolves.toMatchObject({ deliveryToday: { runs: 2, emails: 1 } });
+    const body = await response.json() as Record<string, unknown>;
+    expect(body).not.toHaveProperty('deliveryToday');
   });
 
   it('classifies 404 and 410 push responses as safely removable endpoints', () => {
@@ -540,6 +551,30 @@ describe('pipeline read endpoints', () => {
       }), emailEnv());
       expect(response.status).toBe(200);
       expect(fetchMock).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('requires browser-held subscription keys before deleting a push endpoint', async () => {
+    const endpoint = 'https://fcm.googleapis.com/fcm/send/device';
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const missingProof = await handleUnsubscribePush(new Request('https://api.example.test/api/unsubscribe/push', {
+        method: 'POST', body: JSON.stringify({ endpoint }),
+      }), emailEnv());
+      expect(missingProof.status).toBe(400);
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      const auth = 'b'.repeat(24);
+      const response = await handleUnsubscribePush(new Request('https://api.example.test/api/unsubscribe/push', {
+        method: 'POST',
+        body: JSON.stringify({ endpoint, keys: { p256dh: 'a'.repeat(88), auth } }),
+      }), emailEnv());
+      expect(response.status).toBe(200);
+      expect(String(fetchMock.mock.calls[0][0])).toContain(`auth=eq.${auth}`);
+      expect(String(fetchMock.mock.calls[0][0])).toContain(`p256dh=eq.${'a'.repeat(88)}`);
     } finally {
       vi.unstubAllGlobals();
     }

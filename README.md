@@ -15,7 +15,8 @@ that collects signals and produces a KV-backed snapshot.
 The Worker runs every 30 minutes. Its public read endpoints are:
 
 - `GET /api/signals` — latest four-signal browser snapshot.
-- `GET /api/health` — latest run result and configured capability booleans.
+- `GET /api/health` — coarse latest-run and snapshot freshness only; detailed
+  capability and delivery diagnostics stay on the authenticated operations route.
 - `GET /api/health/details` — full diagnostics for an administrator with the
   `CRON_SECRET` bearer token; raw upstream errors are excluded from public
   health.
@@ -148,9 +149,10 @@ subscription attempts per ten minutes.
 The managed database is Supabase project `wwhypilqiognyxkpqkss`. The public
 browser bundle may use only the publishable key to read reset history; all
 subscription, push, and pipeline writes require the Worker-only
-`SUPABASE_SERVICE_ROLE_KEY` secret in Cloudflare. The public policy exposes
-only `verified` reset history; pending and retracted lifecycle rows remain
-Worker-only. Apply all migrations in `supabase/migrations/` before release.
+`SUPABASE_SERVICE_ROLE_KEY` secret in Cloudflare. Anonymous reads are limited
+to `id`, `reset_date`, and `verified` for verified reset history; source URLs,
+original text, pending and retracted lifecycle rows remain Worker-only. Apply
+all migrations in `supabase/migrations/` before release.
 
 Resend remains the email delivery provider. Moving the database does not
 change its API key, verified sender domain, or mail routing.

@@ -35,7 +35,7 @@ export async function fetchResetRecords(): Promise<ResetRecord[]> {
     const supabase = await getSupabase();
     const { data, error } = await supabase
       .from('reset_records')
-      .select('*')
+      .select('id,reset_date,verified')
       .eq('verified', true)
       .order('reset_date', { ascending: false });
 
@@ -52,15 +52,12 @@ export async function fetchResetRecords(): Promise<ResetRecord[]> {
     const records: ResetRecord[] = (data || []).map((row: {
       id: string;
       reset_date: string;
-      source_url: string | null;
-      description: string | null;
       verified: boolean;
     }) => ({
       id: row.id,
       date: new Date(row.reset_date).toISOString().split('T')[0],
       timestamp: new Date(row.reset_date).getTime(),
-      reason: row.description || 'Scheduled reset',
-      source: row.source_url || undefined,
+      reason: 'verified reset',
       verified: row.verified,
     }));
 
