@@ -58,7 +58,7 @@ or any other secret in an `VITE_*` variable or this file.
 
 The Pages project is `codex-resets`. Its intended Git integration is
 `NicholasHan1226/CodexResets`, production branch `main`, build command
-`pnpm run lint && pnpm test && pnpm run build`, and output directory `dist`.
+`pnpm --dir worker install --frozen-lockfile && pnpm run lint && pnpm test && pnpm run build`, and output directory `dist`.
 That makes Cloudflare build a preview for pull requests and publish production
 after a successful build of `main`.
 

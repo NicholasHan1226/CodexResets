@@ -19,9 +19,9 @@ jobs:
           cache: pnpm
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir worker install --frozen-lockfile
       - run: pnpm run lint
       - run: pnpm test
       - run: pnpm run build
-      - run: pnpm --dir worker install --frozen-lockfile
       - run: pnpm --dir worker exec tsc --noEmit
       - run: pnpm --dir worker exec wrangler deploy --dry-run
