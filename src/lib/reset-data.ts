@@ -3,12 +3,13 @@
  * Source: X/Twitter posts by Thibault Sottiaux (Codex engineering lead at OpenAI).
  */
 
-import type { ResetRecord } from "@/types/reset";
-import { intervalDays, median, mergeResetEpisodes } from '@/lib/reset-episodes';
+import type { ResetRecord } from '../types/reset';
+import { intervalDays, median, mergeResetEpisodes } from './reset-episodes';
 
 /**
- * Verified global Codex reset events, synced with the reset_records table
- * (47 rows, 2026-03-17 → 2026-08-15). Sorted newest-first.
+ * Verified global Codex reset baseline (47 rows, 2026-03-17 → 2026-08-15).
+ * It initializes the model before the production database has accumulated a
+ * complete operational history; live verified records are merged on top.
  */
 export const RESET_HISTORY: ResetRecord[] = [
   { id: "1", date: "2026-08-15", timestamp: new Date("2026-08-15T18:00:00Z").getTime(), reason: "Usage included in subscription is fantastic", source: "https://x.com/thsottiaux/status/2088763063495450791", verified: true },
@@ -71,7 +72,7 @@ export function setDynamicResetHistory(records: ResetRecord[] | null): void {
 }
 
 export function getEffectiveHistory(): ResetRecord[] {
-  return mergeResetEpisodes(dynamicResetHistory || RESET_HISTORY);
+  return mergeResetEpisodes([...(dynamicResetHistory || []), ...RESET_HISTORY]);
 }
 
 /**

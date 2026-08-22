@@ -1,4 +1,6 @@
 import { probabilityWithin, selectForecastModel } from '../../src/lib/forecast-model';
+import { RESET_HISTORY } from '../../src/lib/reset-data';
+import { mergeResetEpisodes } from '../../src/lib/reset-episodes';
 import type { ResetRecord } from '../../src/types/reset';
 import type { Env, ResetRecordRow } from './types';
 
@@ -112,6 +114,17 @@ function hasResetBetween(records: ResetRecord[], start: number, end: number): bo
 }
 
 /**
+ * The bundled, reviewed history can initialize a model before the live table
+ * has four records. It is never used to settle a production forecast: every
+ * scored outcome below comes only from confirmed database rows observed after
+ * the forecast was made.
+ */
+function recordsForModel(observedRecords: ResetRecord[], now: number): ResetRecord[] {
+  const baseline = RESET_HISTORY.filter((record) => record.timestamp <= now);
+  return mergeResetEpisodes([...observedRecords, ...baseline]);
+}
+
+/**
  * Retains one non-PII forecast per UTC day and resolves it once its 48-hour
  * horizon is known. The visitor UI never reads this data; it is durable model
  * evidence for calibration and release decisions.
@@ -122,7 +135,8 @@ export async function recordForecastSnapshot(
   now = Date.now(),
   strongDirectSignal = false,
 ): Promise<void> {
-  const records = toForecastRecords(rows);
+  const observedRecords = toForecastRecords(rows);
+  const records = recordsForModel(observedRecords, now);
   if (records.length < 4) return;
 
   const selection = selectForecastModel(records);
@@ -144,8 +158,8 @@ export async function recordForecastSnapshot(
       ...previous,
       ...due.map((sample) => ({
         ...sample,
-        resetIn24h: hasResetBetween(records, sample.at, sample.at + DAY_MS),
-        resetIn48h: hasResetBetween(records, sample.at, sample.dueAt),
+        resetIn24h: hasResetBetween(observedRecords, sample.at, sample.at + DAY_MS),
+        resetIn48h: hasResetBetween(observedRecords, sample.at, sample.dueAt),
       })),
     ].slice(-180);
     await env.CACHE.put(FORECAST_EVALUATIONS_KEY, JSON.stringify(evaluations), { expirationTtl: FORECAST_TTL_SECONDS });

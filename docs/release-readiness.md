@@ -19,9 +19,11 @@ when it can be described as a formally validated public release.
    active Cloudflare deployment or route.
 
 The codebase also runs a leakage-free historical regression for the same 80%
-criterion: every cutoff chooses its model using only then-known records. It is
-a regression guard for future code changes, not evidence that the production
-gate has already passed.
+criterion: every cutoff chooses its model using only then-known records. A
+reviewed bundled history may initialize the live model when the production
+table is sparse, but every production score is still settled only from a
+future, confirmed database outcome. Neither baseline nor regression evidence
+can make the production gate pass.
 
 ## Why the accuracy gate is strict
 

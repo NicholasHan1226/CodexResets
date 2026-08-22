@@ -94,4 +94,31 @@ describe('reset episode forecasting', () => {
     expect(lifted.strongDirectSignal).toBe(true);
     expect(lifted.prob24h).toBeGreaterThan(baseline.prob24h);
   });
+
+  it('starts future-only production scoring with a sparse live database', async () => {
+    const cache: Record<string, string> = {};
+    const env = {
+      CACHE: {
+        get: async (key: string) => cache[key] ?? null,
+        put: async (key: string, value: string) => { cache[key] = value; },
+      },
+    } as unknown as Env;
+    const now = Date.parse('2026-08-20T00:00:00Z');
+    const rows: ResetRecordRow[] = [{
+      id: 'live-reset',
+      reset_date: new Date(now - 2 * DAY_MS).toISOString(),
+      source_url: null,
+      description: 'verified reset',
+      verified: true,
+      auto_state: 'confirmed',
+    }];
+
+    await recordForecastSnapshot(env, rows, now);
+    expect(JSON.parse(cache['forecast:pending'] || '[]')).toHaveLength(1);
+
+    await recordForecastSnapshot(env, rows, now + 49 * 60 * 60 * 1000);
+    expect(JSON.parse(cache['forecast:evaluations'] || '[]')).toEqual([
+      expect.objectContaining({ resetIn24h: false, resetIn48h: false }),
+    ]);
+  });
 });
