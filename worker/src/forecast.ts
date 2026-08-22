@@ -9,10 +9,18 @@ const FORECAST_TTL_SECONDS = 120 * 24 * 60 * 60;
 const FORECAST_PENDING_KEY = 'forecast:pending';
 const FORECAST_EVALUATIONS_KEY = 'forecast:evaluations';
 const FORECAST_SAMPLE_DAY_KEY = 'forecast:sample-day';
+const FORECAST_LATEST_KEY = 'forecast:latest';
 
 export interface ForecastStore {
   get(key: string): Promise<string | null | undefined>;
   put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
+}
+
+export interface LegacyForecastState {
+  pending: string | null;
+  evaluations: string | null;
+  sampleDay: string | null;
+  latest: string | null;
 }
 
 interface ForecastSample {
@@ -139,11 +147,13 @@ export async function recordForecastSnapshot(
   now = Date.now(),
 ): Promise<void> {
   if (env.FORECAST_LEDGER) {
+    const legacy = await readLegacyForecastState(env.CACHE);
     const response = await env.FORECAST_LEDGER.get(env.FORECAST_LEDGER.idFromName('production')).fetch('https://forecast-ledger/record', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         now,
+        legacy,
         rows: rows.map(({ id, reset_date, verified, auto_state }) => ({ id, reset_date, verified, auto_state })),
       }),
     });
@@ -151,6 +161,21 @@ export async function recordForecastSnapshot(
     return;
   }
   await recordForecastSnapshotInStore(env.CACHE, rows, now);
+}
+
+async function readLegacyForecastState(store: ForecastStore): Promise<LegacyForecastState> {
+  const [pending, evaluations, sampleDay, latest] = await Promise.all([
+    store.get(FORECAST_PENDING_KEY),
+    store.get(FORECAST_EVALUATIONS_KEY),
+    store.get(FORECAST_SAMPLE_DAY_KEY),
+    store.get(FORECAST_LATEST_KEY),
+  ]);
+  return {
+    pending: pending ?? null,
+    evaluations: evaluations ?? null,
+    sampleDay: sampleDay ?? null,
+    latest: latest ?? null,
+  };
 }
 
 /** Internal ledger operation, exported for the Durable Object and deterministic tests. */
@@ -196,7 +221,7 @@ export async function recordForecastSnapshotInStore(
     await store.put(FORECAST_SAMPLE_DAY_KEY, day, { expirationTtl: FORECAST_TTL_SECONDS });
   }
   await store.put(FORECAST_PENDING_KEY, JSON.stringify(remaining), { expirationTtl: FORECAST_TTL_SECONDS });
-  await store.put('forecast:latest', JSON.stringify(snapshot), { expirationTtl: FORECAST_TTL_SECONDS });
+  await store.put(FORECAST_LATEST_KEY, JSON.stringify(snapshot), { expirationTtl: FORECAST_TTL_SECONDS });
 }
 
 /** Protected operational readback; never included in public product APIs. */
@@ -213,7 +238,7 @@ export async function getForecastCalibration(env: Env): Promise<ForecastCalibrat
 export async function getForecastCalibrationFromStore(store: ForecastStore): Promise<ForecastCalibration> {
   const [evaluationsRaw, latestRaw] = await Promise.all([
     store.get(FORECAST_EVALUATIONS_KEY),
-    store.get('forecast:latest'),
+    store.get(FORECAST_LATEST_KEY),
   ]);
   const evaluations = calibrationEvaluations(parseEvaluations(evaluationsRaw ?? null));
   const modelCounts: ForecastCalibration['modelCounts'] = { logistic: 0, weibull: 0 };

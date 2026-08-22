@@ -27,7 +27,9 @@ client address and scope; it does not store the address itself.
 
 Forecast snapshots and their 48-hour outcomes are written through a separate
 private Durable Object ledger. This keeps cron and signed-webhook runs from
-losing or double-settling calibration evidence.
+losing or double-settling calibration evidence. Its first write carries over
+only pre-existing, still-future KV samples once, so an in-flight forecast is
+not discarded during the ledger migration.
 - `POST /api/subscribe/email` — starts a confirmation email; the address is
   activated only by `GET /api/subscribe/confirm?t=...` within 24 hours.
 

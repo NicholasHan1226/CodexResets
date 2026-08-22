@@ -142,6 +142,48 @@ describe('reset episode forecasting', () => {
     expect(JSON.parse(cache['forecast:evaluations'] || '[]')).toHaveLength(1);
   });
 
+  it('migrates an already-pending future sample into the durable ledger once', async () => {
+    const cache: Record<string, string> = {};
+    const ledger = new ForecastLedger({
+      storage: {
+        get: async (key: string) => cache[key],
+        put: async (key: string, value: string) => { cache[key] = value; },
+      },
+    } as unknown as DurableObjectState);
+    const now = Date.parse('2026-08-20T00:00:00Z');
+    const rows: ResetRecordRow[] = Array.from({ length: 6 }, (_, index) => ({
+      id: `legacy-reset-${index}`,
+      reset_date: new Date(now - (index + 1) * 4 * DAY_MS).toISOString(),
+      source_url: null,
+      description: null,
+      verified: true,
+      auto_state: 'confirmed',
+    }));
+    const sample = { at: now, dueAt: now + 48 * 60 * 60 * 1000, model: 'weibull', prob24h: 0.1, prob48h: 0.1 };
+    const body = (at: number, legacy?: object) => JSON.stringify({
+      now: at,
+      legacy,
+      rows: rows.map(({ id, reset_date, verified, auto_state }) => ({ id, reset_date, verified, auto_state })),
+    });
+    const legacy = {
+      pending: JSON.stringify([sample]),
+      evaluations: null,
+      sampleDay: '2026-08-20',
+      latest: JSON.stringify(sample),
+    };
+
+    expect((await ledger.fetch(new Request('https://forecast-ledger/record', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: body(now, legacy),
+    }))).status).toBe(200);
+    expect(JSON.parse(cache['forecast:pending'] || '[]')).toHaveLength(1);
+    expect((await ledger.fetch(new Request('https://forecast-ledger/record', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: body(now + 49 * 60 * 60 * 1000),
+    }))).status).toBe(200);
+    expect(JSON.parse(cache['forecast:evaluations'] || '[]')).toEqual([
+      expect.objectContaining({ at: now, resetIn48h: false }),
+    ]);
+  });
+
   it('excludes direct-announcement samples from formal future-accuracy scoring', async () => {
     const cache: Record<string, string> = {
       'forecast:evaluations': JSON.stringify([

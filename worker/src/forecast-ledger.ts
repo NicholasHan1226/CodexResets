@@ -3,15 +3,19 @@ import {
   recordForecastSnapshotInStore,
   type ForecastCalibration,
   type ForecastStore,
+  type LegacyForecastState,
 } from './forecast';
 import type { ResetRecordRow } from './types';
 
 interface LedgerRequest {
   now?: unknown;
   rows?: unknown;
+  legacy?: unknown;
 }
 
 const MAX_ROWS = 100;
+const MAX_LEGACY_VALUE_BYTES = 100_000;
+const LEGACY_MIGRATION_KEY = 'forecast:ledger-migrated-from-kv';
 
 /**
  * Private, single-writer evidence ledger for forecast snapshots. The Worker
@@ -38,9 +42,25 @@ export class ForecastLedger {
     const rows = parseRows(body.rows);
     if (now === null || rows === null) return response({ error: 'invalid forecast snapshot' }, 400);
 
+    await migrateLegacyStateOnce(this.state.storage as ForecastStore, parseLegacyState(body.legacy));
     await recordForecastSnapshotInStore(this.state.storage as ForecastStore, rows, now);
     return response({ ok: true });
   }
+}
+
+async function migrateLegacyStateOnce(store: ForecastStore, legacy: LegacyForecastState | null): Promise<void> {
+  if (await store.get(LEGACY_MIGRATION_KEY) !== null) return;
+  if (legacy) {
+    for (const [key, value] of Object.entries({
+      'forecast:pending': legacy.pending,
+      'forecast:evaluations': legacy.evaluations,
+      'forecast:sample-day': legacy.sampleDay,
+      'forecast:latest': legacy.latest,
+    })) {
+      if (value !== null) await store.put(key, value);
+    }
+  }
+  await store.put(LEGACY_MIGRATION_KEY, '1');
 }
 
 function parseRows(value: unknown): ResetRecordRow[] | null {
@@ -62,6 +82,20 @@ function parseRows(value: unknown): ResetRecordRow[] | null {
     });
   }
   return rows;
+}
+
+function parseLegacyState(value: unknown): LegacyForecastState | null {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Partial<LegacyForecastState>;
+  const fields = ['pending', 'evaluations', 'sampleDay', 'latest'] as const;
+  const legacy: Partial<LegacyForecastState> = {};
+  for (const field of fields) {
+    const entry = candidate[field];
+    if (entry !== null && typeof entry !== 'string') return null;
+    if (typeof entry === 'string' && entry.length > MAX_LEGACY_VALUE_BYTES) return null;
+    legacy[field] = entry ?? null;
+  }
+  return legacy as LegacyForecastState;
 }
 
 function response(body: ForecastCalibration | { ok: true } | { error: string }, status = 200): Response {
