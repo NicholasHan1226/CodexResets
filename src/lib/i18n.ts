@@ -208,7 +208,7 @@ const translations: Record<Locale, Record<string, string>> = {
     // Model Info
     'model.title': 'How the model works',
     'model.signalBased': 'Signal-based',
-    'model.signalBasedDesc': 'The model watches public signals — posts from the Codex engineering lead, OpenAI status changes, and community reports — and weights them by recency and historical reliability.',
+    'model.signalBasedDesc': 'The model combines reset intervals with current product conditions and recalculates as fresh evidence arrives.',
     'model.historicalData': 'Historical intervals',
     'model.historicalDataDesc': 'Every verified goodwill reset since September 2025 is recorded. The gap distribution between consecutive resets drives the baseline probability curve.',
     'model.weibullModel': 'Time-decay estimate',
@@ -224,12 +224,12 @@ const translations: Record<Locale, Record<string, string>> = {
     'limits.resetTitle': 'What a reset actually is',
     'limits.resetDesc': 'A reset restores your percentage to 100% — it does not add credits or change your plan. The reset time is computed on OpenAI\'s servers and sent as an absolute timestamp with each usage report.',
     'limits.bankedTitle': 'Goodwill & banked resets',
-    'limits.bankedDesc': 'Separately from scheduled windows, OpenAI keeps resetting everyone\'s usage as a gesture — announced almost only on @thsottiaux\'s X feed. Banked resets sit in your account until you spend them, and expire 30 days after they are granted.',
+    'limits.bankedDesc': 'Separately from scheduled windows, eligible plans may receive banked resets. They remain in your account until you use them and can expire after the applicable offer period.',
 
     // About / Documentation page
     'about.title': 'Documentation',
-    'about.heading': 'Method, limits, and data sources',
-    'about.intro': 'Everything about how this tracker estimates reset probability, how Codex usage limits actually work, and where the data comes from.',
+    'about.heading': 'Method and limits',
+    'about.intro': 'How this tracker estimates reset probability and how Codex usage limits work.',
     'about.sourcesTitle': 'Data sources',
     'about.sourcesDesc': 'All inputs are public. No OpenAI account access is required or used — your personal usage numbers never leave this browser.',
     'about.sourceTibo': 'reset announcements from the Codex lead',
@@ -473,7 +473,7 @@ const translations: Record<Locale, Record<string, string>> = {
     // Model Info
     'model.title': '模型如何工作',
     'model.signalBased': '信号驱动',
-    'model.signalBasedDesc': '模型持续监测公开信号——Codex 工程负责人的帖子、OpenAI 状态变更、社区报告——并按时间近远和历史可靠性加权。',
+    'model.signalBasedDesc': '模型结合重置间隔与当前产品状态，并在获得新证据时重新计算。',
     'model.historicalData': '历史间隔',
     'model.historicalDataDesc': '记录了自 2025 年 9 月以来每一次已验证的全局重置。相邻重置之间的间隔分布驱动基线概率曲线。',
     'model.weibullModel': '时间衰减估计',
@@ -489,12 +489,12 @@ const translations: Record<Locale, Record<string, string>> = {
     'limits.resetTitle': '重置到底是什么',
     'limits.resetDesc': '重置将你的百分比恢复到 100%——不增加额度也不改变计划。重置时间由 OpenAI 服务器计算，随每次用量报告以绝对时间戳下发。',
     'limits.bankedTitle': '善意重置与存储重置',
-    'limits.bankedDesc': '在计划窗口之外，OpenAI 持续以善意姿态重置所有人的用量——几乎只在 @thsottiaux 的 X 动态上宣布。存储重置存放在你的账户中，使用后生效，发放 30 天后过期。',
+    'limits.bankedDesc': '在计划窗口之外，符合条件的方案可能获得可存储的重置次数。它会保留在你的账户中直到使用，并可能按活动规则过期。',
 
     // About page
     'about.title': '说明文档',
-    'about.heading': '方法、限额机制与数据来源',
-    'about.intro': '关于此追踪器如何估计重置概率、Codex 限额如何运作、以及数据来自哪里的完整说明。',
+    'about.heading': '方法与限额机制',
+    'about.intro': '了解本追踪器如何估计重置概率，以及 Codex 限额如何运作。',
     'about.sourcesTitle': '数据来源',
     'about.sourcesDesc': '所有输入均为公开信息。不需要也不使用 OpenAI 账户访问——你的个人用量数据永不离开此浏览器。',
     'about.sourceTibo': 'Codex 负责人的重置公告',
