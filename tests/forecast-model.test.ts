@@ -39,6 +39,7 @@ describe('reset episode forecasting', () => {
       value: 0.9, status: 'active', updatedAt: now,
     };
     expect(lifted).toBeGreaterThan(baseline);
+    expect(probabilityWithin(history, 'logistic', now + 30 * DAY_MS, 48, true)).toBeLessThanOrEqual(0.9);
     expect(hasFreshStrongDirectSignal([strong], now)).toBe(true);
     expect(hasFreshStrongDirectSignal([{ ...strong, updatedAt: now - 25 * 60 * 60 * 1000 }], now)).toBe(false);
   });

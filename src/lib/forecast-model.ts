@@ -19,6 +19,7 @@ export interface ForecastSelection {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MIN_HISTORY = 4;
 const MIN_BACKTEST_SAMPLES = 16;
+const MAX_FORECAST_PROBABILITY = 0.9;
 
 function logisticCdf(days: number, medianDays: number): number {
   const steepness = 1.5 / Math.max(medianDays, 0.25);
@@ -44,7 +45,9 @@ function probabilityFor(model: ForecastModelName, records: ResetRecord[], elapse
 }
 
 function clampProbability(value: number): number {
-  return Math.max(0, Math.min(0.995, Number.isFinite(value) ? value : 0));
+  // Reset decisions remain discretionary; even a long overdue interval is
+  // evidence, never a certainty.
+  return Math.max(0, Math.min(MAX_FORECAST_PROBABILITY, Number.isFinite(value) ? value : 0));
 }
 
 /**
