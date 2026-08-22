@@ -24,8 +24,8 @@ npx tsc -b --noEmit  # TypeScript check
 
 ## Backend Pipeline (worker/)
 `codex-resets-pipeline` — Cloudflare Worker, cron `*/30 * * * *`, served at
-`https://api.codexresets.cc` (custom domain; workers.dev is DNS-poisoned in
-some regions — do not rely on it).
+`https://codexresets.cc/api/*` (a scoped Worker route on the primary domain;
+workers.dev is DNS-poisoned in some regions — do not rely on it).
 
 - `src/scrape.ts`    — optional official X API → RSSHub instances → nitter
   mirrors → Google News RSS degraded source for reset detection. Failed

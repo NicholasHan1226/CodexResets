@@ -9,7 +9,7 @@ that collects signals and produces a KV-backed snapshot.
 | Surface | Purpose |
 | --- | --- |
 | `https://codexresets.cc` | The only public product domain. |
-| `https://api.codexresets.cc` | Worker API for signal snapshots and operational health. |
+| `https://codexresets.cc/api/*` | Worker API for signal snapshots and operational health. |
 | `codex-resets.pages.dev` | Cloudflare Pages technical hostname; do not promote it as a product URL. |
 
 The Worker runs every 30 minutes. Its public read endpoints are:
@@ -94,7 +94,7 @@ or any other secret in an `VITE_*` variable or this file.
 For a stable primary source, configure the optional Worker secret
 `X_BEARER_TOKEN` with an app-only X API bearer token. To receive real-time X
 Activity `post.create` events, also configure `X_CONSUMER_SECRET` (the X app
-Consumer Secret) and register `https://api.codexresets.cc/api/webhooks/x` in
+Consumer Secret) and register `https://codexresets.cc/api/webhooks/x` in
 the X Developer Console. Webhook deliveries are authenticated with that secret
 and only accelerate a fresh official-timeline read; they never create an alert
 directly. Without the bearer token, the Worker continues using public mirrors
@@ -158,20 +158,21 @@ pnpm --dir worker exec wrangler deploy --dry-run
 pnpm --dir worker exec wrangler deploy
 ```
 
-Use the existing `codex-resets-pipeline` Worker and `api.codexresets.cc`
-custom domain. Worker secrets stay in Cloudflare; they are never committed.
+Use the existing `codex-resets-pipeline` Worker route at
+`codexresets.cc/api/*`. Worker secrets stay in Cloudflare; they are never
+committed.
 
 ## Release checks and rollback
 
 After a Pages or Worker release, verify:
 
 ```bash
-curl --fail-with-body https://api.codexresets.cc/api/health
-curl --fail-with-body https://api.codexresets.cc/api/signals
+curl --fail-with-body https://codexresets.cc/api/health
+curl --fail-with-body https://codexresets.cc/api/signals
 ```
 
 For Pages, confirm that the deployed JavaScript references
-`https://api.codexresets.cc` and that the UI reflects the latest snapshot. If
+`https://codexresets.cc` and that the UI reflects the latest snapshot. If
 a release regresses, use the prior successful Cloudflare Pages deployment;
 for the Worker, roll traffic back to the prior Worker version in the
 Cloudflare dashboard.

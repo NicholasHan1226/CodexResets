@@ -3,15 +3,15 @@ main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
-# Custom domain on the existing Cloudflare zone — workers.dev is
-# DNS-poisoned in some regions, the site's own domain is far more reliable.
+# Route API requests through the primary domain. Pages serves the UI while the
+# Worker owns only /api/*; workers.dev is DNS-poisoned in some regions.
 routes = [
-  { pattern = "api.codexresets.cc", custom_domain = true }
+  { pattern = "codexresets.cc/api/*", zone_name = "codexresets.cc" }
 ]
 
 [vars]
 SITE_URL = "https://codexresets.cc"
-PUBLIC_URL = "https://api.codexresets.cc"
+PUBLIC_URL = "https://codexresets.cc"
 TARGET_ACCOUNT = "thsottiaux"
 VAPID_SUBJECT = "mailto:alerts@codexresets.cc"
 VAPID_PUBLIC_KEY = "BPWIlBQjXI3-tAr4fGCUCE9ML-nzHgBTbVERdrXtWnrm9edT0tyOHgVScCkwfBR2iFTDcEduN0Q1FHJzCvUk_FI"

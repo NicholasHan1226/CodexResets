@@ -1,6 +1,6 @@
 export type SubscribeStatus = 'pending' | 'invalid';
 
-const PIPELINE_URL = import.meta.env.VITE_PIPELINE_API_URL || 'https://api.codexresets.cc';
+const PIPELINE_URL = import.meta.env.VITE_PIPELINE_API_URL || 'https://codexresets.cc';
 
 /**
  * Start a double opt-in email subscription. The Worker sends the confirmation
