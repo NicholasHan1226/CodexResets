@@ -53,6 +53,17 @@ and become part of the downloaded browser bundle:
 Never put a service-role key, `CRON_SECRET`, VAPID private key, Resend API key,
 or any other secret in an `VITE_*` variable or this file.
 
+## Database and email delivery
+
+The managed database is Supabase project `wwhypilqiognyxkpqkss`. The public
+browser bundle may use only the publishable key to read reset history; all
+subscription, push, and pipeline writes require the Worker-only
+`SUPABASE_SERVICE_ROLE_KEY` secret in Cloudflare. The repository baseline is
+in `supabase/migrations/20260822195000_initial_schema.sql`.
+
+Resend remains the email delivery provider. Moving the database does not
+change its API key, verified sender domain, or mail routing.
+
 ## Delivery
 
 ### Cloudflare Pages

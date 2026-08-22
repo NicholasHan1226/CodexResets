@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 const distDir = resolve('dist');
 const requiredValues = [
   'https://api.codexresets.cc',
-  'https://br-cute-ewe-1e52df81.supabase2.aidap-global.cn-beijing.volces.com',
+  'https://wwhypilqiognyxkpqkss.supabase.co',
   'BPWIlBQjXI3-tAr4fGCUCE9ML-nzHgBTbVERdrXtWnrm9edT0tyOHgVScCkwfBR2iFTDcEduN0Q1FHJzCvUk_FI',
 ];
 

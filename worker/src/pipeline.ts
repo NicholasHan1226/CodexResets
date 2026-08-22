@@ -31,10 +31,10 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   report.tweetsSeen = scrape.tweets.length;
   if (!scrape.ok && scrape.error) report.errors.push(`scrape: ${scrape.error}`);
 
-  // 2. Load recent records (anon read — RLS allows public select)
+  // 2. Load recent records through the Worker service role.
   let records: ResetRecordRow[] = [];
   try {
-    records = await sbSelect<ResetRecordRow>(env, 'reset_records?select=*&order=reset_date.desc&limit=30');
+    records = await sbSelect<ResetRecordRow>(env, 'reset_records?select=*&order=reset_date.desc&limit=30', true);
   } catch (err) {
     report.errors.push(`records read: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -67,7 +67,7 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
 
   if (fresh.length > 0) {
     if (!hasPrivilegedAccess(env)) {
-      report.errors.push('insert skipped: no privileged DB access (service key or pipeline secret)');
+      report.errors.push('insert skipped: no privileged DB access (service role key)');
     } else {
       const rows = fresh.map((c) => ({
         reset_date: new Date(c.ts).toISOString(),

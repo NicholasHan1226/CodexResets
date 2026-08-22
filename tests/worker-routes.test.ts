@@ -18,6 +18,7 @@ function emailEnv(cacheEntries: Record<string, string | null> = {}): Env {
     ...envWith(cacheEntries),
     SUPABASE_URL: 'https://db.example.test',
     SUPABASE_ANON_KEY: 'anon-test-key',
+    SUPABASE_SERVICE_ROLE_KEY: 'service-role-test-key',
     RESEND_API_KEY: 'resend-test-key',
     RESEND_FROM: 'Codex Resets <alerts@example.test>',
     SITE_URL: 'https://codexresets.cc',
@@ -51,12 +52,12 @@ describe('pipeline read endpoints', () => {
     const body = await response.json() as {
       ok: boolean;
       signalsGeneratedAt: number;
-      configured: { pipelineSecret: boolean; resend: boolean; vapid: boolean };
+      configured: { serviceRole: boolean; resend: boolean; vapid: boolean };
     };
 
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
-    expect(body.configured).toMatchObject({ pipelineSecret: false, resend: false, vapid: false });
+    expect(body.configured).toMatchObject({ serviceRole: false, resend: false, vapid: false });
   });
 
   it('returns a failing health status when the cron report is stale or failed', async () => {
@@ -117,7 +118,7 @@ describe('pipeline read endpoints', () => {
     const cache: Record<string, string | null> = {
       [`subscribe:confirm:${token}`]: JSON.stringify({ email: 'reader@example.test' }),
     };
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify('new'), { status: 200 }));
+    const fetchMock = vi.fn(async () => new Response(null, { status: 201 }));
     vi.stubGlobal('fetch', fetchMock);
     try {
       const response = await handleConfirmEmail(
@@ -128,7 +129,34 @@ describe('pipeline read endpoints', () => {
       expect(response.status).toBe(200);
       await expect(response.text()).resolves.toContain('Subscription confirmed');
       expect(cache[`subscribe:confirm:${token}`]).toBeUndefined();
-      expect(fetchMock.mock.calls[0]?.[0]).toBe('https://db.example.test/rest/v1/rpc/subscribe_email');
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('https://db.example.test/rest/v1/subscriptions?on_conflict=email');
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(String(init.body))).toEqual([{ email: 'reader@example.test', is_active: true, unsubscribed_at: null }]);
+      expect(new Headers(init.headers).get('apikey')).toBe('service-role-test-key');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('never falls back to an anonymous subscription RPC when the service role is absent', async () => {
+    const token = '01234567-89ab-cdef-0123-456789abcdef';
+    const cache: Record<string, string | null> = {
+      [`subscribe:confirm:${token}`]: JSON.stringify({ email: 'reader@example.test' }),
+    };
+    const env = emailEnv(cache);
+    delete env.SUPABASE_SERVICE_ROLE_KEY;
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const response = await handleConfirmEmail(
+        new URL(`https://api.example.test/api/subscribe/confirm?t=${token}`),
+        env,
+      );
+
+      expect(response.status).toBe(503);
+      await expect(response.text()).resolves.toContain('Server not configured');
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(cache[`subscribe:confirm:${token}`]).toBeDefined();
     } finally {
       vi.unstubAllGlobals();
     }

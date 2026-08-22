@@ -43,27 +43,20 @@ some regions — do not rely on it).
   POST /api/subscribe/push, POST /api/unsubscribe/push,
   GET /api/unsubscribe (HMAC email), POST /api/run (Bearer CRON_SECRET)
 - Deploy: `cd worker && CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... npx wrangler deploy`
-- Secrets set: VAPID_PRIVATE_KEY, UNSUBSCRIBE_SECRET, CRON_SECRET,
-  RESEND_API_KEY (send-only restricted key), PIPELINE_SECRET
-- Privileged DB access (`src/privileged.ts`): service-role REST if
-  SUPABASE_SERVICE_ROLE_KEY present, else security-definer RPCs gated by
-  PIPELINE_SECRET (`pipeline_insert_resets/list_emails/list_push/
-  upsert_push/delete_push/deactivate_email`, EXECUTE granted to anon only,
-  secret checked inside each function). This host's platform dashboard does
-  not expose the service_role JWT — the RPC path is the primary mode.
-- Resend: key works but codexresets.cc domain NOT verified → email sends
-  403 until the user verifies the domain (resend.com/domains) and the DNS
-  records land in Cloudflare. Push notifications are unaffected.
+- Secrets set: SUPABASE_SERVICE_ROLE_KEY, VAPID_PRIVATE_KEY,
+  UNSUBSCRIBE_SECRET, CRON_SECRET, RESEND_API_KEY (send-only restricted key).
+- Privileged DB access (`src/privileged.ts`) is service-role REST only. No
+  database RPC accepts a shared pipeline secret or anonymous caller.
+- Resend remains the outbound email delivery provider; it is independent of
+  the Supabase database migration.
 
-### Database state (Volces-hosted Supabase-compatible, PostgREST)
-- `reset_records` — 47 verified rows (2026-03-18 → 2026-08-16), richer than
-  the bundled static history. RLS on + policy `anon read reset_records`
-  (SELECT to anon). Writes: service role only.
-- `subscriptions` — RLS on + policy `anon insert subscriptions` (INSERT to
-  anon, no SELECT policy) — subscribe form works, emails are NOT readable
-  via anon key.
-- `push_subscriptions` — created 2026-08-21, RLS on, zero policies, granted
-  to service_role only. Worker upserts with `?on_conflict=endpoint`.
+### Database state (Supabase project `wwhypilqiognyxkpqkss`)
+- `reset_records` — RLS on + policy `public read reset records` (SELECT to
+  anon/authenticated). Writes: service role only.
+- `subscriptions` — RLS on, zero public policies; double-opt-in confirmation
+  is completed by the Worker service role.
+- `push_subscriptions` — RLS on, zero public policies; Worker upserts with
+  `?on_conflict=endpoint` using the service role.
 - WARNING: with RLS on and no policies, PostgREST SELECT returns `[]`
   silently — an "empty table" REST response does NOT prove emptiness.
   Verify via `exec_sql` before concluding anything about row counts.

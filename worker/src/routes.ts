@@ -1,9 +1,8 @@
 import type { Env, HealthCheck, HealthChecks, RunReport } from './types';
 import { json, html, escapeHtml, verifyToken } from './util';
-import { hasPrivilegedAccess, privUpsertPush, privDeletePush, privDeactivateEmail } from './privileged';
+import { hasPrivilegedAccess, privUpsertPush, privDeletePush, privDeactivateEmail, privActivateEmail } from './privileged';
 import { runPipeline } from './pipeline';
 import { sendSubscriptionConfirmation, sendTestEmail } from './notify';
-import { sb } from './supabase';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CONFIRM_TTL_SECONDS = 24 * 60 * 60;
@@ -39,7 +38,6 @@ export async function handleHealth(env: Env): Promise<Response> {
     checks,
     configured: {
       serviceRole: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
-      pipelineSecret: Boolean(env.PIPELINE_SECRET),
       resend: Boolean(env.RESEND_API_KEY),
       vapid: Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY),
       unsubscribe: Boolean(env.UNSUBSCRIBE_SECRET),
@@ -158,7 +156,6 @@ export async function handleSubscribeEmail(request: Request, env: Env): Promise<
   const email = typeof body.email === 'string' ? body.email.toLowerCase().trim() : '';
   if (!EMAIL_RE.test(email) || email.length > 320) return json({ error: 'invalid email' }, 400);
   if (!env.RESEND_API_KEY) return json({ error: 'email delivery is not configured' }, 503);
-
   const emailKey = await emailHash(email);
   const cooldownKey = `subscribe:cooldown:${emailKey}`;
   if (await env.CACHE.get(cooldownKey)) return json({ ok: true, status: 'pending' });
@@ -186,13 +183,9 @@ export async function handleConfirmEmail(url: URL, env: Env): Promise<Response> 
   const email = pending?.email?.toLowerCase().trim() || '';
   if (!EMAIL_RE.test(email)) return html(confirmPage('This confirmation link has expired.', false), 410);
 
-  const res = await sb(env, 'rpc/subscribe_email', {
-    method: 'POST',
-    body: JSON.stringify({ p_email: email }),
-  });
+  if (!hasPrivilegedAccess(env)) return html(confirmPage('Server not configured.', false), 503);
+  const res = await privActivateEmail(env, email);
   if (!res.ok) return html(confirmPage('We could not activate this subscription. Please try again later.', false), 502);
-  const status = String(await res.json());
-  if (status === 'invalid') return html(confirmPage('This confirmation link is invalid.', false), 400);
   await env.CACHE.delete(key);
   return html(confirmPage('Subscription confirmed. You will receive reset alerts at this address.', true));
 }
