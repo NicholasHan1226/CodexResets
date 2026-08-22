@@ -1,73 +1,99 @@
-# React + TypeScript + Vite
+# Codex Resets
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+`codexresets.cc` is a public dashboard that estimates when OpenAI Codex usage
+limits may reset. It combines a browser UI with a scheduled Cloudflare Worker
+that collects signals and produces a KV-backed snapshot.
 
-Currently, two official plugins are available:
+## Production surfaces
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+| Surface | Purpose |
+| --- | --- |
+| `https://codexresets.cc` | The only public product domain. |
+| `https://api.codexresets.cc` | Worker API for signal snapshots and operational health. |
+| `codex-resets.pages.dev` | Cloudflare Pages technical hostname; do not promote it as a product URL. |
 
-## React Compiler
+The Worker runs every 30 minutes. Its public read endpoints are:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- `GET /api/signals` — latest four-signal browser snapshot.
+- `GET /api/health` — latest run result and configured capability booleans.
 
-## Expanding the ESLint configuration
+## Local development
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm install
+pnpm run dev
+pnpm run lint
+pnpm test
+pnpm run build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+`pnpm run build` includes a production-bundle check. It fails when the public
+Worker API, Supabase endpoint, or VAPID public key were not embedded in the
+bundle, preventing a release that silently falls back to browser-only data.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Public browser configuration
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+`.env.production` is committed intentionally. Its `VITE_*` values are public
+and become part of the downloaded browser bundle:
+
+- `VITE_PIPELINE_API_URL`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_VAPID_PUBLIC_KEY`
+
+Never put a service-role key, `CRON_SECRET`, VAPID private key, Resend API key,
+or any other secret in an `VITE_*` variable or this file.
+
+## Delivery
+
+### Quality CI
+
+`.github/workflows/ci.yml` runs on pull requests and changes to `main`:
+
+1. frontend lint, unit tests, and production build;
+2. Worker TypeScript check; and
+3. Worker `wrangler deploy --dry-run` bundle validation.
+
+### Cloudflare Pages
+
+The Pages project is `codex-resets`. Its intended Git integration is
+`NicholasHan1226/CodexResets`, production branch `main`, build command
+`pnpm run lint && pnpm test && pnpm run build`, and output directory `dist`.
+That makes Cloudflare build a preview for pull requests and publish production
+after a successful build of `main`.
+
+Until Git integration is active, deploy a validated `dist/` through the Pages
+dashboard or with an authorized Wrangler session:
+
+```bash
+npx wrangler pages deploy dist --project-name=codex-resets
 ```
+
+### Cloudflare Worker
+
+The Worker source is in `worker/`. It uses `nodejs_compat` because the Web Push
+library imports `node:crypto`.
+
+```bash
+pnpm --dir worker exec tsc --noEmit
+pnpm --dir worker exec wrangler deploy --dry-run
+pnpm --dir worker exec wrangler deploy
+```
+
+Use the existing `codex-resets-pipeline` Worker and `api.codexresets.cc`
+custom domain. Worker secrets stay in Cloudflare; they are never committed.
+
+## Release checks and rollback
+
+After a Pages or Worker release, verify:
+
+```bash
+curl --fail-with-body https://api.codexresets.cc/api/health
+curl --fail-with-body https://api.codexresets.cc/api/signals
+```
+
+For Pages, confirm that the deployed JavaScript references
+`https://api.codexresets.cc` and that the UI reflects the latest snapshot. If
+a release regresses, use the prior successful Cloudflare Pages deployment;
+for the Worker, roll traffic back to the prior Worker version in the
+Cloudflare dashboard.
