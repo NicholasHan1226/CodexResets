@@ -17,9 +17,10 @@ import {
   privRetractAutomatedReset,
 } from './privileged';
 import { buildSignalsSnapshot, getStatusEvidence } from './signals';
-import { notifyAll, sendHealthAlert } from './notify';
-import { recordForecastSnapshot } from './forecast';
+import { notifyAll, sendCalibrationAlert, sendHealthAlert } from './notify';
+import { getForecastCalibration, recordForecastSnapshot } from './forecast';
 import { refreshOfficialCodexDiscovery } from './discovery';
+import { recordSubscriptionMetric } from './operational-metrics';
 
 const HOUR = 3600 * 1000;
 // Seed with the newest bundled reset so the snapshot works before the DB
@@ -34,6 +35,7 @@ const DIRECT_SOURCE_FAILURE_KEY = 'direct-source:consecutive-failures';
 const DIRECT_SOURCE_FAILURE_TTL_SECONDS = 3 * 24 * 60 * 60;
 const DIRECT_SOURCE_FAILURE_ALERT_AT = 3;
 const DELIVERY_METRIC_TTL_SECONDS = 31 * 24 * 60 * 60;
+const FORECAST_CALIBRATION_ALERT_TTL_SECONDS = 120 * 24 * 60 * 60;
 
 export async function runPipeline(env: Env, trigger: string): Promise<RunReport> {
   const report: RunReport = {
@@ -186,6 +188,7 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   const records = allRecords.filter((record) => record.verified);
   try {
     await recordForecastSnapshot(env, records);
+    await maybeSendCalibrationAlert(env);
   } catch (err) {
     report.errors.push(`forecast snapshot: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -197,6 +200,10 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
     });
     report.notifiedEmails += outcome.emails;
     report.notifiedPush += outcome.pushes;
+    report.prunedPushEndpoints = (report.prunedPushEndpoints || 0) + outcome.prunedPushEndpoints;
+    if (outcome.prunedPushEndpoints > 0) {
+      await recordSubscriptionMetric(env, 'push_pruned_after_delivery', outcome.prunedPushEndpoints).catch(() => {});
+    }
     report.errors.push(...outcome.errors);
     if (outcome.errors.length === 0) {
       const marked = await privMarkResetNotified(env, record.id);
@@ -236,6 +243,23 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   }
   await env.CACHE.put('health:last_run', JSON.stringify(report));
   return report;
+}
+
+/**
+ * Review only meaningful sample milestones (7, 14, 30), plus a later
+ * measurable degradation. This is deliberately an ops notice, not a source
+ * of live prediction or notification behavior.
+ */
+async function maybeSendCalibrationAlert(env: Env): Promise<void> {
+  if (!env.HEALTH_ALERT_EMAIL || !env.RESEND_API_KEY) return;
+  const calibration = await getForecastCalibration(env);
+  const milestone = calibration.samples === 7 || calibration.samples === 14 || calibration.samples === 30;
+  const degradation = calibration.samples >= 14 && calibration.trend === 'degrading';
+  if (!milestone && !degradation) return;
+  const key = `forecast:calibration-alert:${milestone ? `sample-${calibration.samples}` : 'degrading'}`;
+  if (await env.CACHE.get(key)) return;
+  await sendCalibrationAlert(env, calibration);
+  await env.CACHE.put(key, calibration.stage, { expirationTtl: FORECAST_CALIBRATION_ALERT_TTL_SECONDS });
 }
 
 /**
@@ -286,6 +310,7 @@ async function updateDeliveryMetrics(env: Env, report: RunReport): Promise<void>
     statusHeld: (previous.statusHeld || 0) + (report.autoHeldByStatus || 0),
     emails: (previous.emails || 0) + report.notifiedEmails,
     pushes: (previous.pushes || 0) + report.notifiedPush,
+    prunedPushEndpoints: (previous.prunedPushEndpoints || 0) + (report.prunedPushEndpoints || 0),
     errors: (previous.errors || 0) + report.errors.length,
   };
   await env.CACHE.put(key, JSON.stringify(next), { expirationTtl: DELIVERY_METRIC_TTL_SECONDS });

@@ -40,7 +40,11 @@ After three consecutive direct-source failures, the Worker raises a health alert
 and keeps automated confirmation paused. An active official Codex/rate-limit
 incident also holds confirmation; status-page availability alone never creates
 a reset. Daily non-PII run and delivery metrics are retained in Worker KV for
-31 days and exposed only through the operational health response.
+31 days and exposed only through the operational health response. The same
+private response also aggregates double-opt-in conversion, bounce/complaint,
+browser Push test/pruning, and signed X webhook-to-pipeline outcomes from
+append-only, non-PII event records; no email address, endpoint, or X payload is
+stored in those metrics.
 Resend `email.bounced` and `email.complained` webhooks are HMAC-verified at
 `POST /api/webhooks/resend` and delete the affected subscription.
 X Activity `post.create` events are received at
@@ -63,6 +67,11 @@ its 24/48-hour outcome after the horizon closes. These private KV samples are
 kept for 120 days and are not shown in the visitor interface.
 The protected `/api/health/details` response includes the resulting sample
 count, 24/48-hour Brier scores, model usage counts, and the latest snapshot.
+It automatically marks private 7/14/30-sample review thresholds and compares
+the latest seven resolved forecasts with the preceding seven; milestones and a
+measurable degradation send one rate-limited operations email when configured.
+This never changes the public UI or bypasses the browser model's existing
+time-ordered model selection.
 An OpenAI-owned Codex changelog is checked as discovery context only; it can
 never create a candidate, raise a forecast, confirm a reset, or send an alert.
 

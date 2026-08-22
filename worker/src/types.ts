@@ -119,6 +119,8 @@ export interface RunReport {
   inserted: number;
   notifiedEmails: number;
   notifiedPush: number;
+  /** Invalid 404/410 browser endpoints pruned while delivering a real alert. */
+  prunedPushEndpoints?: number;
   errors: string[];
 }
 
@@ -137,6 +139,8 @@ export interface DeliveryMetrics {
   statusHeld: number;
   emails: number;
   pushes: number;
+  /** Invalid 404/410 endpoints pruned after a real reset delivery. */
+  prunedPushEndpoints: number;
   errors: number;
 }
 

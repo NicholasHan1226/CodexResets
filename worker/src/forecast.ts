@@ -27,6 +27,12 @@ export interface ForecastCalibration {
   brier48h: number | null;
   modelCounts: Record<'logistic' | 'weibull', number>;
   latest: Pick<ForecastSample, 'at' | 'model' | 'prob24h' | 'prob48h'> | null;
+  /** Private sample gate: never changes public UI copy or the delivery path. */
+  stage: 'collecting' | 'provisional' | 'calibrated' | 'established';
+  nextReviewAt: 7 | 14 | 30 | null;
+  recentBrier: number | null;
+  previousBrier: number | null;
+  trend: 'unknown' | 'stable' | 'improving' | 'degrading';
 }
 
 function toForecastRecords(records: ResetRecordRow[]): ResetRecord[] {
@@ -144,6 +150,15 @@ export async function getForecastCalibration(env: Env): Promise<ForecastCalibrat
     error48 += (evaluation.prob48h - Number(evaluation.resetIn48h)) ** 2;
   }
   const latest = parseSample(latestRaw);
+  const recentBrier = meanCombinedBrier(evaluations.slice(-7));
+  const previousBrier = evaluations.length >= 14 ? meanCombinedBrier(evaluations.slice(-14, -7)) : null;
+  const trend = previousBrier === null || recentBrier === null
+    ? 'unknown'
+    : recentBrier <= previousBrier - 0.05
+      ? 'improving'
+      : recentBrier >= previousBrier + 0.05
+        ? 'degrading'
+        : 'stable';
   return {
     samples: evaluations.length,
     brier24h: evaluations.length > 0 ? error24 / evaluations.length : null,
@@ -155,5 +170,34 @@ export async function getForecastCalibration(env: Env): Promise<ForecastCalibrat
       prob24h: latest.prob24h,
       prob48h: latest.prob48h,
     },
+    stage: calibrationStage(evaluations.length),
+    nextReviewAt: nextReviewAt(evaluations.length),
+    recentBrier,
+    previousBrier,
+    trend,
   };
+}
+
+function meanCombinedBrier(evaluations: ForecastEvaluation[]): number | null {
+  if (evaluations.length === 0) return null;
+  const total = evaluations.reduce((sum, evaluation) => (
+    sum
+      + (evaluation.prob24h - Number(evaluation.resetIn24h)) ** 2
+      + (evaluation.prob48h - Number(evaluation.resetIn48h)) ** 2
+  ), 0);
+  return total / (evaluations.length * 2);
+}
+
+function calibrationStage(samples: number): ForecastCalibration['stage'] {
+  if (samples < 7) return 'collecting';
+  if (samples < 14) return 'provisional';
+  if (samples < 30) return 'calibrated';
+  return 'established';
+}
+
+function nextReviewAt(samples: number): ForecastCalibration['nextReviewAt'] {
+  if (samples < 7) return 7;
+  if (samples < 14) return 14;
+  if (samples < 30) return 30;
+  return null;
 }

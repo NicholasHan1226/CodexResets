@@ -5,6 +5,7 @@ import { runPipeline } from './pipeline';
 import { sendPushSubscriptionTest, sendSubscriptionConfirmation, sendTestEmail } from './notify';
 import { getForecastCalibration } from './forecast';
 import { getOfficialCodexDiscovery } from './discovery';
+import { getSubscriptionQuality, getXWebhookQuality, recordSubscriptionMetric, recordXWebhookOutcome } from './operational-metrics';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CONFIRM_TTL_SECONDS = 24 * 60 * 60;
@@ -62,11 +63,13 @@ export async function handleHealthDetails(request: Request, env: Env): Promise<R
   const report = parseJson<RunReport>(await env.CACHE.get('health:last_run'));
   const date = new Date().toISOString().slice(0, 10);
   const deliveryToday = parseJson<DeliveryMetrics>(await env.CACHE.get(`metrics:delivery:${date}`));
-  const [forecastCalibration, officialDiscovery] = await Promise.all([
+  const [forecastCalibration, officialDiscovery, subscriptionQuality, xWebhookQuality] = await Promise.all([
     getForecastCalibration(env),
     getOfficialCodexDiscovery(env),
+    getSubscriptionQuality(env),
+    getXWebhookQuality(env),
   ]);
-  return json({ now: new Date().toISOString(), lastRun: report, deliveryToday, forecastCalibration, officialDiscovery });
+  return json({ now: new Date().toISOString(), lastRun: report, deliveryToday, forecastCalibration, officialDiscovery, subscriptionQuality, xWebhookQuality });
 }
 
 function publicRunReport(report: RunReport | null): Omit<RunReport, 'errors' | 'candidateSamples' | 'scrapeInstance'> & { errorCount: number } | null {
@@ -145,8 +148,11 @@ export async function handleSubscribePush(request: Request, env: Env): Promise<R
     const result = await sendPushSubscriptionTest(env, subscription);
     if (result === 'gone') {
       await privDeletePush(env, endpoint);
+      await recordSubscriptionMetric(env, 'push_expired_during_test').catch(() => {});
       return json({ error: 'push endpoint expired' }, 410);
     }
+    await recordSubscriptionMetric(env, 'push_registered').catch(() => {});
+    await recordSubscriptionMetric(env, result === 'sent' ? 'push_test_delivered' : 'push_test_skipped').catch(() => {});
   } catch {
     await privDeletePush(env, endpoint);
     return json({ error: 'push delivery test failed; retry subscription' }, 502);
@@ -169,6 +175,7 @@ export async function handleUnsubscribePush(request: Request, env: Env): Promise
     return json({ error: 'server not configured' }, 503);
   }
   await privDeletePush(env, body.endpoint);
+  await recordSubscriptionMetric(env, 'push_unsubscribed').catch(() => {});
   return json({ ok: true });
 }
 
@@ -186,6 +193,7 @@ export async function handleUnsubscribeEmail(url: URL, env: Env): Promise<Respon
 
   const res = await privDeleteEmail(env, email);
   if (!res.ok) return html(unsubPage('We could not process this unsubscribe request. Please try again later.', false), 502);
+  await recordSubscriptionMetric(env, 'email_unsubscribed').catch(() => {});
   return html(unsubPage(`<b>${escapeHtml(email)}</b> has been unsubscribed. You will no longer receive reset alerts.`, true));
 }
 
@@ -215,6 +223,9 @@ export async function handleResendWebhook(request: Request, env: Env): Promise<R
     for (const email of recipients) {
       const res = await privDeleteEmail(env, email);
       if (!res.ok) return json({ error: `subscription cleanup failed: ${res.status}` }, 502);
+    }
+    if (recipients.length > 0) {
+      await recordSubscriptionMetric(env, event.type === 'email.bounced' ? 'email_bounced' : 'email_complained', recipients.length).catch(() => {});
     }
   }
   await env.CACHE.put(replayKey, '1', { expirationTtl: WEBHOOK_REPLAY_TTL_SECONDS });
@@ -249,12 +260,18 @@ export async function handleXWebhook(request: Request, url: URL, env: Env, ctx: 
     return json({ error: 'invalid webhook body' }, 400);
   }
   const data = event.data;
-  if (data?.event_type !== 'post.create' || !isXPost(data.payload) || !data.event_uuid) return json({ ok: true, ignored: true });
+  if (data?.event_type !== 'post.create' || !isXPost(data.payload) || !data.event_uuid) {
+    ctx.waitUntil(recordXWebhookOutcome(env, 'ignored').catch(() => {}));
+    return json({ ok: true, ignored: true });
+  }
 
   const replayKey = `x:webhook:${data.event_uuid}`;
-  if (await env.CACHE.get(replayKey)) return json({ ok: true, duplicate: true });
+  if (await env.CACHE.get(replayKey)) {
+    ctx.waitUntil(recordXWebhookOutcome(env, 'duplicate').catch(() => {}));
+    return json({ ok: true, duplicate: true });
+  }
   await env.CACHE.put(replayKey, '1', { expirationTtl: WEBHOOK_REPLAY_TTL_SECONDS });
-  ctx.waitUntil(runPipeline(env, 'x-webhook'));
+  ctx.waitUntil(runXWebhookPipeline(env));
   return json({ ok: true });
 }
 
@@ -316,6 +333,7 @@ export async function handleSubscribeEmail(request: Request, env: Env): Promise<
     await env.CACHE.delete(cooldownKey);
     throw err;
   }
+  await recordSubscriptionMetric(env, 'email_confirmation_sent').catch(() => {});
   return json({ ok: true, status: 'pending' });
 }
 
@@ -333,7 +351,18 @@ export async function handleConfirmEmail(url: URL, env: Env): Promise<Response> 
   const res = await privActivateEmail(env, email);
   if (!res.ok) return html(confirmPage('We could not activate this subscription. Please try again later.', false), 502);
   await env.CACHE.delete(key);
+  await recordSubscriptionMetric(env, 'email_confirmed').catch(() => {});
   return html(confirmPage('Subscription confirmed. You will receive reset alerts at this address.', true));
+}
+
+/** Preserve a signed webhook's receipt-to-pipeline outcome without retaining its payload. */
+async function runXWebhookPipeline(env: Env): Promise<void> {
+  try {
+    const report = await runPipeline(env, 'x-webhook');
+    await recordXWebhookOutcome(env, report.scrape === 'ok' && report.errors.length === 0 ? 'completed' : 'failed', report);
+  } catch {
+    await recordXWebhookOutcome(env, 'failed').catch(() => {});
+  }
 }
 
 /** POST /api/test-email — protected single-recipient delivery exercise. */

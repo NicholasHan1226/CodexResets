@@ -1,5 +1,6 @@
 import { buildPushPayload, type PushMessage, type PushSubscription, type VapidKeys } from '@block65/webcrypto-web-push';
 import type { Env, ResetEvent, RunReport } from './types';
+import type { ForecastCalibration } from './forecast';
 import { hasPrivilegedAccess, privListEmails, privListPush, privDeletePush, type PushSubRow } from './privileged';
 import { signToken, escapeHtml } from './util';
 
@@ -10,6 +11,7 @@ interface SubscriptionRow {
 export interface NotifyResult {
   emails: number;
   pushes: number;
+  prunedPushEndpoints: number;
   errors: string[];
 }
 
@@ -48,7 +50,7 @@ export async function sendPushSubscriptionTest(env: Env, row: PushSubRow): Promi
 export async function notifyAll(env: Env, event: ResetEvent): Promise<NotifyResult> {
   const errors: string[] = [];
   if (!hasPrivilegedAccess(env)) {
-    return { emails: 0, pushes: 0, errors: ['notify skipped: no privileged DB access'] };
+    return { emails: 0, pushes: 0, prunedPushEndpoints: 0, errors: ['notify skipped: no privileged DB access'] };
   }
 
   let emails: SubscriptionRow[] = [];
@@ -72,12 +74,14 @@ export async function notifyAll(env: Env, event: ResetEvent): Promise<NotifyResu
 
   const pushResults = await Promise.allSettled(pushes.map((row) => sendPush(env, row, event)));
   let sentPushes = 0;
+  let prunedPushEndpoints = 0;
   for (let i = 0; i < pushResults.length; i++) {
     const r = pushResults[i];
     if (r.status === 'fulfilled') {
       if (r.value === 'gone') {
         // Endpoint is dead — prune it so the list stays clean
         await privDeletePush(env, pushes[i].endpoint).catch(() => {});
+        prunedPushEndpoints++;
       } else if (r.value === 'sent') {
         sentPushes++;
       }
@@ -86,7 +90,7 @@ export async function notifyAll(env: Env, event: ResetEvent): Promise<NotifyResu
     }
   }
 
-  return { emails: sentEmails, pushes: sentPushes, errors };
+  return { emails: sentEmails, pushes: sentPushes, prunedPushEndpoints, errors };
 }
 
 // --- Email (Resend HTTPS API) ----------------------------------------------
@@ -164,6 +168,22 @@ export async function sendHealthAlert(env: Env, report: RunReport): Promise<void
   if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
 }
 
+/** A sparse operational review notice; model selection itself stays deterministic and automatic. */
+export async function sendCalibrationAlert(env: Env, calibration: ForecastCalibration): Promise<void> {
+  if (!env.RESEND_API_KEY || !env.HEALTH_ALERT_EMAIL) return;
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      from: env.RESEND_FROM,
+      to: [env.HEALTH_ALERT_EMAIL],
+      subject: '[Review] Codex Resets forecast calibration / 预测校准复核',
+      html: calibrationAlertHtml(env, calibration),
+    }),
+  });
+  if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
+}
+
 function emailHtml(env: Env, resetLocal: string, unsubUrl: string): string {
   return `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
@@ -215,6 +235,20 @@ function healthAlertHtml(env: Env, report: RunReport): string {
     <pre style="white-space:pre-wrap;margin:0 0 16px;padding:12px;background:#f8fafc;border:1px solid #e4e6ea;font-size:12px;color:#3d4250">${escapeHtml(errors)}</pre>
     <a href="${workerBase(env)}/api/health" style="display:inline-block;background:#d97706;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open health report</a>
     <p style="margin:16px 0 0;font-size:11px;color:#9aa0ac">At most one health-failure alert is sent every six hours.</p>
+  </div>
+</body></html>`;
+}
+
+function calibrationAlertHtml(env: Env, calibration: ForecastCalibration): string {
+  const score = calibration.recentBrier === null ? 'not enough samples' : calibration.recentBrier.toFixed(3);
+  return `<!doctype html>
+<html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
+  <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
+    <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#2563eb">i codex resets operations</p>
+    <h1 style="margin:0 0 12px;font-size:20px">Forecast calibration review</h1>
+    <p style="margin:0 0 12px;font-size:14px;color:#3d4250">Private calibration reached <strong>${escapeHtml(calibration.stage)}</strong> with ${calibration.samples} resolved samples. Recent combined Brier score: ${escapeHtml(score)}; trend: ${escapeHtml(calibration.trend)}.</p>
+    <p style="margin:0 0 16px;font-size:13px;color:#667085">The public model continues its time-ordered automatic selection. This notice records a review threshold; it does not change subscriber delivery.</p>
+    <a href="${workerBase(env)}/api/health" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open health report</a>
   </div>
 </body></html>`;
 }

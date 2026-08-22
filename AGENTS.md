@@ -38,11 +38,16 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   (`signals:latest`) → health report
   (`health:last_run`)
 - `src/forecast.ts`  — private daily prediction snapshots and automatic
-  24/48-hour outcome resolution in KV; visitor UI does not read these records
+  24/48-hour outcome resolution in KV; 7/14/30 review thresholds and a
+  seven-sample Brier trend are private operations evidence, never visitor copy
 - `src/discovery.ts` — isolated OpenAI-owned Codex update discovery context;
   it never becomes a reset candidate or notification input
 - `src/notify.ts`    — Resend email (HMAC-signed unsubscribe links) +
   Web Push via @block65/webcrypto-web-push (prunes 404/410 endpoints)
+- `src/operational-metrics.ts` — append-only, non-PII KV telemetry for
+  subscription conversion/delivery and signed X webhook pipeline outcomes;
+  use unique event keys rather than a shared request-time counter because KV
+  writes to one key are rate-limited
 - Runtime compatibility: `nodejs_compat` is enabled because the Web Push
   library imports `node:crypto`.
 - `src/routes.ts`    — GET /api/signals, public GET /api/health, protected
@@ -87,10 +92,14 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
 - Three consecutive non-direct collection runs produce a rate-limited health
   alert and keep automatic confirmation paused. An active official Codex or
   usage-limit incident is a contradiction gate: it can hold delivery but never
-  creates a reset. KV retains a 31-day non-PII delivery roll-up.
+  creates a reset. KV retains a 31-day non-PII delivery roll-up plus private
+  conversion, bounce/complaint, Push-test/prune, and X receipt-to-pipeline
+  summaries; do not expose any of them in public UI or health responses.
 - Forecast calibration retains one non-PII snapshot per UTC day and resolves
   its 24/48-hour outcomes after the horizon closes. The private forecast
-  evidence is retained for 120 days; it is not public product copy.
+  evidence is retained for 120 days; it is not public product copy. At 7, 14,
+  and 30 resolved samples, and on a material seven-sample Brier degradation,
+  it may notify the existing operations recipient once per review key.
 - When the Worker cannot be reached, production browsers stay on the local
   prediction model instead of fanning out to external RSS/status proxies.
   This keeps the site responsive on constrained networks. Email is the primary

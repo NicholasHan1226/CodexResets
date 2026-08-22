@@ -5,6 +5,7 @@ import { getStatusEvidence } from '../worker/src/signals';
 import { shouldSendHealthAlert } from '../worker/src/pipeline';
 import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
 import { refreshOfficialCodexDiscovery } from '../worker/src/discovery';
+import { getSubscriptionQuality, getXWebhookQuality } from '../worker/src/operational-metrics';
 import type { Env, RunReport } from '../worker/src/types';
 import { detectResetEvents, detectResetRetractions, isRetractionForCandidate, isTimelyAutomatedCandidate, scrapeTweets } from '../worker/src/scrape';
 
@@ -14,6 +15,10 @@ function envWith(cacheEntries: Record<string, string | null>): Env {
       get: async (key: string) => cacheEntries[key] ?? null,
       put: async (key: string, value: string) => { cacheEntries[key] = value; },
       delete: async (key: string) => { delete cacheEntries[key]; },
+      list: async ({ prefix }: { prefix: string }) => ({
+        keys: Object.keys(cacheEntries).filter((key) => key.startsWith(prefix)).map((name) => ({ name })),
+        list_complete: true,
+      }),
     },
   } as unknown as Env;
 }
@@ -166,16 +171,18 @@ describe('pipeline read endpoints', () => {
           payload: { id: 'post-1', text: 'Codex usage limits reset.', created_at: '2026-08-23T00:00:00.000Z' },
         },
       });
+      const cache: Record<string, string | null> = {};
       const response = await handleXWebhook(
         await xWebhookRequest(body, secret),
         new URL('https://api.example.test/api/webhooks/x'),
-        { ...envWith({}), X_CONSUMER_SECRET: secret, RSSHUB_INSTANCES: '', TARGET_ACCOUNT: 'thsottiaux' },
+        { ...envWith(cache), X_CONSUMER_SECRET: secret, RSSHUB_INSTANCES: '', TARGET_ACCOUNT: 'thsottiaux' },
         { waitUntil } as unknown as ExecutionContext,
       );
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual({ ok: true });
       expect(waitUntil).toHaveBeenCalledOnce();
       await Promise.all(pending);
+      await expect(getXWebhookQuality(envWith(cache))).resolves.toMatchObject({ sampledEvents: 1, failed: 1 });
     } finally {
       vi.unstubAllGlobals();
     }
@@ -388,6 +395,9 @@ describe('pipeline read endpoints', () => {
       });
       expect(Object.keys(cache).some((key) => key.startsWith('subscribe:confirm:'))).toBe(true);
       expect(Object.keys(cache).some((key) => key.includes('reader@example.test'))).toBe(false);
+      await expect(getSubscriptionQuality(emailEnv(cache))).resolves.toMatchObject({
+        email: { confirmationSent: 1, confirmed: 0, confirmationRate: 0 },
+      });
     } finally {
       vi.unstubAllGlobals();
     }
@@ -466,6 +476,7 @@ describe('pipeline read endpoints', () => {
       const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
       expect(JSON.parse(String(init.body))).toEqual([{ email: 'reader@example.test', is_active: true, unsubscribed_at: null }]);
       expect(new Headers(init.headers).get('apikey')).toBe('service-role-test-key');
+      await expect(getSubscriptionQuality(emailEnv(cache))).resolves.toMatchObject({ email: { confirmed: 1 } });
     } finally {
       vi.unstubAllGlobals();
     }
@@ -506,6 +517,7 @@ describe('pipeline read endpoints', () => {
       expect(response.status).toBe(200);
       expect(fetchMock.mock.calls[0]?.[0]).toBe('https://db.example.test/rest/v1/subscriptions?email=eq.bounced%40example.test');
       expect(Object.keys(cache).some((key) => key.startsWith('resend:webhook:msg_test_123'))).toBe(true);
+      await expect(getSubscriptionQuality(emailEnv(cache))).resolves.toMatchObject({ email: { bounced: 1 } });
     } finally {
       vi.unstubAllGlobals();
     }
@@ -626,6 +638,8 @@ describe('forecast snapshot retention', () => {
       brier24h: expect.any(Number),
       brier48h: expect.any(Number),
       latest: expect.objectContaining({ model: expect.any(String) }),
+      stage: 'collecting',
+      nextReviewAt: 7,
     });
     const details = await handleHealthDetails(
       new Request('https://api.example.test/api/health/details', { headers: { authorization: 'Bearer calibration-test' } }),
