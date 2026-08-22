@@ -63,7 +63,9 @@ export async function buildSignalsSnapshot(
     signals: [tibo, statusPage, cooldown, launch],
     generatedAt: now,
     sources: {
-      tweets: scrape.ok ? 'live' : 'down',
+      // A reachable mirror is still useful discovery context, but it is not
+      // an authoritative account feed and must not be labelled as live.
+      tweets: scrape.sourceKind === 'direct' ? 'live' : scrape.ok ? 'stale' : 'down',
       statusPage: statusPage.description === 'signals.statusDown' ? 'down' : 'live',
       database: 'live',
     },
@@ -77,6 +79,19 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
     updatedAt: now,
     sourceUrl: 'https://x.com/thsottiaux',
   };
+
+  // RSS/Nitter/news results may be stale, altered, or about a different
+  // account. They remain useful to the Worker as discovery input but cannot
+  // make a visitor-facing reset claim. Only authenticated X API results are
+  // direct enough to lift this signal.
+  if (scrape.ok && scrape.sourceKind === 'degraded') {
+    return {
+      ...base,
+      status: 'idle',
+      value: 0.1,
+      description: 'signals.noHints',
+    };
+  }
 
   if (!scrape.ok || scrape.tweets.length === 0) {
     return {

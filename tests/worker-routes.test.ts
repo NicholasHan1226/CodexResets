@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { handleConfirmEmail, handleHealth, handleHealthDetails, handleResendWebhook, handleSignals, handleSubscribeEmail, handleSubscribePush, handleTestEmail, handleUnsubscribeEmail, handleUnsubscribePush, handleXWebhook } from '../worker/src/routes';
 import { isExpiredPushEndpoint, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
 import { signToken } from '../worker/src/util';
-import { getStatusEvidence } from '../worker/src/signals';
+import { buildSignalsSnapshot, getStatusEvidence } from '../worker/src/signals';
 import { shouldSendHealthAlert } from '../worker/src/pipeline';
 import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
 import { refreshOfficialCodexDiscovery } from '../worker/src/discovery';
@@ -85,6 +85,51 @@ async function xWebhookRequest(body: string, secret = 'x-consumer-test-secret'):
 }
 
 describe('pipeline read endpoints', () => {
+  it('never turns degraded mirror content into a public reset announcement', async () => {
+    const now = Date.now();
+    const snapshot = await buildSignalsSnapshot(
+      envWith({}),
+      {
+        ok: true,
+        sourceKind: 'degraded',
+        tweets: [{
+          text: 'Codex usage limits are reset for everyone',
+          link: 'https://mirror.example.test/thsottiaux/status/1',
+          ts: now - 60 * 60 * 1000,
+        }],
+      },
+      now - 4 * 24 * 60 * 60 * 1000,
+      3.8,
+      { state: 'clear', incidentCount: 0 },
+    );
+
+    expect(snapshot.sources.tweets).toBe('stale');
+    expect(snapshot.signals[0]).toMatchObject({
+      source: 'tibopost',
+      status: 'idle',
+      value: 0.1,
+      description: 'signals.noHints',
+    });
+
+    const direct = await buildSignalsSnapshot(
+      envWith({}),
+      {
+        ok: true,
+        sourceKind: 'direct',
+        tweets: [{
+          text: 'Codex usage limits are reset for everyone',
+          link: 'https://x.com/thsottiaux/status/1',
+          ts: now - 60 * 60 * 1000,
+        }],
+      },
+      now - 4 * 24 * 60 * 60 * 1000,
+      3.8,
+      { state: 'clear', incidentCount: 0 },
+    );
+    expect(direct.sources.tweets).toBe('live');
+    expect(direct.signals[0]).toMatchObject({ status: 'active', value: 0.9, description: 'signals.resetAnnounced' });
+  });
+
   it('returns a cacheable signal snapshot with browser CORS enabled', async () => {
     const snapshot = JSON.stringify({ signals: [{ source: 'tibopost', sourceUrl: 'https://example.test/source' }], generatedAt: 123 });
     const response = await handleSignals(envWith({ 'signals:latest': snapshot }));

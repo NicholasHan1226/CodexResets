@@ -41,8 +41,9 @@ requires `Authorization: Bearer $CRON_SECRET`, accepts exactly one JSON email
 recipient, and never reads subscribers or runs the pipeline.
 
 When configured, the authenticated official X API is the only direct-account
-source permitted to create, confirm, or deliver an automated alert. RSS/Nitter
-and news feeds remain discovery-only operational context. Strong notices from
+source permitted to create, confirm, or deliver an automated alert or raise an
+active public reset signal. RSS/Nitter and news feeds remain discovery-only
+operational context. Strong notices from
 the configured target account are automatically recorded, held for one
 scheduled interval, and then confirmed and delivered. A later direct-source
 correction within the stabilization window automatically retracts the matching
