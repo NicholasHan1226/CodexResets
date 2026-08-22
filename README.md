@@ -48,6 +48,17 @@ X Activity `post.create` events are received at
 POST deliveries only accelerate a fresh official-timeline pipeline run. They
 do not bypass the stabilization or correction window.
 
+## Forecast behavior
+
+The forecast groups related announcement, clarification, and completion posts
+within 24 hours into one reset episode. This prevents one product reset from
+being counted as several short reset intervals. On each refresh, the browser
+backtests logistic and Weibull interval models against earlier time-ordered
+24/48-hour cutoffs and uses the lower-Brier candidate when enough historical
+samples are available. A fresh strong signal from the configured direct source
+can lift only the near-term forecast; it never confirms a reset or changes the
+Worker's automatic stabilization, correction, or notification rules.
+
 ## Mainland-user behavior
 
 The public site uses Cloudflare's global network, not a mainland China

@@ -39,18 +39,12 @@ export function usePrediction() {
         setResetRecords(records);
       }
 
-      // Generate base prediction from historical data
-      const data = generatePrediction(records.length > 0 ? records : undefined);
-
       const { signals, hasRealData } = await signalsPromise;
       setUsingRealData(hasRealData || records.length > 0);
 
-      // Update prediction with real signals
-      setPrediction({
-        ...data,
-        signals,
-        generatedAt: Date.now(),
-      });
+      // Strong direct-source signals affect the short-term numerical forecast,
+      // while weaker/status signals remain informational only.
+      setPrediction(generatePrediction(records.length > 0 ? records : undefined, signals));
     } catch (error) {
       console.warn('Error refreshing prediction:', error);
       // Fall back to simulated data — timestamp it honestly so the header's

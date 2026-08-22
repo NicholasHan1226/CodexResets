@@ -4,6 +4,7 @@
  */
 
 import type { ResetRecord } from "@/types/reset";
+import { intervalDays, median, mergeResetEpisodes } from '@/lib/reset-episodes';
 
 /**
  * Verified global Codex reset events, synced with the reset_records table
@@ -60,7 +61,9 @@ export const RESET_HISTORY: ResetRecord[] = [
 ];
 
 // Allow overriding the bundled history with fresher records (e.g. from Supabase).
-// Single source of truth: every panel reads through getEffectiveHistory().
+// Raw posts are retained above as evidence. Panels and forecasting use the
+// canonical episode series so multiple posts about one reset do not create
+// artificial short intervals.
 let dynamicResetHistory: ResetRecord[] | null = null;
 
 export function setDynamicResetHistory(records: ResetRecord[] | null): void {
@@ -68,7 +71,7 @@ export function setDynamicResetHistory(records: ResetRecord[] | null): void {
 }
 
 export function getEffectiveHistory(): ResetRecord[] {
-  return dynamicResetHistory || RESET_HISTORY;
+  return mergeResetEpisodes(dynamicResetHistory || RESET_HISTORY);
 }
 
 /**
@@ -76,18 +79,13 @@ export function getEffectiveHistory(): ResetRecord[] {
  */
 export function computeIntervalStats() {
   const history = getEffectiveHistory();
-  const intervals: number[] = [];
-  for (let i = 0; i < history.length - 1; i++) {
-    const curr = history[i].timestamp;
-    const prev = history[i + 1].timestamp;
-    intervals.push((curr - prev) / (1000 * 60 * 60)); // hours
-  }
+  const intervals = intervalDays(history).map((days) => days * 24);
 
   const sorted = [...intervals].sort((a, b) => a - b);
-  const median = sorted[Math.floor(sorted.length / 2)];
-  const mean = intervals.reduce((s, v) => s + v, 0) / intervals.length;
-  const max = Math.max(...intervals);
-  const min = Math.min(...intervals);
+  const medianHours = median(sorted, 3.8 * 24);
+  const mean = intervals.length > 0 ? intervals.reduce((s, v) => s + v, 0) / intervals.length : medianHours;
+  const max = intervals.length > 0 ? Math.max(...intervals) : medianHours;
+  const min = intervals.length > 0 ? Math.min(...intervals) : medianHours;
 
   // Recent 30 days intervals
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
@@ -97,11 +95,11 @@ export function computeIntervalStats() {
   });
   const recentMedian = recentIntervals.length > 0
     ? [...recentIntervals].sort((a, b) => a - b)[Math.floor(recentIntervals.length / 2)]
-    : median;
+    : medianHours;
 
   return {
-    medianHours: median,
-    medianDays: median / 24,
+    medianHours,
+    medianDays: medianHours / 24,
     meanHours: mean,
     meanDays: mean / 24,
     maxHours: max,
