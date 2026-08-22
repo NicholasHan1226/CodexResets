@@ -27,6 +27,9 @@ SUPABASE_ANON_KEY = "sb_publishable_xC9TYkofqqQ6f181k7FQ8w_zZFzjeAQ"
 #   RESEND_API_KEY             — email sending (optional until configured)
 #   UNSUBSCRIBE_SECRET         — HMAC for email unsubscribe tokens
 #   CRON_SECRET                — protects POST /api/run manual trigger
+#   TURNSTILE_SECRET            — verifies public email subscription intake
+#   HEALTH_ALERT_EMAIL          — receives deduplicated Worker failure alerts
+#   RESEND_WEBHOOK_SECRET       — verifies bounce and complaint webhooks
 
 [[kv_namespaces]]
 binding = "CACHE"

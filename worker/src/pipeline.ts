@@ -1,7 +1,7 @@
 import type { Env, ResetRecordRow, RunReport } from './types';
 import { scrapeTweets, detectResetEvents } from './scrape';
 import { sbSelect } from './supabase';
-import { hasPrivilegedAccess, privInsertResets } from './privileged';
+import { hasPrivilegedAccess, privInsertResets, privMarkResetNotified } from './privileged';
 import { buildSignalsSnapshot } from './signals';
 import { notifyAll, sendHealthAlert } from './notify';
 
@@ -33,13 +33,15 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   report.tweetsSeen = scrape.tweets.length;
   if (!scrape.ok && scrape.error) report.errors.push(`scrape: ${scrape.error}`);
 
-  // 2. Load recent records through the Worker service role.
-  let records: ResetRecordRow[] = [];
+  // 2. Pending discoveries are retained for dedupe, but only confirmed
+  // records train the model and reach subscribers.
+  let allRecords: ResetRecordRow[] = [];
   try {
-    records = await sbSelect<ResetRecordRow>(env, 'reset_records?select=*&order=reset_date.desc&limit=30', true);
+    allRecords = await sbSelect<ResetRecordRow>(env, 'reset_records?select=*&order=reset_date.desc&limit=100', true);
   } catch (err) {
     report.errors.push(`records read: ${err instanceof Error ? err.message : String(err)}`);
   }
+  const records = allRecords.filter((record) => record.verified);
 
   // 3. Detect reset candidates, dedupe against known records, insert new ones.
   //    Only strong (announcement-phrased) candidates are auto-inserted; weak
@@ -55,7 +57,7 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   ].slice(0, 4);
   const fresh = candidates.filter(
     (c) =>
-      !records.some(
+      !allRecords.some(
         (r) =>
           (r.source_url && r.source_url === c.link) ||
           Math.abs(new Date(r.reset_date).getTime() - c.ts) < 6 * HOUR
@@ -74,10 +76,10 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
       }));
       const res = await privInsertResets(env, rows);
       if (res.ok) {
-        report.inserted = rows.length;
-        records = [
+        report.pendingInserted = rows.length;
+        allRecords = [
           ...rows.map((r, i) => ({ id: `new-${i}`, ...r })),
-          ...records,
+          ...allRecords,
         ];
       } else {
         report.errors.push(`insert: ${res.status} ${await res.text()}`);
@@ -85,13 +87,21 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
     }
   }
 
-  // 4. Notify subscribers about the newest newly-detected reset
-  if (report.inserted > 0) {
-    const newest = [...fresh].sort((a, b) => b.ts - a.ts)[0];
-    const outcome = await notifyAll(env, newest);
-    report.notifiedEmails = outcome.emails;
-    report.notifiedPush = outcome.pushes;
+  // 4. Deliver only confirmed resets. The migration marks all pre-existing
+  // rows as delivered, so enabling this cannot replay historical alerts.
+  for (const record of records.filter((row) => !row.notified_at)) {
+    const outcome = await notifyAll(env, {
+      ts: new Date(record.reset_date).getTime(),
+      link: record.source_url || '',
+      text: record.description || 'A confirmed Codex usage reset was recorded.',
+    });
+    report.notifiedEmails += outcome.emails;
+    report.notifiedPush += outcome.pushes;
     report.errors.push(...outcome.errors);
+    if (outcome.errors.length === 0) {
+      const marked = await privMarkResetNotified(env, record.id);
+      if (!marked.ok) report.errors.push(`notification mark: ${marked.status} ${await marked.text()}`);
+    }
   }
 
   // 5. Signals snapshot → KV (the browser reads this instead of scraping)

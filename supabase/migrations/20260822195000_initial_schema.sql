@@ -10,6 +10,7 @@ create table if not exists public.reset_records (
   source_url text,
   description text,
   verified boolean not null default false,
+  notified_at timestamptz,
   created_at timestamptz not null default now()
 );
 create index if not exists reset_records_reset_date_idx on public.reset_records (reset_date desc);

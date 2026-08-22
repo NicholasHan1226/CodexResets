@@ -13,6 +13,8 @@ export interface Env {
   TURNSTILE_SECRET?: string;
   /** Private recipient for deduplicated Worker health-failure alerts. */
   HEALTH_ALERT_EMAIL?: string;
+  /** Resend/Svix signing secret for bounce and complaint webhooks. */
+  RESEND_WEBHOOK_SECRET?: string;
   UNSUBSCRIBE_SECRET?: string;
   CRON_SECRET?: string;
   RSSHUB_INSTANCES: string;
@@ -46,6 +48,8 @@ export interface ResetRecordRow {
   source_url: string | null;
   description: string | null;
   verified: boolean;
+  /** Set after a human-confirmed reset has been delivered to subscribers. */
+  notified_at?: string | null;
 }
 
 export type SignalStatus = 'active' | 'weak' | 'idle';
@@ -78,6 +82,8 @@ export interface RunReport {
   scrapeInstance?: string;
   tweetsSeen: number;
   candidates: number;
+  /** Automatically discovered records waiting for a human confirmation. */
+  pendingInserted?: number;
   /** reset+context mentions that lacked announcement phrasing (never auto-inserted) */
   weakCandidates?: number;
   /** First few candidate excerpts — lets ops eyeball false positives in /api/health */

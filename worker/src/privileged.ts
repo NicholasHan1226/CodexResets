@@ -47,12 +47,9 @@ export async function privDeletePush(env: Env, endpoint: string): Promise<Respon
   return sb(env, `push_subscriptions?endpoint=eq.${encodeURIComponent(endpoint)}`, { method: 'DELETE' }, true);
 }
 
-export async function privDeactivateEmail(env: Env, email: string): Promise<Response> {
-  return sb(env, `subscriptions?email=eq.${encodeURIComponent(email)}`, {
-    method: 'PATCH',
-    headers: { prefer: 'return=minimal' },
-    body: JSON.stringify({ is_active: false, unsubscribed_at: new Date().toISOString() }),
-  }, true);
+/** Remove an address after an explicit unsubscribe, hard bounce, or complaint. */
+export async function privDeleteEmail(env: Env, email: string): Promise<Response> {
+  return sb(env, `subscriptions?email=eq.${encodeURIComponent(email)}`, { method: 'DELETE' }, true);
 }
 
 /** Idempotently activate the address after the Worker-owned double opt-in. */
@@ -61,5 +58,14 @@ export async function privActivateEmail(env: Env, email: string): Promise<Respon
     method: 'POST',
     headers: { prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify([{ email, is_active: true, unsubscribed_at: null }]),
+  }, true);
+}
+
+/** Mark a human-confirmed reset as delivered only after a successful fan-out. */
+export async function privMarkResetNotified(env: Env, id: string): Promise<Response> {
+  return sb(env, `reset_records?id=eq.${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { prefer: 'return=minimal' },
+    body: JSON.stringify({ notified_at: new Date().toISOString() }),
   }, true);
 }

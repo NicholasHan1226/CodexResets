@@ -1,6 +1,5 @@
 import { Link } from 'react-router';
 import { useI18n } from '@/contexts/I18nContext';
-import { PredictionAccuracy } from '@/sections/PredictionAccuracy';
 
 export default function About() {
   const { t } = useI18n();
@@ -85,10 +84,6 @@ export default function About() {
             </p>
           </div>
         </section>
-
-        {/* === Prediction accuracy === */}
-        <hr className="my-10 border-border/30" />
-        <PredictionAccuracy />
 
         {/* === Data sources & disclaimer === */}
         <hr className="my-10 border-border/30" />

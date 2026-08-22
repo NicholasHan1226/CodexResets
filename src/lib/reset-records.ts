@@ -36,6 +36,7 @@ export async function fetchResetRecords(): Promise<ResetRecord[]> {
     const { data, error } = await supabase
       .from('reset_records')
       .select('*')
+      .eq('verified', true)
       .order('reset_date', { ascending: false });
 
     if (error) {

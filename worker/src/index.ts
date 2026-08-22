@@ -8,6 +8,7 @@ import {
   handleConfirmEmail,
   handleUnsubscribePush,
   handleUnsubscribeEmail,
+  handleResendWebhook,
   handleRun,
   handleTestEmail,
 } from './routes';
@@ -43,6 +44,9 @@ export default {
           return await handleUnsubscribePush(request, env);
         case '/api/unsubscribe':
           return await handleUnsubscribeEmail(url, env);
+        case '/api/webhooks/resend':
+          if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+          return await handleResendWebhook(request, env);
         case '/api/run':
           if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
           return await handleRun(request, env);

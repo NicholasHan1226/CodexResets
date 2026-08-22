@@ -1,6 +1,6 @@
 import type { Env, HealthCheck, HealthChecks, RunReport } from './types';
 import { json, html, escapeHtml, verifyToken } from './util';
-import { hasPrivilegedAccess, privUpsertPush, privDeletePush, privDeactivateEmail, privActivateEmail } from './privileged';
+import { hasPrivilegedAccess, privUpsertPush, privDeletePush, privDeleteEmail, privActivateEmail } from './privileged';
 import { runPipeline } from './pipeline';
 import { sendSubscriptionConfirmation, sendTestEmail } from './notify';
 
@@ -9,6 +9,8 @@ const CONFIRM_TTL_SECONDS = 24 * 60 * 60;
 const REQUEST_COOLDOWN_SECONDS = 5 * 60;
 const IP_RATE_WINDOW_SECONDS = 10 * 60;
 const IP_RATE_LIMIT = 5;
+const WEBHOOK_REPLAY_TTL_SECONDS = 7 * 24 * 60 * 60;
+const WEBHOOK_MAX_AGE_MS = 5 * 60 * 1000;
 
 /** GET /api/signals — the snapshot the browser consumes */
 export async function handleSignals(env: Env): Promise<Response> {
@@ -143,8 +145,41 @@ export async function handleUnsubscribeEmail(url: URL, env: Env): Promise<Respon
   const ok = await verifyToken(email, token, env.UNSUBSCRIBE_SECRET);
   if (!ok) return html(unsubPage('Invalid or expired unsubscribe link.', false), 403);
 
-  await privDeactivateEmail(env, email);
+  const res = await privDeleteEmail(env, email);
+  if (!res.ok) return html(unsubPage('We could not process this unsubscribe request. Please try again later.', false), 502);
   return html(unsubPage(`<b>${escapeHtml(email)}</b> has been unsubscribed. You will no longer receive reset alerts.`, true));
+}
+
+/** POST /api/webhooks/resend — signed bounce and complaint suppression. */
+export async function handleResendWebhook(request: Request, env: Env): Promise<Response> {
+  if (!env.RESEND_WEBHOOK_SECRET || !hasPrivilegedAccess(env)) return json({ error: 'webhook not configured' }, 503);
+  const raw = await request.text();
+  const id = request.headers.get('svix-id') || '';
+  const timestamp = request.headers.get('svix-timestamp') || '';
+  const signature = request.headers.get('svix-signature') || '';
+  if (!await verifyResendWebhook(raw, id, timestamp, signature, env.RESEND_WEBHOOK_SECRET)) {
+    return json({ error: 'invalid webhook signature' }, 401);
+  }
+
+  const replayKey = `resend:webhook:${id}`;
+  if (await env.CACHE.get(replayKey)) return json({ ok: true, duplicate: true });
+  let event: { type?: string; data?: { to?: unknown } };
+  try {
+    event = JSON.parse(raw) as { type?: string; data?: { to?: unknown } };
+  } catch {
+    return json({ error: 'invalid webhook body' }, 400);
+  }
+  if (event.type === 'email.bounced' || event.type === 'email.complained') {
+    const recipients = Array.isArray(event.data?.to)
+      ? event.data.to.filter((value): value is string => typeof value === 'string' && EMAIL_RE.test(value)).map((value) => value.toLowerCase())
+      : [];
+    for (const email of recipients) {
+      const res = await privDeleteEmail(env, email);
+      if (!res.ok) return json({ error: `subscription cleanup failed: ${res.status}` }, 502);
+    }
+  }
+  await env.CACHE.put(replayKey, '1', { expirationTtl: WEBHOOK_REPLAY_TTL_SECONDS });
+  return json({ ok: true });
 }
 
 /** POST /api/subscribe/email — begin a double opt-in email subscription. */
@@ -267,6 +302,45 @@ async function verifyTurnstile(env: Env, token: string, clientIp: string): Promi
   } catch {
     return false;
   }
+}
+
+/** Verify Resend/Svix HMAC over the raw body and reject stale replays. */
+async function verifyResendWebhook(
+  payload: string,
+  id: string,
+  timestamp: string,
+  signatureHeader: string,
+  secret: string,
+): Promise<boolean> {
+  const timestampMs = Number(timestamp) * 1000;
+  if (!id || !Number.isFinite(timestampMs) || Math.abs(Date.now() - timestampMs) > WEBHOOK_MAX_AGE_MS) return false;
+  const encodedSecret = secret.replace(/^whsec_/, '');
+  let keyBytes: Uint8Array;
+  try {
+    keyBytes = base64Bytes(encodedSecret);
+  } catch {
+    return false;
+  }
+  const signatures = signatureHeader.split(' ').flatMap((part) => {
+    const [version, value] = part.split(',', 2);
+    return version === 'v1' && value ? [value] : [];
+  });
+  if (signatures.length === 0) return false;
+  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+  const message = new TextEncoder().encode(`${id}.${timestamp}.${payload}`);
+  for (const signature of signatures) {
+    try {
+      if (await crypto.subtle.verify('HMAC', key, base64Bytes(signature), message)) return true;
+    } catch {
+      // Try a rotated signature, if one was supplied.
+    }
+  }
+  return false;
+}
+
+function base64Bytes(value: string): Uint8Array {
+  const decoded = atob(value.replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(decoded, (char) => char.charCodeAt(0));
 }
 
 function isCronAuthorized(request: Request, env: Env): boolean {

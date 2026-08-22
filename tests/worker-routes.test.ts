@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { handleConfirmEmail, handleHealth, handleSignals, handleSubscribeEmail, handleTestEmail } from '../worker/src/routes';
+import { handleConfirmEmail, handleHealth, handleResendWebhook, handleSignals, handleSubscribeEmail, handleTestEmail } from '../worker/src/routes';
 import { sendHealthAlert } from '../worker/src/notify';
 import type { Env } from '../worker/src/types';
 import { detectResetEvents, scrapeTweets } from '../worker/src/scrape';
@@ -26,7 +26,23 @@ function emailEnv(cacheEntries: Record<string, string | null> = {}): Env {
     SITE_URL: 'https://codexresets.cc',
     CRON_SECRET: 'cron-test-secret',
     HEALTH_ALERT_EMAIL: 'ops@example.test',
+    RESEND_WEBHOOK_SECRET: 'whsec_c2VjcmV0',
   };
+}
+
+async function resendWebhookRequest(body: string, id = 'msg_test_123'): Promise<Request> {
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode('secret'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${id}.${timestamp}.${body}`));
+  return new Request('https://api.example.test/api/webhooks/resend', {
+    method: 'POST',
+    headers: {
+      'svix-id': id,
+      'svix-timestamp': timestamp,
+      'svix-signature': `v1,${Buffer.from(signature).toString('base64')}`,
+    },
+    body,
+  });
 }
 
 describe('pipeline read endpoints', () => {
@@ -252,6 +268,56 @@ describe('pipeline read endpoints', () => {
       await expect(response.text()).resolves.toContain('Server not configured');
       expect(fetchMock).not.toHaveBeenCalled();
       expect(cache[`subscribe:confirm:${token}`]).toBeDefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('deletes bounced email addresses only after verifying the raw Resend signature', async () => {
+    const cache: Record<string, string | null> = {};
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const body = JSON.stringify({ type: 'email.bounced', data: { to: ['bounced@example.test'] } });
+      const response = await handleResendWebhook(await resendWebhookRequest(body), emailEnv(cache));
+
+      expect(response.status).toBe(200);
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('https://db.example.test/rest/v1/subscriptions?email=eq.bounced%40example.test');
+      expect(Object.keys(cache).some((key) => key.startsWith('resend:webhook:msg_test_123'))).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('rejects unsigned Resend requests before touching subscriptions', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const response = await handleResendWebhook(new Request('https://api.example.test/api/webhooks/resend', {
+        method: 'POST',
+        headers: { 'svix-id': 'msg_fake', 'svix-timestamp': String(Math.floor(Date.now() / 1000)), 'svix-signature': 'v1,invalid' },
+        body: JSON.stringify({ type: 'email.complained', data: { to: ['reader@example.test'] } }),
+      }), emailEnv());
+
+      expect(response.status).toBe(401);
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('deduplicates a valid Resend webhook delivery', async () => {
+    const cache: Record<string, string | null> = {};
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const body = JSON.stringify({ type: 'email.complained', data: { to: ['reader@example.test'] } });
+      const first = await handleResendWebhook(await resendWebhookRequest(body, 'msg_duplicate'), emailEnv(cache));
+      const duplicate = await handleResendWebhook(await resendWebhookRequest(body, 'msg_duplicate'), emailEnv(cache));
+
+      expect(first.status).toBe(200);
+      await expect(duplicate.json()).resolves.toEqual({ ok: true, duplicate: true });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     } finally {
       vi.unstubAllGlobals();
     }

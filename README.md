@@ -26,6 +26,12 @@ protected `POST /api/test-email` delivery exercise for an administrator: it
 requires `Authorization: Bearer $CRON_SECRET`, accepts exactly one JSON email
 recipient, and never reads subscribers or runs the pipeline.
 
+Newly scraped reset notices are recorded as pending and need a human to set
+`reset_records.verified = true` in Supabase before they affect the model or
+trigger subscriber delivery. Resend `email.bounced` and `email.complained`
+webhooks are HMAC-verified at `POST /api/webhooks/resend` and delete the
+affected subscription.
+
 ## Local development
 
 ```bash
