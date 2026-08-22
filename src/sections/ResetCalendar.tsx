@@ -93,7 +93,7 @@ export function ResetCalendar() {
                   }`}
                   title={
                     day.count > 0
-                      ? `${day.date.toLocaleDateString()} — ${day.resets[0].reason}`
+                      ? day.date.toLocaleDateString()
                       : day.count === 0
                         ? day.date.toLocaleDateString()
                         : ''
