@@ -46,21 +46,18 @@ or any other secret in an `VITE_*` variable or this file.
 
 ## Delivery
 
-### Quality CI
-
-`.github/workflows/ci.yml` runs on pull requests and changes to `main`:
-
-1. frontend lint, unit tests, and production build;
-2. Worker TypeScript check; and
-3. Worker `wrangler deploy --dry-run` bundle validation.
-
 ### Cloudflare Pages
 
 The Pages project is `codex-resets`. Its intended Git integration is
 `NicholasHan1226/CodexResets`, production branch `main`, build command
-`pnpm --dir worker install --frozen-lockfile && pnpm run lint && pnpm test && pnpm run build`, and output directory `dist`.
+`pnpm --dir worker install --frozen-lockfile && pnpm run quality:cloudflare`, and output directory `dist`.
 That makes Cloudflare build a preview for pull requests and publish production
 after a successful build of `main`.
+
+Cloudflare Pages is the only quality gate. `quality:cloudflare` runs frontend
+lint, unit tests, the production bundle check, Worker TypeScript validation,
+and a Worker bundle dry run before assets are published. GitHub Actions is
+deliberately not used for this project.
 
 Until Git integration is active, deploy a validated `dist/` through the Pages
 dashboard or with an authorized Wrangler session:
@@ -97,3 +94,8 @@ For Pages, confirm that the deployed JavaScript references
 a release regresses, use the prior successful Cloudflare Pages deployment;
 for the Worker, roll traffic back to the prior Worker version in the
 Cloudflare dashboard.
+
+`/api/health` is a monitor-ready endpoint: it returns HTTP 503 when the last
+scheduled run or signal snapshot is missing, failed, or older than 90 minutes.
+Use that endpoint as the alert target; the response includes non-secret check
+states for diagnosis.

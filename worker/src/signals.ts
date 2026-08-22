@@ -1,5 +1,5 @@
 import type { Env, ScrapeResult, SignalSnapshot, SignalsPayload } from './types';
-import { RESET_RE, CONTEXT_RE, ANNOUNCE_RE } from './scrape';
+import { RESET_RE, CONTEXT_RE, isResetAnnouncement } from './scrape';
 
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
@@ -91,7 +91,7 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
     hoursSinceResetMention !== null &&
     hoursSinceResetMention < 24 &&
     latestResetTweet &&
-    ANNOUNCE_RE.test(latestResetTweet.text)
+    isResetAnnouncement(latestResetTweet.text)
   ) {
     return {
       ...base,

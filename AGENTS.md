@@ -18,6 +18,7 @@ pnpm install          # Install dependencies
 pnpm run dev          # Start dev server (Vite HMR)
 pnpm run build        # Production build
 pnpm run lint         # ESLint check
+pnpm run quality:cloudflare # Pages quality gate: lint, tests, frontend/Worker validation
 npx tsc -b --noEmit  # TypeScript check
 ```
 
@@ -140,5 +141,6 @@ src/
 
 ## Deployment
 - Cloudflare Pages: `codexresets.cc` (project `codex-resets`)
+- The Pages Git build command is `pnpm --dir worker install --frozen-lockfile && pnpm run quality:cloudflare`; it is the only CI quality gate. Do not reintroduce a duplicate GitHub Actions workflow without an explicit branch-protection requirement.
 - Deploy: `CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... npx wrangler pages deploy dist --project-name=codex-resets --commit-dirty=true`
 - Supabase: email subscriptions (`subscriptions` table) + reset records

@@ -154,11 +154,19 @@ function parseNitterDate(title: string): number | null {
 
 // Reset detection patterns — module scope so the signal builder shares them
 export const RESET_RE = /\breset(s|ting)?\b/i;
-export const CONTEXT_RE = /(limit|usage|quota|credit|paid|users?|codex|weekly|bank|everyone)/i;
-// Announcement-style phrasing: an actual reset notice asserts a completed or
-// current event. Without one of these tokens the mention is almost always
-// noise ("Occasional resets ✅" feature lists, "when do limits reset" questions).
-export const ANNOUNCE_RE = /(now|today|tonight|just|again|live|everyone|all users|rolled|fresh|has been|have been|should be|got reset|went out|effective|resetting)/i;
+// A generic "users" or "everyone" mention is not enough: it promoted launch
+// updates and celebration posts to reset candidates. Keep the Codex/limit
+// context explicit so a reset is about product access rather than any reset.
+export const CONTEXT_RE = /(?:\bcodex\b|usage\s+limits?|rate\s+limits?|quota|credits?|banked\s+reset)/i;
+// Announcement-style phrasing must assert that a reset became available.
+// Precision matters more than recall: weak mentions remain visible in health,
+// whereas a false inserted reset distorts the model for several days.
+export const ANNOUNCE_RE = /(?:\b(?:usage\s+limits?|rate\s+limits?|quota|credits?)\s+(?:are|is|were|was|have|has|just)?\s*reset(?:ting)?\b|\b(?:banked\s+)?reset\s+(?:has|have|just)?\s*(?:landed|arrived|rolled(?:\s+out)?|gone\s+live|went\s+live|is\s+live|are\s+live)\b|\b(?:all|everyone)\s+(?:paid\s+)?users?\s+(?:should|have|has|can)\s+(?:now\s+)?(?:see|use|access|have)\b)/i;
+const QUESTION_RE = /(?:\?|^\s*(?:when|will|would|can|does|do|how)\b)/i;
+
+export function isResetAnnouncement(text: string): boolean {
+  return ANNOUNCE_RE.test(text) && !QUESTION_RE.test(text);
+}
 
 export interface ResetDetection {
   /** reset + context + announcement phrasing — safe to auto-insert */
@@ -179,7 +187,7 @@ export function detectResetEvents(tweets: Tweet[]): ResetDetection {
   const toEvent = (t: Tweet): ResetEvent => ({ ts: t.ts, text: t.text.slice(0, 280), link: t.link });
   const matched = tweets.filter((t) => RESET_RE.test(t.text) && CONTEXT_RE.test(t.text));
   return {
-    strong: matched.filter((t) => ANNOUNCE_RE.test(t.text)).map(toEvent),
-    weak: matched.filter((t) => !ANNOUNCE_RE.test(t.text)).map(toEvent),
+    strong: matched.filter((t) => isResetAnnouncement(t.text)).map(toEvent),
+    weak: matched.filter((t) => !isResetAnnouncement(t.text)).map(toEvent),
   };
 }

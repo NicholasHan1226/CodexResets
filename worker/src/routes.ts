@@ -1,4 +1,4 @@
-import type { Env } from './types';
+import type { Env, HealthCheck, HealthChecks, RunReport } from './types';
 import { json, html, escapeHtml, verifyToken } from './util';
 import { hasPrivilegedAccess, privUpsertPush, privDeletePush, privDeactivateEmail } from './privileged';
 import { runPipeline } from './pipeline';
@@ -21,11 +21,16 @@ export async function handleSignals(env: Env): Promise<Response> {
 export async function handleHealth(env: Env): Promise<Response> {
   const lastRun = await env.CACHE.get('health:last_run');
   const signals = await env.CACHE.get('signals:latest');
+  const report = parseJson<RunReport>(lastRun);
+  const snapshot = parseJson<{ generatedAt?: number }>(signals);
+  const checks = healthChecks(report, snapshot?.generatedAt);
+  const ok = checks.lastRun === 'ok' && checks.signals === 'ok';
   return json({
-    ok: true,
+    ok,
     now: new Date().toISOString(),
-    lastRun: lastRun ? JSON.parse(lastRun) : null,
-    signalsGeneratedAt: signals ? JSON.parse(signals).generatedAt : null,
+    lastRun: report,
+    signalsGeneratedAt: snapshot?.generatedAt ?? null,
+    checks,
     configured: {
       serviceRole: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
       pipelineSecret: Boolean(env.PIPELINE_SECRET),
@@ -33,7 +38,37 @@ export async function handleHealth(env: Env): Promise<Response> {
       vapid: Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY),
       unsubscribe: Boolean(env.UNSUBSCRIBE_SECRET),
     },
-  });
+  }, ok ? 200 : 503);
+}
+
+const HEALTH_STALE_MS = 90 * 60 * 1000;
+
+function healthChecks(report: RunReport | null, signalsGeneratedAt: number | undefined): HealthChecks {
+  const now = Date.now();
+  return {
+    lastRun: reportCheck(report, now),
+    signals: timestampCheck(signalsGeneratedAt, now),
+  };
+}
+
+function reportCheck(report: RunReport | null, now: number): HealthCheck {
+  if (!report) return 'missing';
+  if (report.scrape !== 'ok' || report.errors.length > 0) return 'failed';
+  return timestampCheck(Date.parse(report.startedAt), now);
+}
+
+function timestampCheck(timestamp: number | undefined, now: number): HealthCheck {
+  if (!timestamp || !Number.isFinite(timestamp)) return 'missing';
+  return now - timestamp <= HEALTH_STALE_MS ? 'ok' : 'stale';
+}
+
+function parseJson<T>(raw: string | null): T | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
 }
 
 interface PushSubscribeBody {

@@ -84,3 +84,10 @@ export interface RunReport {
   notifiedPush: number;
   errors: string[];
 }
+
+export type HealthCheck = 'ok' | 'missing' | 'stale' | 'failed';
+
+export interface HealthChecks {
+  lastRun: HealthCheck;
+  signals: HealthCheck;
+}
