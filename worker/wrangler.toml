@@ -31,6 +31,7 @@ SUPABASE_ANON_KEY = "sb_publishable_xC9TYkofqqQ6f181k7FQ8w_zZFzjeAQ"
 #   HEALTH_ALERT_EMAIL          — receives deduplicated Worker failure alerts
 #   RESEND_WEBHOOK_SECRET       — verifies bounce and complaint webhooks
 #   X_BEARER_TOKEN              — optional official X API app-only token
+#   X_CONSUMER_SECRET           — X app Consumer Secret for Activity webhook CRC/signatures
 
 [[kv_namespaces]]
 binding = "CACHE"

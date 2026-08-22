@@ -10,13 +10,14 @@ import {
   handleUnsubscribePush,
   handleUnsubscribeEmail,
   handleResendWebhook,
+  handleXWebhook,
   handleRun,
   handleTestEmail,
 } from './routes';
 import { runPipeline } from './pipeline';
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders() });
     }
@@ -50,6 +51,9 @@ export default {
         case '/api/webhooks/resend':
           if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
           return await handleResendWebhook(request, env);
+        case '/api/webhooks/x':
+          if (request.method !== 'GET' && request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+          return await handleXWebhook(request, url, env, ctx);
         case '/api/run':
           if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
           return await handleRun(request, env);

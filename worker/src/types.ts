@@ -17,6 +17,8 @@ export interface Env {
   RESEND_WEBHOOK_SECRET?: string;
   /** Optional official X API app-only token for the direct account timeline. */
   X_BEARER_TOKEN?: string;
+  /** X app Consumer Secret, used only to authenticate X Activity webhooks. */
+  X_CONSUMER_SECRET?: string;
   UNSUBSCRIBE_SECRET?: string;
   CRON_SECRET?: string;
   RSSHUB_INSTANCES: string;

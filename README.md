@@ -43,6 +43,10 @@ a reset. Daily non-PII run and delivery metrics are retained in Worker KV for
 31 days and exposed only through the operational health response.
 Resend `email.bounced` and `email.complained` webhooks are HMAC-verified at
 `POST /api/webhooks/resend` and delete the affected subscription.
+X Activity `post.create` events are received at
+`GET|POST /api/webhooks/x`: GET performs X's recurring CRC proof and signed
+POST deliveries only accelerate a fresh official-timeline pipeline run. They
+do not bypass the stabilization or correction window.
 
 ## Mainland-user behavior
 
@@ -88,9 +92,13 @@ Never put a service-role key, `CRON_SECRET`, VAPID private key, Resend API key,
 or any other secret in an `VITE_*` variable or this file.
 
 For a stable primary source, configure the optional Worker secret
-`X_BEARER_TOKEN` with an app-only X API bearer token. Without it, the Worker
-continues using public mirrors and never lets a news-only fallback create an
-automatic alert.
+`X_BEARER_TOKEN` with an app-only X API bearer token. To receive real-time X
+Activity `post.create` events, also configure `X_CONSUMER_SECRET` (the X app
+Consumer Secret) and register `https://api.codexresets.cc/api/webhooks/x` in
+the X Developer Console. Webhook deliveries are authenticated with that secret
+and only accelerate a fresh official-timeline read; they never create an alert
+directly. Without the bearer token, the Worker continues using public mirrors
+and never lets a news-only fallback create an automatic alert.
 
 Email subscription intake requires a Cloudflare Turnstile token with the
 `subscribe_email` action. Configure its server-side `TURNSTILE_SECRET` as a

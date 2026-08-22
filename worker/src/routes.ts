@@ -11,6 +11,7 @@ const IP_RATE_WINDOW_SECONDS = 10 * 60;
 const IP_RATE_LIMIT = 5;
 const WEBHOOK_REPLAY_TTL_SECONDS = 7 * 24 * 60 * 60;
 const WEBHOOK_MAX_AGE_MS = 5 * 60 * 1000;
+const X_WEBHOOK_MAX_BYTES = 256 * 1024;
 
 /** GET /api/signals — the snapshot the browser consumes */
 export async function handleSignals(env: Env): Promise<Response> {
@@ -214,6 +215,62 @@ export async function handleResendWebhook(request: Request, env: Env): Promise<R
   return json({ ok: true });
 }
 
+/**
+ * X Activity webhook. GET completes X's recurring CRC ownership proof; POST
+ * accepts only signed post.create events, then starts the existing pipeline in
+ * the background. The pipeline still reads the official account timeline, so
+ * a webhook is an acceleration signal rather than an unverified alert source.
+ */
+export async function handleXWebhook(request: Request, url: URL, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const secret = env.X_CONSUMER_SECRET;
+  if (!secret) return json({ error: 'webhook not configured' }, 503);
+
+  if (request.method === 'GET') {
+    const token = url.searchParams.get('crc_token') || '';
+    if (!token || token.length > 4096) return json({ error: 'missing crc token' }, 400);
+    return json({ response_token: `sha256=${await hmacBase64(secret, new TextEncoder().encode(token))}` });
+  }
+
+  const raw = await readBodyWithin(request, X_WEBHOOK_MAX_BYTES);
+  if (!raw) return json({ error: 'payload too large' }, 413);
+  const signature = request.headers.get('x-twitter-webhooks-signature') || '';
+  if (!await verifyXWebhookSignature(raw, signature, secret)) return json({ error: 'invalid webhook signature' }, 401);
+
+  let event: XActivityEvent;
+  try {
+    event = JSON.parse(new TextDecoder().decode(raw)) as XActivityEvent;
+  } catch {
+    return json({ error: 'invalid webhook body' }, 400);
+  }
+  const data = event.data;
+  if (data?.event_type !== 'post.create' || !isXPost(data.payload) || !data.event_uuid) return json({ ok: true, ignored: true });
+
+  const replayKey = `x:webhook:${data.event_uuid}`;
+  if (await env.CACHE.get(replayKey)) return json({ ok: true, duplicate: true });
+  await env.CACHE.put(replayKey, '1', { expirationTtl: WEBHOOK_REPLAY_TTL_SECONDS });
+  ctx.waitUntil(runPipeline(env, 'x-webhook'));
+  return json({ ok: true });
+}
+
+interface XActivityEvent {
+  data?: {
+    event_uuid?: string;
+    event_type?: string;
+    payload?: XActivityPost;
+  };
+}
+
+interface XActivityPost {
+  id?: string;
+  text?: string;
+  created_at?: string;
+}
+
+function isXPost(payload: XActivityPost | undefined): payload is Required<XActivityPost> {
+  if (!payload || typeof payload.id !== 'string' || typeof payload.text !== 'string' || typeof payload.created_at !== 'string') return false;
+  return payload.id.length > 0 && payload.text.length > 0 && Number.isFinite(Date.parse(payload.created_at));
+}
+
 /** POST /api/subscribe/email — begin a double opt-in email subscription. */
 export async function handleSubscribeEmail(request: Request, env: Env): Promise<Response> {
   let body: { email?: string; turnstileToken?: string };
@@ -368,6 +425,62 @@ async function verifyResendWebhook(
     }
   }
   return false;
+}
+
+/** Verify the X HMAC header against the untouched request bytes. */
+async function verifyXWebhookSignature(payload: Uint8Array, signature: string, secret: string): Promise<boolean> {
+  if (!signature.startsWith('sha256=')) return false;
+  let supplied: Uint8Array;
+  try {
+    supplied = base64Bytes(signature.slice('sha256='.length));
+  } catch {
+    return false;
+  }
+  try {
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+    return await crypto.subtle.verify('HMAC', key, supplied, payload);
+  } catch {
+    return false;
+  }
+}
+
+async function hmacBase64(secret: string, message: Uint8Array): Promise<string> {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const signature = await crypto.subtle.sign('HMAC', key, message);
+  let binary = '';
+  for (const byte of new Uint8Array(signature)) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+/** Keep public webhook requests bounded before decoding or parsing them. */
+async function readBodyWithin(request: Request, maxBytes: number): Promise<Uint8Array | null> {
+  const length = Number(request.headers.get('content-length'));
+  if (Number.isFinite(length) && length > maxBytes) return null;
+  if (!request.body) return new Uint8Array();
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      total += next.value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(next.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
 }
 
 function base64Bytes(value: string): Uint8Array {

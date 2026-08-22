@@ -45,12 +45,15 @@ some regions — do not rely on it).
   GET /api/health/details,
   POST /api/subscribe/push, POST /api/unsubscribe/push,
   GET /api/unsubscribe (HMAC email), POST /api/webhooks/resend (Svix-signed),
+  GET/POST /api/webhooks/x (X CRC + signed Activity events),
   POST /api/run (Bearer CRON_SECRET)
 - Deploy: `cd worker && CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... npx wrangler deploy`
 - Secrets set: SUPABASE_SERVICE_ROLE_KEY, VAPID_PRIVATE_KEY,
   UNSUBSCRIBE_SECRET, CRON_SECRET, RESEND_API_KEY (send-only restricted key),
   TURNSTILE_SECRET, HEALTH_ALERT_EMAIL, RESEND_WEBHOOK_SECRET, optional
-  X_BEARER_TOKEN.
+  X_BEARER_TOKEN, X_CONSUMER_SECRET. The X webhook only accelerates the
+  existing official-timeline pipeline; it never bypasses stabilization or
+  creates an alert from an unverified payload.
 - Privileged DB access (`src/privileged.ts`) is service-role REST only. No
   database RPC accepts a shared pipeline secret or anonymous caller.
 - Resend remains the outbound email delivery provider; it is independent of

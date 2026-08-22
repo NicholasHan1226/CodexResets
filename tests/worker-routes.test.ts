@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { handleConfirmEmail, handleHealth, handleHealthDetails, handleResendWebhook, handleSignals, handleSubscribeEmail, handleTestEmail } from '../worker/src/routes';
+import { handleConfirmEmail, handleHealth, handleHealthDetails, handleResendWebhook, handleSignals, handleSubscribeEmail, handleTestEmail, handleXWebhook } from '../worker/src/routes';
 import { isExpiredPushEndpoint, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
 import { getStatusEvidence } from '../worker/src/signals';
 import { shouldSendHealthAlert } from '../worker/src/pipeline';
@@ -43,6 +43,16 @@ async function resendWebhookRequest(body: string, id = 'msg_test_123'): Promise<
       'svix-timestamp': timestamp,
       'svix-signature': `v1,${Buffer.from(signature).toString('base64')}`,
     },
+    body,
+  });
+}
+
+async function xWebhookRequest(body: string, secret = 'x-consumer-test-secret'): Promise<Request> {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body));
+  return new Request('https://api.example.test/api/webhooks/x', {
+    method: 'POST',
+    headers: { 'x-twitter-webhooks-signature': `sha256=${Buffer.from(signature).toString('base64')}` },
     body,
   });
 }
@@ -104,6 +114,69 @@ describe('pipeline read endpoints', () => {
   it('requires the private cron credential for detailed health diagnostics', async () => {
     const response = await handleHealthDetails(new Request('https://api.example.test/api/health/details'), emailEnv());
     expect(response.status).toBe(401);
+  });
+
+  it('answers X webhook CRC checks without exposing the consumer secret', async () => {
+    const secret = 'x-consumer-test-secret';
+    const response = await handleXWebhook(
+      new Request('https://api.example.test/api/webhooks/x?crc_token=challenge-123'),
+      new URL('https://api.example.test/api/webhooks/x?crc_token=challenge-123'),
+      { ...envWith({}), X_CONSUMER_SECRET: secret },
+      { waitUntil: vi.fn() } as unknown as ExecutionContext,
+    );
+    const body = await response.json() as { response_token: string };
+    expect(response.status).toBe(200);
+    expect(body.response_token).toMatch(/^sha256=/);
+    expect(body.response_token).not.toContain(secret);
+  });
+
+  it('rejects unsigned X webhook deliveries and accepts safely ignored signed events', async () => {
+    const secret = 'x-consumer-test-secret';
+    const body = JSON.stringify({ data: { event_uuid: 'evt-1', event_type: 'profile.update.bio', payload: {} } });
+    const env = { ...envWith({}), X_CONSUMER_SECRET: secret };
+    const unsigned = await handleXWebhook(
+      new Request('https://api.example.test/api/webhooks/x', { method: 'POST', body }),
+      new URL('https://api.example.test/api/webhooks/x'), env,
+      { waitUntil: vi.fn() } as unknown as ExecutionContext,
+    );
+    expect(unsigned.status).toBe(401);
+
+    const signed = await handleXWebhook(
+      await xWebhookRequest(body, secret),
+      new URL('https://api.example.test/api/webhooks/x'), env,
+      { waitUntil: vi.fn() } as unknown as ExecutionContext,
+    );
+    expect(signed.status).toBe(200);
+    await expect(signed.json()).resolves.toEqual({ ok: true, ignored: true });
+  });
+
+  it('starts the existing pipeline in the background for a signed X post event', async () => {
+    const secret = 'x-consumer-test-secret';
+    const pending: Promise<unknown>[] = [];
+    const waitUntil = vi.fn((promise: Promise<unknown>) => { pending.push(promise); });
+    const fetchMock = vi.fn(async () => new Response('unavailable', { status: 503 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const body = JSON.stringify({
+        data: {
+          event_uuid: 'evt-post-1',
+          event_type: 'post.create',
+          payload: { id: 'post-1', text: 'Codex usage limits reset.', created_at: '2026-08-23T00:00:00.000Z' },
+        },
+      });
+      const response = await handleXWebhook(
+        await xWebhookRequest(body, secret),
+        new URL('https://api.example.test/api/webhooks/x'),
+        { ...envWith({}), X_CONSUMER_SECRET: secret, RSSHUB_INSTANCES: '', TARGET_ACCOUNT: 'thsottiaux' },
+        { waitUntil } as unknown as ExecutionContext,
+      );
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ ok: true });
+      expect(waitUntil).toHaveBeenCalledOnce();
+      await Promise.all(pending);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('preserves full diagnostics only for the authorized operations path', async () => {
