@@ -14,7 +14,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 
 export default function Home() {
-  const { prediction, isLive, signalsLoading, usingRealData, refresh } = usePrediction();
+  const { prediction, isLive, signalsLoading, refresh } = usePrediction();
   const { t } = useI18n();
   const [timeframe, setTimeframe] = useState<24 | 48>(24);
 
@@ -90,9 +90,6 @@ export default function Home() {
           {/* Footer */}
           <footer className="mt-10 pt-6 border-t border-border/30" role="contentinfo">
             <p className="text-xs text-muted-foreground">{t('footer.disclaimer')}</p>
-            <p className="mt-1 font-mono text-[11px] text-muted-foreground/50">
-              {usingRealData ? t('footer.liveData') : t('footer.simulatedData')}
-            </p>
           </footer>
         </main>
       </div>
