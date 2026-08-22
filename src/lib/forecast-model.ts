@@ -1,6 +1,6 @@
-import { calculateResetProbability, fitWeibull } from '@/lib/weibull';
-import { intervalDays, median, mergeResetEpisodes } from '@/lib/reset-episodes';
-import type { ResetRecord, ResetSignal } from '@/types/reset';
+import { calculateResetProbability, fitWeibull } from './weibull';
+import { intervalDays, median, mergeResetEpisodes } from './reset-episodes';
+import type { ResetRecord, ResetSignal } from '../types/reset';
 
 export type ForecastModelName = 'logistic' | 'weibull';
 

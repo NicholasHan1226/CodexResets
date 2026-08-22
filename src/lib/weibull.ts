@@ -5,7 +5,7 @@
  * and provides better fit than simple exponential decay for reset patterns.
  */
 
-import type { ResetRecord } from '@/types/reset';
+import type { ResetRecord } from '../types/reset';
 
 // Weibull distribution parameters
 interface WeibullParams {

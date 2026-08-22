@@ -58,6 +58,9 @@ backtests logistic and Weibull interval models against earlier time-ordered
 samples are available. A fresh strong signal from the configured direct source
 can lift only the near-term forecast; it never confirms a reset or changes the
 Worker's automatic stabilization, correction, or notification rules.
+The Worker also retains one non-PII forecast snapshot per UTC day and resolves
+its 24/48-hour outcome after the horizon closes. These private KV samples are
+kept for 120 days and are not shown in the visitor interface.
 
 ## Mainland-user behavior
 

@@ -37,6 +37,8 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   stabilization → automatic correction/confirmation → notify → snapshot to KV
   (`signals:latest`) → health report
   (`health:last_run`)
+- `src/forecast.ts`  — private daily prediction snapshots and automatic
+  24/48-hour outcome resolution in KV; visitor UI does not read these records
 - `src/notify.ts`    — Resend email (HMAC-signed unsubscribe links) +
   Web Push via @block65/webcrypto-web-push (prunes 404/410 endpoints)
 - Runtime compatibility: `nodejs_compat` is enabled because the Web Push
@@ -84,6 +86,9 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   alert and keep automatic confirmation paused. An active official Codex or
   usage-limit incident is a contradiction gate: it can hold delivery but never
   creates a reset. KV retains a 31-day non-PII delivery roll-up.
+- Forecast calibration retains one non-PII snapshot per UTC day and resolves
+  its 24/48-hour outcomes after the horizon closes. The private forecast
+  evidence is retained for 120 days; it is not public product copy.
 - When the Worker cannot be reached, production browsers stay on the local
   prediction model instead of fanning out to external RSS/status proxies.
   This keeps the site responsive on constrained networks. Email is the primary

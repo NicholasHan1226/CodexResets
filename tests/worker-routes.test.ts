@@ -3,6 +3,7 @@ import { handleConfirmEmail, handleHealth, handleHealthDetails, handleResendWebh
 import { isExpiredPushEndpoint, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
 import { getStatusEvidence } from '../worker/src/signals';
 import { shouldSendHealthAlert } from '../worker/src/pipeline';
+import { recordForecastSnapshot } from '../worker/src/forecast';
 import type { Env, RunReport } from '../worker/src/types';
 import { detectResetEvents, detectResetRetractions, isRetractionForCandidate, isTimelyAutomatedCandidate, scrapeTweets } from '../worker/src/scrape';
 
@@ -594,5 +595,30 @@ describe('pipeline read endpoints', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe('forecast snapshot retention', () => {
+  it('stores a daily forecast and resolves it automatically once its horizon closes', async () => {
+    const cache: Record<string, string | null> = {};
+    const now = Date.parse('2026-08-20T00:00:00Z');
+    const rows = Array.from({ length: 6 }, (_, index) => ({
+      id: `reset-${index}`,
+      reset_date: new Date(now - (index + 1) * 4 * 24 * 60 * 60 * 1000).toISOString(),
+      source_url: null,
+      description: 'verified reset',
+      verified: true,
+      auto_state: 'confirmed' as const,
+    }));
+    const env = envWith(cache);
+
+    await recordForecastSnapshot(env, rows, now);
+    expect(JSON.parse(cache['forecast:latest'] || '{}')).toMatchObject({ model: expect.any(String), prob24h: expect.any(Number), prob48h: expect.any(Number) });
+
+    await recordForecastSnapshot(env, [{
+      ...rows[0], id: 'new-reset', reset_date: new Date(now + 4 * 60 * 60 * 1000).toISOString(),
+    }, ...rows], now + 49 * 60 * 60 * 1000);
+    const evaluations = JSON.parse(cache['forecast:evaluations'] || '[]') as Array<{ resetIn24h: boolean; resetIn48h: boolean }>;
+    expect(evaluations).toEqual(expect.arrayContaining([expect.objectContaining({ resetIn24h: true, resetIn48h: true })]));
   });
 });

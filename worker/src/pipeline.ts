@@ -18,6 +18,7 @@ import {
 } from './privileged';
 import { buildSignalsSnapshot, getStatusEvidence } from './signals';
 import { notifyAll, sendHealthAlert } from './notify';
+import { recordForecastSnapshot } from './forecast';
 
 const HOUR = 3600 * 1000;
 // Seed with the newest bundled reset so the snapshot works before the DB
@@ -179,6 +180,11 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   // 5. Deliver automatically confirmed resets. The earlier migration marked
   // pre-existing confirmed rows as delivered, preventing a historical replay.
   const records = allRecords.filter((record) => record.verified);
+  try {
+    await recordForecastSnapshot(env, records);
+  } catch (err) {
+    report.errors.push(`forecast snapshot: ${err instanceof Error ? err.message : String(err)}`);
+  }
   for (const record of records.filter((row) => !row.notified_at)) {
     const outcome = await notifyAll(env, {
       ts: new Date(record.reset_date).getTime(),

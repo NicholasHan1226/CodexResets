@@ -1,4 +1,4 @@
-import type { ResetRecord } from '@/types/reset';
+import type { ResetRecord } from '../types/reset';
 
 const EPISODE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
