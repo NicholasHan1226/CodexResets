@@ -16,8 +16,7 @@ import {
   privQueueAutomatedReset,
   privRetractAutomatedReset,
 } from './privileged';
-import { buildSignalsSnapshot } from './signals';
-import { getStatusEvidence } from './signals';
+import { buildSignalsSnapshot, getStatusEvidence } from './signals';
 import { notifyAll, sendHealthAlert } from './notify';
 
 const HOUR = 3600 * 1000;
