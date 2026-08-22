@@ -25,6 +25,11 @@ table is sparse, but every production score is still settled only from a
 future, confirmed database outcome. Neither baseline nor regression evidence
 can make the production gate pass.
 
+A direct reset announcement is preserved in the private snapshot for parity
+with the live visitor model, but it is excluded from the formal accuracy gate:
+by the time the pipeline sees that announcement, it is already-observed
+information rather than a future prediction.
+
 ## Why the accuracy gate is strict
 
 The target is not the raw percentage of all 48-hour windows. Most windows may

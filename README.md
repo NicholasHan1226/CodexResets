@@ -81,7 +81,9 @@ This never changes the public UI or bypasses the browser model's existing
 time-ordered model selection.
 When a fresh, timely direct-account reset announcement is present, the Worker
 stores the same bounded probability lift used by the browser in its private
-forecast snapshot, so production calibration evaluates the actual live model.
+forecast snapshot. Because that announcement is already observed rather than
+a future event, those snapshots are excluded from calibration and formal
+release scoring; they cannot inflate the accuracy result.
 An OpenAI-owned Codex changelog is checked as discovery context only; it can
 never create a candidate, raise a forecast, confirm a reset, or send an alert.
 

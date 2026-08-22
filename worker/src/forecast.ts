@@ -180,7 +180,7 @@ export async function getForecastCalibration(env: Env): Promise<ForecastCalibrat
     env.CACHE.get(FORECAST_EVALUATIONS_KEY),
     env.CACHE.get('forecast:latest'),
   ]);
-  const evaluations = parseEvaluations(evaluationsRaw);
+  const evaluations = calibrationEvaluations(parseEvaluations(evaluationsRaw));
   const modelCounts: ForecastCalibration['modelCounts'] = { logistic: 0, weibull: 0 };
   let error24 = 0;
   let error48 = 0;
@@ -217,6 +217,16 @@ export async function getForecastCalibration(env: Env): Promise<ForecastCalibrat
     trend,
     decisionAccuracy48h: forecastDecisionAccuracy(evaluations),
   };
+}
+
+/**
+ * A direct reset announcement is already-observed information when the
+ * pipeline samples it. We retain its snapshot because it mirrors the visitor
+ * model, but exclude it from forward-looking calibration and release scoring.
+ * Otherwise a same-run announcement could inflate a "future" accuracy claim.
+ */
+function calibrationEvaluations(evaluations: ForecastEvaluation[]): ForecastEvaluation[] {
+  return evaluations.filter((evaluation) => !evaluation.strongDirectSignal);
 }
 
 function forecastDecisionAccuracy(evaluations: ForecastEvaluation[]): ForecastDecisionAccuracy {

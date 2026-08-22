@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { hasFreshStrongDirectSignal, probabilityWithin, scoreForecastModels, scoreHighConfidenceDecisions, selectForecastModel } from '../src/lib/forecast-model';
 import { mergeResetEpisodes } from '../src/lib/reset-episodes';
 import { RESET_HISTORY } from '../src/lib/reset-data';
-import { recordForecastSnapshot } from '../worker/src/forecast';
+import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
 import type { Env, ResetRecordRow } from '../worker/src/types';
 import type { ResetRecord, ResetSignal } from '../src/types/reset';
 
@@ -120,5 +120,41 @@ describe('reset episode forecasting', () => {
     expect(JSON.parse(cache['forecast:evaluations'] || '[]')).toEqual([
       expect.objectContaining({ resetIn24h: false, resetIn48h: false }),
     ]);
+  });
+
+  it('excludes direct-announcement samples from formal future-accuracy scoring', async () => {
+    const cache: Record<string, string> = {
+      'forecast:evaluations': JSON.stringify([
+        {
+          at: Date.parse('2026-08-20T00:00:00Z'), dueAt: Date.parse('2026-08-22T00:00:00Z'),
+          model: 'weibull', prob24h: 0.9, prob48h: 0.9, strongDirectSignal: true,
+          resetIn24h: false, resetIn48h: false,
+        },
+        {
+          at: Date.parse('2026-08-21T00:00:00Z'), dueAt: Date.parse('2026-08-23T00:00:00Z'),
+          model: 'weibull', prob24h: 0.1, prob48h: 0.1,
+          resetIn24h: false, resetIn48h: false,
+        },
+      ]),
+    };
+    const env = {
+      CACHE: {
+        get: async (key: string) => cache[key] ?? null,
+        put: async (key: string, value: string) => { cache[key] = value; },
+      },
+    } as unknown as Env;
+
+    const calibration = await getForecastCalibration(env);
+    expect(calibration).toMatchObject({
+      samples: 1,
+      decisionAccuracy48h: {
+        decisions: 1,
+        correct: 1,
+        positivePredictions: 0,
+        status: 'collecting',
+      },
+    });
+    expect(calibration.brier24h).toBeCloseTo(0.01);
+    expect(calibration.brier48h).toBeCloseTo(0.01);
   });
 });
