@@ -32,8 +32,9 @@ some regions — do not rely on it).
   remain in `attempted[]`; a populated degraded source keeps the run healthy.
 - `src/signals.ts`   — builds the 4-signal snapshot (tibopost / status_page /
   cooldown / launch_noise), mirrors the frontend model
-- `src/pipeline.ts`  — orchestration: scrape → detect → pending insert
-  (service role) → confirmed-only notify → snapshot to KV (`signals:latest`) → health report
+- `src/pipeline.ts`  — orchestration: scrape → detect → direct-source
+  stabilization → automatic correction/confirmation → notify → snapshot to KV
+  (`signals:latest`) → health report
   (`health:last_run`)
 - `src/notify.ts`    — Resend email (HMAC-signed unsubscribe links) +
   Web Push via @block65/webcrypto-web-push (prunes 404/410 endpoints)
@@ -62,6 +63,16 @@ some regions — do not rely on it).
 - WARNING: with RLS on and no policies, PostgREST SELECT returns `[]`
   silently — an "empty table" REST response does NOT prove emptiness.
   Verify via `exec_sql` before concluding anything about row counts.
+
+### Automated reset delivery
+
+- A strong announcement from a direct target-account source enters an
+  `observed` state for one cron interval (30 minutes). The Worker then confirms
+  and notifies automatically; no Supabase dashboard action is required.
+- A later direct-source correction in the 72-hour correction window changes a
+  still-pending automated record to `retracted`, so it cannot affect the model
+  or subscriber delivery. Google News remains discovery-only and cannot create
+  an alert.
 
 ## Project Structure
 ```

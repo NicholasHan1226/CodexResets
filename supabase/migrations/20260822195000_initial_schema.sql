@@ -10,10 +10,16 @@ create table if not exists public.reset_records (
   source_url text,
   description text,
   verified boolean not null default false,
+  automated boolean not null default false,
+  auto_state text not null default 'manual' check (auto_state in ('manual', 'observed', 'confirmed', 'retracted')),
+  auto_confirm_after timestamptz,
+  retracted_at timestamptz,
   notified_at timestamptz,
   created_at timestamptz not null default now()
 );
 create index if not exists reset_records_reset_date_idx on public.reset_records (reset_date desc);
+create index if not exists reset_records_automation_idx on public.reset_records (auto_confirm_after)
+  where automated and not verified and auto_state = 'observed';
 
 create table if not exists public.subscriptions (
   id uuid primary key default gen_random_uuid(),

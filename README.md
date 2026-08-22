@@ -26,11 +26,12 @@ protected `POST /api/test-email` delivery exercise for an administrator: it
 requires `Authorization: Bearer $CRON_SECRET`, accepts exactly one JSON email
 recipient, and never reads subscribers or runs the pipeline.
 
-Newly scraped reset notices are recorded as pending and need a human to set
-`reset_records.verified = true` in Supabase before they affect the model or
-trigger subscriber delivery. Resend `email.bounced` and `email.complained`
-webhooks are HMAC-verified at `POST /api/webhooks/resend` and delete the
-affected subscription.
+Strong notices from the configured target account are automatically recorded,
+held for one scheduled interval, and then confirmed and delivered. A later
+direct-source correction within the stabilization window automatically retracts
+the pending notice. News-only degraded discovery never creates an email alert.
+Resend `email.bounced` and `email.complained` webhooks are HMAC-verified at
+`POST /api/webhooks/resend` and delete the affected subscription.
 
 ## Local development
 

@@ -11,6 +11,9 @@ export interface ResetInsertRow {
   description: string;
   source_url: string;
   verified: boolean;
+  automated?: boolean;
+  auto_state?: 'observed';
+  auto_confirm_after?: string;
 }
 
 export async function privInsertResets(env: Env, rows: ResetInsertRow[]): Promise<Response> {
@@ -61,7 +64,34 @@ export async function privActivateEmail(env: Env, email: string): Promise<Respon
   }, true);
 }
 
-/** Mark a human-confirmed reset as delivered only after a successful fan-out. */
+/** Promote an observed reset after the Worker-owned stabilization window. */
+export async function privConfirmAutomatedReset(env: Env, id: string): Promise<Response> {
+  return sb(env, `reset_records?id=eq.${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { prefer: 'return=minimal' },
+    body: JSON.stringify({ verified: true, auto_state: 'confirmed', auto_confirm_after: null }),
+  }, true);
+}
+
+/** Suppress a pending automated reset after a later correction from the source. */
+export async function privRetractAutomatedReset(env: Env, id: string): Promise<Response> {
+  return sb(env, `reset_records?id=eq.${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { prefer: 'return=minimal' },
+    body: JSON.stringify({ verified: false, auto_state: 'retracted', retracted_at: new Date().toISOString() }),
+  }, true);
+}
+
+/** Enroll a legacy pending discovery in the fully automated lifecycle. */
+export async function privQueueAutomatedReset(env: Env, id: string, confirmAfter: string): Promise<Response> {
+  return sb(env, `reset_records?id=eq.${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { prefer: 'return=minimal' },
+    body: JSON.stringify({ automated: true, auto_state: 'observed', auto_confirm_after: confirmAfter }),
+  }, true);
+}
+
+/** Mark a confirmed reset as delivered only after a successful fan-out. */
 export async function privMarkResetNotified(env: Env, id: string): Promise<Response> {
   return sb(env, `reset_records?id=eq.${encodeURIComponent(id)}`, {
     method: 'PATCH',

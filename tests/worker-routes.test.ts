@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { handleConfirmEmail, handleHealth, handleResendWebhook, handleSignals, handleSubscribeEmail, handleTestEmail } from '../worker/src/routes';
 import { sendHealthAlert } from '../worker/src/notify';
 import type { Env } from '../worker/src/types';
-import { detectResetEvents, scrapeTweets } from '../worker/src/scrape';
+import { detectResetEvents, detectResetRetractions, scrapeTweets } from '../worker/src/scrape';
 
 function envWith(cacheEntries: Record<string, string | null>): Env {
   return {
@@ -107,6 +107,15 @@ describe('pipeline read endpoints', () => {
     expect(detection.weak.map((event) => event.link)).toEqual(['https://example.test/question']);
   });
 
+  it('finds later correction language so pending automated notices can be withdrawn', () => {
+    const retractions = detectResetRetractions([
+      { ts: 1, link: 'https://example.test/correction', text: 'Correction: the Codex banked reset was delayed and has not landed yet.' },
+      { ts: 2, link: 'https://example.test/normal', text: 'Codex usage limits reset for paid users.' },
+    ]);
+
+    expect(retractions.map((event) => event.link)).toEqual(['https://example.test/correction']);
+  });
+
   it('uses Google News as a healthy degraded source when every social mirror is unavailable', async () => {
     const feed = `<?xml version="1.0"?><rss><channel><item>
       <title>Codex usage limits reset for subscribers</title>
@@ -125,7 +134,7 @@ describe('pipeline read endpoints', () => {
         TARGET_ACCOUNT: 'thsottiaux',
       });
 
-      expect(result).toMatchObject({ ok: true, instance: 'google-news' });
+      expect(result).toMatchObject({ ok: true, instance: 'google-news', sourceKind: 'degraded' });
       expect(result.tweets).toHaveLength(1);
       expect(result.tweets[0]?.link).toBe('https://example.test/reset-news');
       expect(result.attempted).toHaveLength(7);

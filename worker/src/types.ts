@@ -31,6 +31,8 @@ export interface Tweet {
 export interface ScrapeResult {
   ok: boolean;
   instance?: string;
+  /** Direct means the configured target account; degraded means news-only discovery. */
+  sourceKind?: 'direct' | 'degraded';
   tweets: Tweet[];
   error?: string;
   attempted?: string[];
@@ -48,7 +50,13 @@ export interface ResetRecordRow {
   source_url: string | null;
   description: string | null;
   verified: boolean;
-  /** Set after a human-confirmed reset has been delivered to subscribers. */
+  /** Worker-managed automated lifecycle. Manual historical rows remain false. */
+  automated?: boolean;
+  auto_state?: 'manual' | 'observed' | 'confirmed' | 'retracted';
+  auto_confirm_after?: string | null;
+  retracted_at?: string | null;
+  created_at?: string;
+  /** Set after a confirmed reset has been delivered to subscribers. */
   notified_at?: string | null;
 }
 
@@ -82,8 +90,14 @@ export interface RunReport {
   scrapeInstance?: string;
   tweetsSeen: number;
   candidates: number;
-  /** Automatically discovered records waiting for a human confirmation. */
+  /** Automatically discovered records entering the stabilization window. */
   pendingInserted?: number;
+  /** Existing or newly observed records queued for automatic confirmation. */
+  autoQueued?: number;
+  /** Records promoted without human intervention after the stabilization window. */
+  autoConfirmed?: number;
+  /** Pending automated records withdrawn after a later correction signal. */
+  autoRetracted?: number;
   /** reset+context mentions that lacked announcement phrasing (never auto-inserted) */
   weakCandidates?: number;
   /** First few candidate excerpts — lets ops eyeball false positives in /api/health */

@@ -51,7 +51,7 @@ export async function scrapeTweets(env: Env): Promise<ScrapeResult> {
         attempted.push(`${base}: 0 items`);
         continue;
       }
-      return { ok: true, instance: base, tweets, attempted };
+      return { ok: true, instance: base, sourceKind: 'direct', tweets, attempted };
     } catch (err) {
       attempted.push(`${base}: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -72,7 +72,7 @@ export async function scrapeTweets(env: Env): Promise<ScrapeResult> {
         attempted.push(`${base}: 0 items`);
         continue;
       }
-      return { ok: true, instance: base, tweets, attempted };
+      return { ok: true, instance: base, sourceKind: 'direct', tweets, attempted };
     } catch (err) {
       attempted.push(`${base}: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -80,7 +80,7 @@ export async function scrapeTweets(env: Env): Promise<ScrapeResult> {
 
   const news = await scrapeNewsMentions();
   if (news.length > 0) {
-    return { ok: true, instance: 'google-news', tweets: news, attempted };
+    return { ok: true, instance: 'google-news', sourceKind: 'degraded', tweets: news, attempted };
   }
   attempted.push('google-news: 0 items');
 
@@ -170,9 +170,15 @@ export const CONTEXT_RE = /(?:\bcodex\b|usage\s+limits?|rate\s+limits?|quota|cre
 // whereas a false inserted reset distorts the model for several days.
 export const ANNOUNCE_RE = /(?:\b(?:usage\s+limits?|rate\s+limits?|quota|credits?)\s+(?:are|is|were|was|have|has|just)?\s*reset(?:ting)?\b|\b(?:banked\s+)?reset\s+(?:has|have|just)?\s*(?:landed|arrived|rolled(?:\s+out)?|gone\s+live|went\s+live|is\s+live|are\s+live)\b|\b(?:all|everyone)\s+(?:paid\s+)?users?\s+(?:should|have|has|can)\s+(?:now\s+)?(?:see|use|access|have)\b)/i;
 const QUESTION_RE = /(?:\?|^\s*(?:when|will|would|can|does|do|how)\b)/i;
+const RETRACTION_RE = /(?:\b(?:correction|incorrect|mistake|false\s+alarm)\b.{0,80}\b(?:reset|rollout|quota|limit)|\b(?:reset|rollout|quota|limit).{0,80}\b(?:was\s+not|wasn't|has\s+not|hasn't|did\s+not|didn't|delayed|postponed|rolled\s+back|reverted|cancelled)\b)/i;
 
 export function isResetAnnouncement(text: string): boolean {
   return ANNOUNCE_RE.test(text) && !QUESTION_RE.test(text);
+}
+
+/** A later direct-source correction prevents pending automated delivery. */
+export function isResetRetraction(text: string): boolean {
+  return CONTEXT_RE.test(text) && RETRACTION_RE.test(text) && !QUESTION_RE.test(text);
 }
 
 export interface ResetDetection {
@@ -197,4 +203,10 @@ export function detectResetEvents(tweets: Tweet[]): ResetDetection {
     strong: matched.filter((t) => isResetAnnouncement(t.text)).map(toEvent),
     weak: matched.filter((t) => !isResetAnnouncement(t.text)).map(toEvent),
   };
+}
+
+export function detectResetRetractions(tweets: Tweet[]): ResetEvent[] {
+  return tweets
+    .filter((tweet) => isResetRetraction(tweet.text))
+    .map((tweet) => ({ ts: tweet.ts, text: tweet.text.slice(0, 280), link: tweet.link }));
 }

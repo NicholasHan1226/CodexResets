@@ -1,7 +1,14 @@
 import type { Env, ResetRecordRow, RunReport } from './types';
-import { scrapeTweets, detectResetEvents } from './scrape';
+import { scrapeTweets, detectResetEvents, detectResetRetractions, isResetAnnouncement } from './scrape';
 import { sbSelect } from './supabase';
-import { hasPrivilegedAccess, privInsertResets, privMarkResetNotified } from './privileged';
+import {
+  hasPrivilegedAccess,
+  privConfirmAutomatedReset,
+  privInsertResets,
+  privMarkResetNotified,
+  privQueueAutomatedReset,
+  privRetractAutomatedReset,
+} from './privileged';
 import { buildSignalsSnapshot } from './signals';
 import { notifyAll, sendHealthAlert } from './notify';
 
@@ -12,6 +19,8 @@ const SEED_RESET_TS = Date.parse('2026-08-13T01:01:00Z');
 const FALLBACK_MEDIAN_DAYS = 3.8;
 const HEALTH_ALERT_COOLDOWN_SECONDS = 6 * 60 * 60;
 const HEALTH_ALERT_KEY = 'health:alert:last_sent';
+const AUTOMATION_STABILIZATION_MS = 30 * 60 * 1000;
+const RETRACTION_WINDOW_MS = 72 * HOUR;
 
 export async function runPipeline(env: Env, trigger: string): Promise<RunReport> {
   const report: RunReport = {
@@ -33,20 +42,19 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   report.tweetsSeen = scrape.tweets.length;
   if (!scrape.ok && scrape.error) report.errors.push(`scrape: ${scrape.error}`);
 
-  // 2. Pending discoveries are retained for dedupe, but only confirmed
-  // records train the model and reach subscribers.
+  // 2. Discoveries go through a Worker-owned stabilization window. A direct
+  // target-account source is required; news-only fallback never promotes a
+  // candidate into subscriber delivery on its own.
   let allRecords: ResetRecordRow[] = [];
   try {
     allRecords = await sbSelect<ResetRecordRow>(env, 'reset_records?select=*&order=reset_date.desc&limit=100', true);
   } catch (err) {
     report.errors.push(`records read: ${err instanceof Error ? err.message : String(err)}`);
   }
-  const records = allRecords.filter((record) => record.verified);
 
-  // 3. Detect reset candidates, dedupe against known records, insert new ones.
-  //    Only strong (announcement-phrased) candidates are auto-inserted; weak
-  //    mentions are logged for manual review. scrapeTweets already uses
-  //    Google News as its final degraded source.
+  // 3. Detect direct-source announcements, dedupe, then start the automated
+  //    stabilization window. Weak mentions and degraded-source news cannot
+  //    create a reset record or trigger delivery.
   const detection = detectResetEvents(scrape.tweets);
   const candidates = detection.strong;
   report.candidates = candidates.length;
@@ -64,7 +72,7 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
       )
   );
 
-  if (fresh.length > 0) {
+  if (fresh.length > 0 && scrape.sourceKind === 'direct') {
     if (!hasPrivilegedAccess(env)) {
       report.errors.push('insert skipped: no privileged DB access (service role key)');
     } else {
@@ -73,10 +81,14 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
         description: c.text,
         source_url: c.link,
         verified: false,
+        automated: true,
+        auto_state: 'observed' as const,
+        auto_confirm_after: new Date(Date.now() + AUTOMATION_STABILIZATION_MS).toISOString(),
       }));
       const res = await privInsertResets(env, rows);
       if (res.ok) {
         report.pendingInserted = rows.length;
+        report.autoQueued = (report.autoQueued || 0) + rows.length;
         allRecords = [
           ...rows.map((r, i) => ({ id: `new-${i}`, ...r })),
           ...allRecords,
@@ -87,8 +99,63 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
     }
   }
 
-  // 4. Deliver only confirmed resets. The migration marks all pre-existing
-  // rows as delivered, so enabling this cannot replay historical alerts.
+  // 4. Automatically enroll older pending discoveries, retract any that have
+  //    a later source correction, and confirm stable ones. This replaces the
+  //    manual database toggle while retaining a reversible pre-delivery state.
+  if (scrape.sourceKind === 'direct' && hasPrivilegedAccess(env)) {
+    const now = Date.now();
+    for (const record of allRecords) {
+      if (record.verified || record.auto_state === 'retracted') continue;
+      if (!record.automated || !record.auto_confirm_after) {
+        if (!record.source_url || !record.description || !isResetAnnouncement(record.description)) continue;
+        const createdAt = Date.parse(record.created_at || record.reset_date);
+        const confirmAfter = new Date(Math.max(now, createdAt + AUTOMATION_STABILIZATION_MS)).toISOString();
+        const queued = await privQueueAutomatedReset(env, record.id, confirmAfter);
+        if (!queued.ok) {
+          report.errors.push(`automation queue: ${queued.status} ${await queued.text()}`);
+          continue;
+        }
+        record.automated = true;
+        record.auto_state = 'observed';
+        record.auto_confirm_after = confirmAfter;
+        report.autoQueued = (report.autoQueued || 0) + 1;
+      }
+    }
+
+    const retractions = detectResetRetractions(scrape.tweets);
+    for (const record of allRecords) {
+      if (!record.automated || record.verified || record.auto_state !== 'observed') continue;
+      const recordedAt = Date.parse(record.reset_date);
+      const retracted = retractions.some((event) => event.ts >= recordedAt && event.ts - recordedAt <= RETRACTION_WINDOW_MS);
+      if (!retracted) continue;
+      const result = await privRetractAutomatedReset(env, record.id);
+      if (!result.ok) {
+        report.errors.push(`automation retract: ${result.status} ${await result.text()}`);
+        continue;
+      }
+      record.auto_state = 'retracted';
+      record.retracted_at = new Date().toISOString();
+      report.autoRetracted = (report.autoRetracted || 0) + 1;
+    }
+
+    for (const record of allRecords) {
+      if (!record.automated || record.verified || record.auto_state !== 'observed') continue;
+      if (Date.parse(record.auto_confirm_after || '') > now) continue;
+      const confirmed = await privConfirmAutomatedReset(env, record.id);
+      if (!confirmed.ok) {
+        report.errors.push(`automation confirm: ${confirmed.status} ${await confirmed.text()}`);
+        continue;
+      }
+      record.verified = true;
+      record.auto_state = 'confirmed';
+      record.auto_confirm_after = null;
+      report.autoConfirmed = (report.autoConfirmed || 0) + 1;
+    }
+  }
+
+  // 5. Deliver automatically confirmed resets. The earlier migration marked
+  // pre-existing confirmed rows as delivered, preventing a historical replay.
+  const records = allRecords.filter((record) => record.verified);
   for (const record of records.filter((row) => !row.notified_at)) {
     const outcome = await notifyAll(env, {
       ts: new Date(record.reset_date).getTime(),
@@ -104,7 +171,7 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
     }
   }
 
-  // 5. Signals snapshot → KV (the browser reads this instead of scraping)
+  // 6. Signals snapshot → KV (the browser reads this instead of scraping)
   let latestResetTs = records.length > 0 ? new Date(records[0].reset_date).getTime() : 0;
   if (latestResetTs > 0) {
     await env.CACHE.put('latest_reset_ts', String(latestResetTs));
@@ -116,7 +183,7 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   snapshot.sources.database = records.length > 0 ? 'live' : 'fallback';
   await env.CACHE.put('signals:latest', JSON.stringify(snapshot), { expirationTtl: 7 * 24 * HOUR / 1000 });
 
-  // 6. Health report and a rate-limited operational email when the pipeline
+  // 7. Health report and a rate-limited operational email when the pipeline
   // cannot collect or process a healthy snapshot.
   if ((report.scrape === 'failed' || report.errors.length > 0) && env.HEALTH_ALERT_EMAIL && env.RESEND_API_KEY) {
     if (!await env.CACHE.get(HEALTH_ALERT_KEY)) {
