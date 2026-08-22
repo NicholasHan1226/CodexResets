@@ -171,6 +171,10 @@ export const CONTEXT_RE = /(?:\bcodex\b|usage\s+limits?|rate\s+limits?|quota|cre
 export const ANNOUNCE_RE = /(?:\b(?:usage\s+limits?|rate\s+limits?|quota|credits?)\s+(?:are|is|were|was|have|has|just)?\s*reset(?:ting)?\b|\b(?:banked\s+)?reset\s+(?:has|have|just)?\s*(?:landed|arrived|rolled(?:\s+out)?|gone\s+live|went\s+live|is\s+live|are\s+live)\b|\b(?:all|everyone)\s+(?:paid\s+)?users?\s+(?:should|have|has|can)\s+(?:now\s+)?(?:see|use|access|have)\b)/i;
 const QUESTION_RE = /(?:\?|^\s*(?:when|will|would|can|does|do|how)\b)/i;
 const RETRACTION_RE = /(?:\b(?:correction|incorrect|mistake|false\s+alarm)\b.{0,80}\b(?:reset|rollout|quota|limit)|\b(?:reset|rollout|quota|limit).{0,80}\b(?:was\s+not|wasn't|has\s+not|hasn't|did\s+not|didn't|delayed|postponed|rolled\s+back|reverted|cancelled)\b)/i;
+const BANKED_RESET_RE = /\bbanked\s+reset\b/i;
+const LIMIT_RESET_RE = /(?:usage|rate)\s+limits?/i;
+const QUOTA_RESET_RE = /\bquota\b/i;
+const CREDIT_RESET_RE = /\bcredits?\b/i;
 
 export function isResetAnnouncement(text: string): boolean {
   return ANNOUNCE_RE.test(text) && !QUESTION_RE.test(text);
@@ -179,6 +183,29 @@ export function isResetAnnouncement(text: string): boolean {
 /** A later direct-source correction prevents pending automated delivery. */
 export function isResetRetraction(text: string): boolean {
   return CONTEXT_RE.test(text) && RETRACTION_RE.test(text) && !QUESTION_RE.test(text);
+}
+
+type ResetTopic = 'banked' | 'limits' | 'quota' | 'credits' | 'general';
+
+function resetTopic(text: string): ResetTopic {
+  if (BANKED_RESET_RE.test(text)) return 'banked';
+  if (LIMIT_RESET_RE.test(text)) return 'limits';
+  if (QUOTA_RESET_RE.test(text)) return 'quota';
+  if (CREDIT_RESET_RE.test(text)) return 'credits';
+  return 'general';
+}
+
+/** Avoid withdrawing an unrelated pending notice just because both mention a reset. */
+export function isRetractionForCandidate(candidate: ResetEvent, correction: ResetEvent): boolean {
+  if (!isResetRetraction(correction.text)) return false;
+  const candidateTopic = resetTopic(candidate.text);
+  const correctionTopic = resetTopic(correction.text);
+  return candidateTopic === correctionTopic;
+}
+
+/** Older social posts are history, not a fresh alert. Future timestamps are rejected too. */
+export function isTimelyAutomatedCandidate(event: ResetEvent, now = Date.now(), maxAgeMs = 48 * 60 * 60 * 1000): boolean {
+  return event.ts <= now && now - event.ts <= maxAgeMs;
 }
 
 export interface ResetDetection {

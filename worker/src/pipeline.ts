@@ -1,5 +1,12 @@
 import type { Env, ResetRecordRow, RunReport } from './types';
-import { scrapeTweets, detectResetEvents, detectResetRetractions, isResetAnnouncement } from './scrape';
+import {
+  scrapeTweets,
+  detectResetEvents,
+  detectResetRetractions,
+  isResetAnnouncement,
+  isRetractionForCandidate,
+  isTimelyAutomatedCandidate,
+} from './scrape';
 import { sbSelect } from './supabase';
 import {
   hasPrivilegedAccess,
@@ -56,8 +63,10 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   //    stabilization window. Weak mentions and degraded-source news cannot
   //    create a reset record or trigger delivery.
   const detection = detectResetEvents(scrape.tweets);
-  const candidates = detection.strong;
+  const strongCandidates = detection.strong;
+  const candidates = strongCandidates.filter((candidate) => isTimelyAutomatedCandidate(candidate));
   report.candidates = candidates.length;
+  report.staleCandidates = strongCandidates.length - candidates.length;
   report.weakCandidates = detection.weak.length;
   report.candidateSamples = [
     ...detection.strong.map((c) => ({ tier: 'strong' as const, ts: new Date(c.ts).toISOString(), link: c.link, text: c.text.slice(0, 160) })),
@@ -126,7 +135,10 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
     for (const record of allRecords) {
       if (!record.automated || record.verified || record.auto_state !== 'observed') continue;
       const recordedAt = Date.parse(record.reset_date);
-      const retracted = retractions.some((event) => event.ts >= recordedAt && event.ts - recordedAt <= RETRACTION_WINDOW_MS);
+      const candidate = { ts: recordedAt, text: record.description || '', link: record.source_url || '' };
+      const retracted = retractions.some(
+        (event) => event.ts >= recordedAt && event.ts - recordedAt <= RETRACTION_WINDOW_MS && isRetractionForCandidate(candidate, event)
+      );
       if (!retracted) continue;
       const result = await privRetractAutomatedReset(env, record.id);
       if (!result.ok) {

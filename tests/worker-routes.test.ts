@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { handleConfirmEmail, handleHealth, handleResendWebhook, handleSignals, handleSubscribeEmail, handleTestEmail } from '../worker/src/routes';
 import { sendHealthAlert } from '../worker/src/notify';
 import type { Env } from '../worker/src/types';
-import { detectResetEvents, detectResetRetractions, scrapeTweets } from '../worker/src/scrape';
+import { detectResetEvents, detectResetRetractions, isRetractionForCandidate, isTimelyAutomatedCandidate, scrapeTweets } from '../worker/src/scrape';
 
 function envWith(cacheEntries: Record<string, string | null>): Env {
   return {
@@ -114,6 +114,20 @@ describe('pipeline read endpoints', () => {
     ]);
 
     expect(retractions.map((event) => event.link)).toEqual(['https://example.test/correction']);
+  });
+
+  it('limits automatic delivery to timely candidates and matching correction topics', () => {
+    const now = Date.parse('2026-08-22T12:00:00Z');
+    const banked = { ts: now - 60_000, link: 'https://example.test/banked', text: 'The banked reset has landed for Codex users.' };
+    const quotaCorrection = { ts: now, link: 'https://example.test/quota', text: 'Correction: the Codex quota reset was delayed.' };
+    const bankedCorrection = { ts: now, link: 'https://example.test/banked-correction', text: 'Correction: the Codex banked reset was delayed.' };
+    const genericCorrection = { ts: now, link: 'https://example.test/generic', text: 'Correction: the Codex reset was delayed.' };
+
+    expect(isTimelyAutomatedCandidate(banked, now)).toBe(true);
+    expect(isTimelyAutomatedCandidate({ ...banked, ts: now - 49 * 60 * 60 * 1000 }, now)).toBe(false);
+    expect(isRetractionForCandidate(banked, quotaCorrection)).toBe(false);
+    expect(isRetractionForCandidate(banked, genericCorrection)).toBe(false);
+    expect(isRetractionForCandidate(banked, bankedCorrection)).toBe(true);
   });
 
   it('uses Google News as a healthy degraded source when every social mirror is unavailable', async () => {

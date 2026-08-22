@@ -29,7 +29,8 @@ recipient, and never reads subscribers or runs the pipeline.
 Strong notices from the configured target account are automatically recorded,
 held for one scheduled interval, and then confirmed and delivered. A later
 direct-source correction within the stabilization window automatically retracts
-the pending notice. News-only degraded discovery never creates an email alert.
+the matching pending notice. Notices older than 48 hours and news-only degraded
+discovery never create an email alert.
 Resend `email.bounced` and `email.complained` webhooks are HMAC-verified at
 `POST /api/webhooks/resend` and delete the affected subscription.
 

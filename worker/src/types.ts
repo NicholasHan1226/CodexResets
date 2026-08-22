@@ -100,6 +100,8 @@ export interface RunReport {
   autoRetracted?: number;
   /** reset+context mentions that lacked announcement phrasing (never auto-inserted) */
   weakCandidates?: number;
+  /** Strong direct-source matches older than the automatic delivery window. */
+  staleCandidates?: number;
   /** First few candidate excerpts — lets ops eyeball false positives in /api/health */
   candidateSamples?: { tier: 'strong' | 'weak'; ts: string; link: string; text: string }[];
   inserted: number;

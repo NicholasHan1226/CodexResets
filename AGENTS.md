@@ -71,8 +71,9 @@ some regions — do not rely on it).
   and notifies automatically; no Supabase dashboard action is required.
 - A later direct-source correction in the 72-hour correction window changes a
   still-pending automated record to `retracted`, so it cannot affect the model
-  or subscriber delivery. Google News remains discovery-only and cannot create
-  an alert.
+  or subscriber delivery. Corrections must match the reset topic (banked,
+  limits, quota, or credits), and alerts older than 48 hours are discarded.
+  Google News remains discovery-only and cannot create an alert.
 
 ## Project Structure
 ```
