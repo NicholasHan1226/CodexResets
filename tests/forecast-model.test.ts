@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { hasFreshStrongDirectSignal, probabilityWithin, scoreForecastModels, selectForecastModel } from '../src/lib/forecast-model';
+import { hasFreshStrongDirectSignal, probabilityWithin, scoreForecastModels, scoreHighConfidenceDecisions, selectForecastModel } from '../src/lib/forecast-model';
 import { mergeResetEpisodes } from '../src/lib/reset-episodes';
+import { RESET_HISTORY } from '../src/lib/reset-data';
 import { recordForecastSnapshot } from '../worker/src/forecast';
 import type { Env, ResetRecordRow } from '../worker/src/types';
 import type { ResetRecord, ResetSignal } from '../src/types/reset';
@@ -29,6 +30,21 @@ describe('reset episode forecasting', () => {
     expect(scores).toHaveLength(2);
     expect(scores.every((score) => score.samples >= 16 && Number.isFinite(score.brier))).toBe(true);
     expect(['logistic', 'weibull']).toContain(selectForecastModel(regularHistory()).model);
+  });
+
+  it('keeps the formal 80% target honest in a leakage-free historical regression', () => {
+    const score = scoreHighConfidenceDecisions(RESET_HISTORY, 0.8);
+    expect(score).toMatchObject({
+      threshold: 0.8,
+      samples: 138,
+      decisions: 60,
+      positivePredictions: 20,
+      accuracy: expect.any(Number),
+      positivePrecision: expect.any(Number),
+    });
+    expect(score.accuracy).toBeGreaterThanOrEqual(0.8);
+    expect(score.positivePrecision).toBeGreaterThanOrEqual(0.8);
+    expect(score.modelCounts).toEqual({ logistic: 13, weibull: 125 });
   });
 
   it('uses only a fresh strong direct announcement to raise the near-term probability', () => {

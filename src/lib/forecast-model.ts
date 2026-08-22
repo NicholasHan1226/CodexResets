@@ -16,6 +16,18 @@ export interface ForecastSelection {
   episodes: ResetRecord[];
 }
 
+export interface HighConfidenceDecisionScore {
+  threshold: number;
+  samples: number;
+  decisions: number;
+  correct: number;
+  accuracy: number | null;
+  positivePredictions: number;
+  positiveCorrect: number;
+  positivePrecision: number | null;
+  modelCounts: Record<ForecastModelName, number>;
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MIN_HISTORY = 4;
 const MIN_BACKTEST_SAMPLES = 16;
@@ -100,6 +112,69 @@ export function selectForecastModel(records: ResetRecord[]): ForecastSelection {
   const eligible = scores.filter((score) => score.samples >= MIN_BACKTEST_SAMPLES && Number.isFinite(score.brier));
   const best = eligible.sort((a, b) => a.brier - b.brier)[0];
   return { model: best?.model || 'logistic', scores, episodes };
+}
+
+/**
+ * Leakage-free historical regression score for the formal-release target.
+ * Each cutoff selects a model using only records already known at that time,
+ * then scores a 48-hour high-confidence call against the following window.
+ * It is a development guard, never a substitute for production outcomes.
+ */
+export function scoreHighConfidenceDecisions(
+  records: ResetRecord[],
+  threshold = 0.8,
+): HighConfidenceDecisionScore {
+  const episodes = mergeResetEpisodes(records).sort((a, b) => a.timestamp - b.timestamp);
+  const modelCounts: HighConfidenceDecisionScore['modelCounts'] = { logistic: 0, weibull: 0 };
+  if (episodes.length < MIN_HISTORY + 2) {
+    return {
+      threshold,
+      samples: 0,
+      decisions: 0,
+      correct: 0,
+      accuracy: null,
+      positivePredictions: 0,
+      positiveCorrect: 0,
+      positivePrecision: null,
+      modelCounts,
+    };
+  }
+
+  let samples = 0;
+  let decisions = 0;
+  let correct = 0;
+  let positivePredictions = 0;
+  let positiveCorrect = 0;
+  const firstCutoff = episodes[MIN_HISTORY - 1].timestamp + DAY_MS;
+  const finalCutoff = episodes[episodes.length - 1].timestamp - 48 * 60 * 60 * 1000;
+  for (let cutoff = firstCutoff; cutoff <= finalCutoff; cutoff += DAY_MS) {
+    const past = episodes.filter((episode) => episode.timestamp <= cutoff);
+    if (past.length < MIN_HISTORY) continue;
+    const model = selectForecastModel(past).model;
+    modelCounts[model] += 1;
+    const probability = probabilityWithin(past, model, cutoff, 48, false);
+    const actual = episodes.some((episode) => episode.timestamp > cutoff && episode.timestamp <= cutoff + 48 * 60 * 60 * 1000);
+    samples += 1;
+    if (probability < threshold && probability > 1 - threshold) continue;
+    decisions += 1;
+    const predictedReset = probability >= threshold;
+    if (predictedReset) {
+      positivePredictions += 1;
+      if (actual) positiveCorrect += 1;
+    }
+    if (predictedReset === actual) correct += 1;
+  }
+  return {
+    threshold,
+    samples,
+    decisions,
+    correct,
+    accuracy: decisions > 0 ? correct / decisions : null,
+    positivePredictions,
+    positiveCorrect,
+    positivePrecision: positivePredictions > 0 ? positiveCorrect / positivePredictions : null,
+    modelCounts,
+  };
 }
 
 export function probabilityWithin(

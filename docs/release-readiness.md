@@ -15,6 +15,11 @@ when it can be described as a formally validated public release.
 5. Email confirmation, Resend suppression, browser Push test/pruning, and X
    webhook-to-pipeline telemetry remain available in protected diagnostics.
 
+The codebase also runs a leakage-free historical regression for the same 80%
+criterion: every cutoff chooses its model using only then-known records. It is
+a regression guard for future code changes, not evidence that the production
+gate has already passed.
+
 ## Why the accuracy gate is strict
 
 The target is not the raw percentage of all 48-hour windows. Most windows may
