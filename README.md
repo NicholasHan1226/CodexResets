@@ -104,6 +104,10 @@ the primary alert channel and uses concise bilingual English/Chinese messages;
 Web Push remains optional because device, browser, and notification policies
 vary across mainland networks and mobile platforms.
 
+The first render has no third-party font dependency: it uses the platform font
+stack, including PingFang SC and Microsoft YaHei where available. This avoids
+an avoidable blocked-font request on constrained mainland networks.
+
 Every successful browser Push subscription receives an immediate, clearly
 labelled test notification. The Worker accepts only supported browser-push
 authorities, applies an IP quota before storage, never follows endpoint
