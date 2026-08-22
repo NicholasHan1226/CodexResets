@@ -17,6 +17,33 @@ export function isExpiredPushEndpoint(status: number): boolean {
   return status === 404 || status === 410;
 }
 
+/** Immediately proves a new browser endpoint can receive an encrypted push. */
+export async function sendPushSubscriptionTest(env: Env, row: PushSubRow): Promise<'sent' | 'gone' | 'skipped'> {
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return 'skipped';
+  const vapid: VapidKeys = {
+    subject: env.VAPID_SUBJECT,
+    publicKey: env.VAPID_PUBLIC_KEY,
+    privateKey: env.VAPID_PRIVATE_KEY,
+  };
+  const subscription: PushSubscription = {
+    endpoint: row.endpoint,
+    expirationTime: null,
+    keys: { p256dh: row.p256dh, auth: row.auth },
+  };
+  const payload = await buildPushPayload({
+    data: JSON.stringify({
+      title: 'Codex Resets ready',
+      body: 'Browser alerts are enabled. / 浏览器提醒已开启。',
+      url: '/',
+    }),
+    options: { ttl: 60 },
+  }, subscription, vapid);
+  const res = await fetch(subscription.endpoint, payload);
+  if (isExpiredPushEndpoint(res.status)) return 'gone';
+  if (!res.ok) throw new Error(`push endpoint ${res.status}`);
+  return 'sent';
+}
+
 /** Fan out a freshly detected reset to every subscriber (email + web push) */
 export async function notifyAll(env: Env, event: ResetEvent): Promise<NotifyResult> {
   const errors: string[] = [];

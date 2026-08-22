@@ -15,6 +15,8 @@ export interface Env {
   HEALTH_ALERT_EMAIL?: string;
   /** Resend/Svix signing secret for bounce and complaint webhooks. */
   RESEND_WEBHOOK_SECRET?: string;
+  /** Optional official X API app-only token for the direct account timeline. */
+  X_BEARER_TOKEN?: string;
   UNSUBSCRIBE_SECRET?: string;
   CRON_SECRET?: string;
   RSSHUB_INSTANCES: string;

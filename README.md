@@ -16,6 +16,9 @@ The Worker runs every 30 minutes. Its public read endpoints are:
 
 - `GET /api/signals` — latest four-signal browser snapshot.
 - `GET /api/health` — latest run result and configured capability booleans.
+- `GET /api/health/details` — full diagnostics for an administrator with the
+  `CRON_SECRET` bearer token; raw upstream errors are excluded from public
+  health.
 - `POST /api/subscribe/email` — starts a confirmation email; the address is
   activated only by `GET /api/subscribe/confirm?t=...` within 24 hours.
 
@@ -26,7 +29,9 @@ protected `POST /api/test-email` delivery exercise for an administrator: it
 requires `Authorization: Bearer $CRON_SECRET`, accepts exactly one JSON email
 recipient, and never reads subscribers or runs the pipeline.
 
-Strong notices from the configured target account are automatically recorded,
+When configured, the official X API is the preferred direct-account source;
+the public RSS/Nitter mirror chain remains a no-credential fallback. Strong
+notices from the configured target account are automatically recorded,
 held for one scheduled interval, and then confirmed and delivered. A later
 direct-source correction within the stabilization window automatically retracts
 the matching pending notice. Notices older than 48 hours and news-only degraded
@@ -48,6 +53,11 @@ model rather than trying multiple third-party RSS and status hosts. Email is
 the primary alert channel and uses concise bilingual English/Chinese messages;
 Web Push remains optional because device, browser, and notification policies
 vary across mainland networks and mobile platforms.
+
+Every successful browser Push subscription receives an immediate, clearly
+labelled test notification. The Worker retains the endpoint only when its
+server-side registration succeeds; `404` and `410` provider responses remove
+stale endpoints automatically.
 
 ## Local development
 
@@ -76,6 +86,11 @@ and become part of the downloaded browser bundle:
 
 Never put a service-role key, `CRON_SECRET`, VAPID private key, Resend API key,
 or any other secret in an `VITE_*` variable or this file.
+
+For a stable primary source, configure the optional Worker secret
+`X_BEARER_TOKEN` with an app-only X API bearer token. Without it, the Worker
+continues using public mirrors and never lets a news-only fallback create an
+automatic alert.
 
 Email subscription intake requires a Cloudflare Turnstile token with the
 `subscribe_email` action. Configure its server-side `TURNSTILE_SECRET` as a

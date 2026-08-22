@@ -3,6 +3,7 @@ import { corsHeaders, json } from './util';
 import {
   handleSignals,
   handleHealth,
+  handleHealthDetails,
   handleSubscribePush,
   handleSubscribeEmail,
   handleConfirmEmail,
@@ -28,6 +29,8 @@ export default {
         case '/':
         case '/api/health':
           return await handleHealth(env);
+        case '/api/health/details':
+          return await handleHealthDetails(request, env);
         case '/api/signals':
           return await handleSignals(env);
         case '/api/subscribe/push':

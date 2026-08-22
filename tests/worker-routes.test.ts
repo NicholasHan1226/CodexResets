@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { handleConfirmEmail, handleHealth, handleResendWebhook, handleSignals, handleSubscribeEmail, handleTestEmail } from '../worker/src/routes';
-import { sendHealthAlert } from '../worker/src/notify';
-import { isExpiredPushEndpoint } from '../worker/src/notify';
+import { handleConfirmEmail, handleHealth, handleHealthDetails, handleResendWebhook, handleSignals, handleSubscribeEmail, handleTestEmail } from '../worker/src/routes';
+import { isExpiredPushEndpoint, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
 import { getStatusEvidence } from '../worker/src/signals';
 import { shouldSendHealthAlert } from '../worker/src/pipeline';
 import type { Env, RunReport } from '../worker/src/types';
@@ -82,6 +81,31 @@ describe('pipeline read endpoints', () => {
     expect(body.configured).toMatchObject({ serviceRole: false, resend: false, vapid: false, healthAlert: false });
   });
 
+  it('keeps source URLs and raw errors out of public health', async () => {
+    const now = new Date().toISOString();
+    const response = await handleHealth(envWith({
+      'health:last_run': JSON.stringify({
+        startedAt: now,
+        scrape: 'failed',
+        errors: ['scrape: https://mirror.example.test failed'],
+        scrapeInstance: 'https://mirror.example.test',
+        candidateSamples: [{ tier: 'strong', ts: now, link: 'https://x.example.test/post', text: 'private diagnostic' }],
+      }),
+      'signals:latest': JSON.stringify({ generatedAt: Date.now() }),
+    }));
+    const body = await response.json() as { lastRun: Record<string, unknown> };
+
+    expect(body.lastRun).toMatchObject({ scrape: 'failed', errorCount: 1 });
+    expect(body.lastRun).not.toHaveProperty('errors');
+    expect(body.lastRun).not.toHaveProperty('scrapeInstance');
+    expect(body.lastRun).not.toHaveProperty('candidateSamples');
+  });
+
+  it('requires the private cron credential for detailed health diagnostics', async () => {
+    const response = await handleHealthDetails(new Request('https://api.example.test/api/health/details'), emailEnv());
+    expect(response.status).toBe(401);
+  });
+
   it('returns a failing health status when the cron report is stale or failed', async () => {
     const response = await handleHealth(envWith({
       'health:last_run': JSON.stringify({
@@ -114,6 +138,14 @@ describe('pipeline read endpoints', () => {
     expect(isExpiredPushEndpoint(404)).toBe(true);
     expect(isExpiredPushEndpoint(410)).toBe(true);
     expect(isExpiredPushEndpoint(503)).toBe(false);
+  });
+
+  it('skips an immediate Push test only when VAPID is intentionally unavailable', async () => {
+    await expect(sendPushSubscriptionTest(envWith({}), {
+      endpoint: 'https://push.example.test/subscription',
+      p256dh: 'public-key',
+      auth: 'auth-key',
+    })).resolves.toBe('skipped');
   });
 
   it('waits for repeated direct-source outages before sending an operational email', () => {
@@ -204,6 +236,35 @@ describe('pipeline read endpoints', () => {
       expect(result.tweets).toHaveLength(1);
       expect(result.tweets[0]?.link).toBe('https://example.test/reset-news');
       expect(result.attempted).toHaveLength(7);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('prefers the official X API timeline when its Worker secret is configured', async () => {
+    const cache: Record<string, string | null> = {};
+    const fetchMock = vi.fn(async (input: string) => {
+      if (input.startsWith('https://api.x.com/2/users/by/username/')) {
+        return new Response(JSON.stringify({ data: { id: '42' } }), { status: 200 });
+      }
+      if (input.startsWith('https://api.x.com/2/users/42/tweets')) {
+        return new Response(JSON.stringify({
+          data: [{ id: 'post-1', text: 'Codex usage limits were reset.', created_at: '2026-08-22T15:00:00.000Z' }],
+        }), { status: 200 });
+      }
+      return new Response('unexpected source', { status: 500 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const result = await scrapeTweets({
+        ...envWith(cache),
+        X_BEARER_TOKEN: 'x-api-test-token',
+        TARGET_ACCOUNT: 'thsottiaux',
+        RSSHUB_INSTANCES: '',
+      });
+      expect(result).toMatchObject({ ok: true, instance: 'x-api', sourceKind: 'direct' });
+      expect(result.tweets[0]).toMatchObject({ link: 'https://x.com/thsottiaux/status/post-1' });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     } finally {
       vi.unstubAllGlobals();
     }

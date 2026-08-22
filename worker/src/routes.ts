@@ -2,7 +2,7 @@ import type { DeliveryMetrics, Env, HealthCheck, HealthChecks, RunReport } from 
 import { json, html, escapeHtml, verifyToken } from './util';
 import { hasPrivilegedAccess, privUpsertPush, privDeletePush, privDeleteEmail, privActivateEmail } from './privileged';
 import { runPipeline } from './pipeline';
-import { sendSubscriptionConfirmation, sendTestEmail } from './notify';
+import { sendPushSubscriptionTest, sendSubscriptionConfirmation, sendTestEmail } from './notify';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CONFIRM_TTL_SECONDS = 24 * 60 * 60;
@@ -38,7 +38,7 @@ export async function handleHealth(env: Env): Promise<Response> {
   return json({
     ok,
     now: new Date().toISOString(),
-    lastRun: report,
+    lastRun: publicRunReport(report),
     deliveryToday: todayMetrics,
     signalsGeneratedAt: snapshot?.generatedAt ?? null,
     checks,
@@ -48,8 +48,27 @@ export async function handleHealth(env: Env): Promise<Response> {
       vapid: Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY),
       unsubscribe: Boolean(env.UNSUBSCRIBE_SECRET),
       healthAlert: Boolean(env.HEALTH_ALERT_EMAIL && env.RESEND_API_KEY),
+      xApi: Boolean(env.X_BEARER_TOKEN),
     },
   }, ok ? 200 : 503);
+}
+
+/** Protected full diagnostics; public health deliberately exposes no source URLs or raw errors. */
+export async function handleHealthDetails(request: Request, env: Env): Promise<Response> {
+  if (!isCronAuthorized(request, env)) return json({ error: 'unauthorized' }, 401);
+  const report = parseJson<RunReport>(await env.CACHE.get('health:last_run'));
+  const date = new Date().toISOString().slice(0, 10);
+  const deliveryToday = parseJson<DeliveryMetrics>(await env.CACHE.get(`metrics:delivery:${date}`));
+  return json({ now: new Date().toISOString(), lastRun: report, deliveryToday });
+}
+
+function publicRunReport(report: RunReport | null): Omit<RunReport, 'errors' | 'candidateSamples' | 'scrapeInstance'> & { errorCount: number } | null {
+  if (!report) return null;
+  const { errors, ...rest } = report;
+  const safe = { ...rest } as Omit<RunReport, 'errors' | 'candidateSamples' | 'scrapeInstance'>;
+  delete (safe as Partial<RunReport>).candidateSamples;
+  delete (safe as Partial<RunReport>).scrapeInstance;
+  return { ...safe, errorCount: errors.length };
 }
 
 const HEALTH_STALE_MS = 90 * 60 * 1000;
@@ -108,13 +127,23 @@ export async function handleSubscribePush(request: Request, env: Env): Promise<R
   if (!hasPrivilegedAccess(env)) {
     return json({ error: 'server not configured (no privileged DB access)' }, 503);
   }
-  const res = await privUpsertPush(env, {
+  const subscription = {
     endpoint,
     p256dh: keys.p256dh,
     auth: keys.auth,
-    user_agent: request.headers.get('user-agent')?.slice(0, 256) ?? null,
-  });
+  };
+  const res = await privUpsertPush(env, { ...subscription, user_agent: request.headers.get('user-agent')?.slice(0, 256) ?? null });
   if (!res.ok) return json({ error: `db: ${res.status} ${await res.text()}` }, 502);
+  try {
+    const result = await sendPushSubscriptionTest(env, subscription);
+    if (result === 'gone') {
+      await privDeletePush(env, endpoint);
+      return json({ error: 'push endpoint expired' }, 410);
+    }
+  } catch {
+    await privDeletePush(env, endpoint);
+    return json({ error: 'push delivery test failed; retry subscription' }, 502);
+  }
   return json({ ok: true });
 }
 

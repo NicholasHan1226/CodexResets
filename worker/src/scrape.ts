@@ -16,6 +16,11 @@ const NITTER_INSTANCES = [
   'https://nitter.1d4.us',
 ];
 
+interface XApiResult {
+  tweets: Tweet[];
+  error?: string;
+}
+
 /**
  * Fetch the target account's recent posts. Strategy chain:
  *   1. RSSHub instances (public ones mostly dropped the twitter route, but
@@ -29,6 +34,12 @@ const NITTER_INSTANCES = [
  */
 export async function scrapeTweets(env: Env): Promise<ScrapeResult> {
   const attempted: string[] = [];
+
+  const official = await scrapeOfficialXTimeline(env);
+  if (official.tweets.length > 0) {
+    return { ok: true, instance: 'x-api', sourceKind: 'direct', tweets: official.tweets, attempted };
+  }
+  if (official.error) attempted.push(official.error);
 
   const rsshub = (env.RSSHUB_INSTANCES || '')
     .split(',')
@@ -85,6 +96,47 @@ export async function scrapeTweets(env: Env): Promise<ScrapeResult> {
   attempted.push('google-news: 0 items');
 
   return { ok: false, tweets: [], error: attempted.join(' | '), attempted };
+}
+
+/**
+ * Prefer the authenticated X API when its app-only token is configured. The
+ * public mirror chain remains a no-credential fallback, but never becomes an
+ * equally trusted source for confirmation while this direct feed is healthy.
+ */
+async function scrapeOfficialXTimeline(env: Env): Promise<XApiResult> {
+  if (!env.X_BEARER_TOKEN) return { tweets: [] };
+  const headers = { authorization: `Bearer ${env.X_BEARER_TOKEN}` };
+  const cacheKey = `x-api:user:${env.TARGET_ACCOUNT.toLowerCase()}`;
+  let userId = await env.CACHE.get(cacheKey);
+
+  try {
+    if (!userId) {
+      const lookup = await fetch(`https://api.x.com/2/users/by/username/${encodeURIComponent(env.TARGET_ACCOUNT)}`, {
+        headers,
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+      if (!lookup.ok) return { tweets: [], error: `x-api lookup: HTTP ${lookup.status}` };
+      const body = await lookup.json() as { data?: { id?: string } };
+      userId = body.data?.id || '';
+      if (!userId) return { tweets: [], error: 'x-api lookup: no user id' };
+      await env.CACHE.put(cacheKey, userId, { expirationTtl: 30 * 24 * 60 * 60 });
+    }
+
+    const timeline = await fetch(
+      `https://api.x.com/2/users/${encodeURIComponent(userId)}/tweets?max_results=${MAX_TWEETS}&tweet.fields=created_at`,
+      { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
+    );
+    if (!timeline.ok) return { tweets: [], error: `x-api timeline: HTTP ${timeline.status}` };
+    const body = await timeline.json() as { data?: Array<{ id?: string; text?: string; created_at?: string }> };
+    const tweets = (body.data || []).flatMap((post) => {
+      const ts = Date.parse(post.created_at || '');
+      if (!post.id || !post.text || Number.isNaN(ts)) return [];
+      return [{ text: post.text, ts, link: `https://x.com/${env.TARGET_ACCOUNT}/status/${post.id}` }];
+    }).sort((a, b) => b.ts - a.ts);
+    return tweets.length > 0 ? { tweets } : { tweets: [], error: 'x-api timeline: 0 items' };
+  } catch (error) {
+    return { tweets: [], error: `x-api: ${error instanceof Error ? error.message : String(error)}` };
+  }
 }
 
 /** Degraded source: Google News RSS mentions of a Codex reset. */
