@@ -89,9 +89,6 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
       <div className="mt-4 space-y-0">
         {sortedSignals.map((signal, i) => {
           const tag = statusTagMap[signal.status] || statusTagMap.idle;
-          const desc = signal.descriptionParams
-            ? t(signal.description, signal.descriptionParams)
-            : t(signal.description);
           const pct = Math.round(signal.value * 100);
 
           return (
@@ -116,19 +113,6 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
                     {signal.label}
                   </span>
                 </div>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                  {desc}
-                </p>
-                {signal.sourceUrl && (
-                  <a
-                    href={signal.sourceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-1 inline-block font-mono text-xs text-primary hover:underline"
-                  >
-                    {signal.source} →
-                  </a>
-                )}
               </div>
 
               {/* Signal strength — ASCII bar + number */}

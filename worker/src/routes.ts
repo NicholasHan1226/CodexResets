@@ -32,13 +32,18 @@ const PUSH_ENDPOINT_HOSTS = new Set([
 export async function handleSignals(env: Env): Promise<Response> {
   const raw = await env.CACHE.get('signals:latest');
   if (!raw) return json({ error: 'no snapshot yet' }, 503);
-  return new Response(raw, {
-    status: 200,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'public, max-age=60',
-      'access-control-allow-origin': '*',
-    },
+  const snapshot = parseJson<{ signals?: Array<Record<string, unknown>> }>(raw);
+  if (!snapshot?.signals) return json({ error: 'no snapshot yet' }, 503);
+  return json({
+    ...snapshot,
+    signals: snapshot.signals.map((signal) => {
+      const publicSignal = { ...signal };
+      delete publicSignal.sourceUrl;
+      return publicSignal;
+    }),
+  }, 200, {
+    'cache-control': 'public, max-age=60',
+    'access-control-allow-origin': '*',
   });
 }
 

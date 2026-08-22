@@ -67,12 +67,12 @@ async function xWebhookRequest(body: string, secret = 'x-consumer-test-secret'):
 
 describe('pipeline read endpoints', () => {
   it('returns a cacheable signal snapshot with browser CORS enabled', async () => {
-    const snapshot = JSON.stringify({ signals: [{ source: 'tibopost' }], generatedAt: 123 });
+    const snapshot = JSON.stringify({ signals: [{ source: 'tibopost', sourceUrl: 'https://example.test/source' }], generatedAt: 123 });
     const response = await handleSignals(envWith({ 'signals:latest': snapshot }));
 
     expect(response.status).toBe(200);
     expect(response.headers.get('access-control-allow-origin')).toBe('*');
-    await expect(response.json()).resolves.toEqual(JSON.parse(snapshot));
+    await expect(response.json()).resolves.toEqual({ signals: [{ source: 'tibopost' }], generatedAt: 123 });
   });
 
   it('returns 503 until the first signal snapshot exists', async () => {
