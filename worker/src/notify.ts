@@ -241,12 +241,15 @@ function healthAlertHtml(env: Env, report: RunReport): string {
 
 function calibrationAlertHtml(env: Env, calibration: ForecastCalibration): string {
   const score = calibration.recentBrier === null ? 'not enough samples' : calibration.recentBrier.toFixed(3);
+  const accuracy = calibration.decisionAccuracy48h.accuracy === null
+    ? 'not enough high-confidence decisions'
+    : `${Math.round(calibration.decisionAccuracy48h.accuracy * 100)}%`;
   return `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
   <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
     <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#2563eb">i codex resets operations</p>
     <h1 style="margin:0 0 12px;font-size:20px">Forecast calibration review</h1>
-    <p style="margin:0 0 12px;font-size:14px;color:#3d4250">Private calibration reached <strong>${escapeHtml(calibration.stage)}</strong> with ${calibration.samples} resolved samples. Recent combined Brier score: ${escapeHtml(score)}; trend: ${escapeHtml(calibration.trend)}.</p>
+    <p style="margin:0 0 12px;font-size:14px;color:#3d4250">Private calibration reached <strong>${escapeHtml(calibration.stage)}</strong> with ${calibration.samples} resolved samples. Recent combined Brier score: ${escapeHtml(score)}; trend: ${escapeHtml(calibration.trend)}. High-confidence 48h decision accuracy: ${escapeHtml(accuracy)}.</p>
     <p style="margin:0 0 16px;font-size:13px;color:#667085">The public model continues its time-ordered automatic selection. This notice records a review threshold; it does not change subscriber delivery.</p>
     <a href="${workerBase(env)}/api/health" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open health report</a>
   </div>

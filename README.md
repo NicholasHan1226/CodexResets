@@ -67,11 +67,20 @@ its 24/48-hour outcome after the horizon closes. These private KV samples are
 kept for 120 days and are not shown in the visitor interface.
 The protected `/api/health/details` response includes the resulting sample
 count, 24/48-hour Brier scores, model usage counts, and the latest snapshot.
+For the formal-release accuracy target, it also reports 48-hour
+high-confidence decision accuracy: only predictions at or above 80%, or at or
+below 20%, qualify. The target passes only after at least 20 resolved decisions
+and five positive predictions, with both overall decision accuracy and positive
+prediction precision at or above 80%. This prevents a no-reset majority from
+being presented as predictive accuracy.
 It automatically marks private 7/14/30-sample review thresholds and compares
 the latest seven resolved forecasts with the preceding seven; milestones and a
 measurable degradation send one rate-limited operations email when configured.
 This never changes the public UI or bypasses the browser model's existing
 time-ordered model selection.
+When a fresh, timely direct-account reset announcement is present, the Worker
+stores the same bounded probability lift used by the browser in its private
+forecast snapshot, so production calibration evaluates the actual live model.
 An OpenAI-owned Codex changelog is checked as discovery context only; it can
 never create a candidate, raise a forecast, confirm a reset, or send an alert.
 

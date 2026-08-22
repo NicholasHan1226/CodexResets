@@ -640,6 +640,11 @@ describe('forecast snapshot retention', () => {
       latest: expect.objectContaining({ model: expect.any(String) }),
       stage: 'collecting',
       nextReviewAt: 7,
+      decisionAccuracy48h: {
+        threshold: 0.8,
+        target: 0.8,
+        status: 'collecting',
+      },
     });
     const details = await handleHealthDetails(
       new Request('https://api.example.test/api/health/details', { headers: { authorization: 'Bearer calibration-test' } }),

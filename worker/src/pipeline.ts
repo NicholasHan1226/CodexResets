@@ -79,6 +79,7 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   const detection = detectResetEvents(scrape.tweets);
   const strongCandidates = detection.strong;
   const candidates = strongCandidates.filter((candidate) => isTimelyAutomatedCandidate(candidate));
+  const hasFreshStrongDirectSignal = scrape.sourceKind === 'direct' && candidates.length > 0;
   report.candidates = candidates.length;
   report.staleCandidates = strongCandidates.length - candidates.length;
   report.weakCandidates = detection.weak.length;
@@ -187,7 +188,7 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   // pre-existing confirmed rows as delivered, preventing a historical replay.
   const records = allRecords.filter((record) => record.verified);
   try {
-    await recordForecastSnapshot(env, records);
+    await recordForecastSnapshot(env, records, Date.now(), hasFreshStrongDirectSignal);
     await maybeSendCalibrationAlert(env);
   } catch (err) {
     report.errors.push(`forecast snapshot: ${err instanceof Error ? err.message : String(err)}`);

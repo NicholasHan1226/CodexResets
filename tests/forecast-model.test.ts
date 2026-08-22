@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { hasFreshStrongDirectSignal, probabilityWithin, scoreForecastModels, selectForecastModel } from '../src/lib/forecast-model';
 import { mergeResetEpisodes } from '../src/lib/reset-episodes';
+import { recordForecastSnapshot } from '../worker/src/forecast';
+import type { Env, ResetRecordRow } from '../worker/src/types';
 import type { ResetRecord, ResetSignal } from '../src/types/reset';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -42,5 +44,38 @@ describe('reset episode forecasting', () => {
     expect(probabilityWithin(history, 'logistic', now + 30 * DAY_MS, 48, true)).toBeLessThanOrEqual(0.9);
     expect(hasFreshStrongDirectSignal([strong], now)).toBe(true);
     expect(hasFreshStrongDirectSignal([{ ...strong, updatedAt: now - 25 * 60 * 60 * 1000 }], now)).toBe(false);
+  });
+
+  it('records the same direct-signal lift used by the browser into private forecast evidence', async () => {
+    const createEnv = () => {
+      const cache: Record<string, string> = {};
+      return {
+        cache,
+        env: {
+          CACHE: {
+            get: async (key: string) => cache[key] ?? null,
+            put: async (key: string, value: string) => { cache[key] = value; },
+          },
+        } as unknown as Env,
+      };
+    };
+    const now = Date.parse('2026-08-20T00:00:00Z');
+    const rows: ResetRecordRow[] = Array.from({ length: 6 }, (_, index) => ({
+      id: `reset-${index}`,
+      reset_date: new Date(now - (index + 1) * 4 * DAY_MS).toISOString(),
+      source_url: null,
+      description: 'verified reset',
+      verified: true,
+      auto_state: 'confirmed',
+    }));
+
+    const baselineStore = createEnv();
+    const liftedStore = createEnv();
+    await recordForecastSnapshot(baselineStore.env, rows, now, false);
+    await recordForecastSnapshot(liftedStore.env, rows, now, true);
+    const baseline = JSON.parse(baselineStore.cache['forecast:latest'] || '{}') as { prob24h: number };
+    const lifted = JSON.parse(liftedStore.cache['forecast:latest'] || '{}') as { prob24h: number; strongDirectSignal: boolean };
+    expect(lifted.strongDirectSignal).toBe(true);
+    expect(lifted.prob24h).toBeGreaterThan(baseline.prob24h);
   });
 });

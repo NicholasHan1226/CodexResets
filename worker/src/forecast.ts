@@ -14,6 +14,8 @@ interface ForecastSample {
   model: 'logistic' | 'weibull';
   prob24h: number;
   prob48h: number;
+  /** A fresh, direct reset announcement existed when this forecast was made. */
+  strongDirectSignal?: boolean;
 }
 
 interface ForecastEvaluation extends ForecastSample {
@@ -33,6 +35,24 @@ export interface ForecastCalibration {
   recentBrier: number | null;
   previousBrier: number | null;
   trend: 'unknown' | 'stable' | 'improving' | 'degrading';
+  /**
+   * Formal-release accuracy gate. A high-confidence 48h decision must be
+   * either >=80% or <=20%; positive precision is tracked separately so a
+   * no-reset majority cannot manufacture an 80% score.
+   */
+  decisionAccuracy48h: ForecastDecisionAccuracy;
+}
+
+export interface ForecastDecisionAccuracy {
+  threshold: 0.8;
+  target: 0.8;
+  decisions: number;
+  correct: number;
+  accuracy: number | null;
+  positivePredictions: number;
+  positiveCorrect: number;
+  positivePrecision: number | null;
+  status: 'collecting' | 'passed' | 'below_target';
 }
 
 function toForecastRecords(records: ResetRecordRow[]): ResetRecord[] {
@@ -96,7 +116,12 @@ function hasResetBetween(records: ResetRecord[], start: number, end: number): bo
  * horizon is known. The visitor UI never reads this data; it is durable model
  * evidence for calibration and release decisions.
  */
-export async function recordForecastSnapshot(env: Env, rows: ResetRecordRow[], now = Date.now()): Promise<void> {
+export async function recordForecastSnapshot(
+  env: Env,
+  rows: ResetRecordRow[],
+  now = Date.now(),
+  strongDirectSignal = false,
+): Promise<void> {
   const records = toForecastRecords(rows);
   if (records.length < 4) return;
 
@@ -105,8 +130,9 @@ export async function recordForecastSnapshot(env: Env, rows: ResetRecordRow[], n
     at: now,
     dueAt: now + 48 * 60 * 60 * 1000,
     model: selection.model,
-    prob24h: probabilityWithin(records, selection.model, now, 24, false),
-    prob48h: probabilityWithin(records, selection.model, now, 48, false),
+    prob24h: probabilityWithin(records, selection.model, now, 24, strongDirectSignal),
+    prob48h: probabilityWithin(records, selection.model, now, 48, strongDirectSignal),
+    strongDirectSignal,
   };
 
   const pending = parseSamples(await env.CACHE.get(FORECAST_PENDING_KEY));
@@ -175,6 +201,31 @@ export async function getForecastCalibration(env: Env): Promise<ForecastCalibrat
     recentBrier,
     previousBrier,
     trend,
+    decisionAccuracy48h: forecastDecisionAccuracy(evaluations),
+  };
+}
+
+function forecastDecisionAccuracy(evaluations: ForecastEvaluation[]): ForecastDecisionAccuracy {
+  const highConfidence = evaluations.filter((evaluation) => evaluation.prob48h >= 0.8 || evaluation.prob48h <= 0.2);
+  const positive = highConfidence.filter((evaluation) => evaluation.prob48h >= 0.8);
+  const correct = highConfidence.filter((evaluation) => (
+    evaluation.prob48h >= 0.8 ? evaluation.resetIn48h : !evaluation.resetIn48h
+  ));
+  const positiveCorrect = positive.filter((evaluation) => evaluation.resetIn48h);
+  const accuracy = highConfidence.length > 0 ? correct.length / highConfidence.length : null;
+  const positivePrecision = positive.length > 0 ? positiveCorrect.length / positive.length : null;
+  const hasSufficientEvidence = highConfidence.length >= 20 && positive.length >= 5;
+  const passed = hasSufficientEvidence && accuracy !== null && positivePrecision !== null && accuracy >= 0.8 && positivePrecision >= 0.8;
+  return {
+    threshold: 0.8,
+    target: 0.8,
+    decisions: highConfidence.length,
+    correct: correct.length,
+    accuracy,
+    positivePredictions: positive.length,
+    positiveCorrect: positiveCorrect.length,
+    positivePrecision,
+    status: !hasSufficientEvidence ? 'collecting' : passed ? 'passed' : 'below_target',
   };
 }
 
