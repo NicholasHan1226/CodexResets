@@ -9,6 +9,10 @@ export interface Env {
   VAPID_SUBJECT: string;
   RESEND_API_KEY?: string;
   RESEND_FROM: string;
+  /** Cloudflare Turnstile server secret for the public email-intake form. */
+  TURNSTILE_SECRET?: string;
+  /** Private recipient for deduplicated Worker health-failure alerts. */
+  HEALTH_ALERT_EMAIL?: string;
   UNSUBSCRIBE_SECRET?: string;
   CRON_SECRET?: string;
   RSSHUB_INSTANCES: string;

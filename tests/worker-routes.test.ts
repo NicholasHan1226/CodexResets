@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { handleConfirmEmail, handleHealth, handleSignals, handleSubscribeEmail, handleTestEmail } from '../worker/src/routes';
+import { sendHealthAlert } from '../worker/src/notify';
 import type { Env } from '../worker/src/types';
-import { detectResetEvents } from '../worker/src/scrape';
+import { detectResetEvents, scrapeTweets } from '../worker/src/scrape';
 
 function envWith(cacheEntries: Record<string, string | null>): Env {
   return {
@@ -21,8 +22,10 @@ function emailEnv(cacheEntries: Record<string, string | null> = {}): Env {
     SUPABASE_SERVICE_ROLE_KEY: 'service-role-test-key',
     RESEND_API_KEY: 'resend-test-key',
     RESEND_FROM: 'Codex Resets <alerts@example.test>',
+    TURNSTILE_SECRET: 'turnstile-test-secret',
     SITE_URL: 'https://codexresets.cc',
     CRON_SECRET: 'cron-test-secret',
+    HEALTH_ALERT_EMAIL: 'ops@example.test',
   };
 }
 
@@ -88,26 +91,118 @@ describe('pipeline read endpoints', () => {
     expect(detection.weak.map((event) => event.link)).toEqual(['https://example.test/question']);
   });
 
+  it('uses Google News as a healthy degraded source when every social mirror is unavailable', async () => {
+    const feed = `<?xml version="1.0"?><rss><channel><item>
+      <title>Codex usage limits reset for subscribers</title>
+      <link>https://example.test/reset-news</link>
+      <pubDate>Sat, 22 Aug 2026 05:24:00 GMT</pubDate>
+    </item></channel></rss>`;
+    const fetchMock = vi.fn(async (input: string) => {
+      if (input.startsWith('https://news.google.com/')) return new Response(feed, { status: 200 });
+      return new Response('unavailable', { status: 503 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const result = await scrapeTweets({
+        ...envWith({}),
+        RSSHUB_INSTANCES: 'https://rss.example.test',
+        TARGET_ACCOUNT: 'thsottiaux',
+      });
+
+      expect(result).toMatchObject({ ok: true, instance: 'google-news' });
+      expect(result.tweets).toHaveLength(1);
+      expect(result.tweets[0]?.link).toBe('https://example.test/reset-news');
+      expect(result.attempted).toHaveLength(7);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('requires an email confirmation before activating a subscriber', async () => {
     const cache: Record<string, string | null> = {};
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: 'email_1' }), { status: 200 }));
+    const fetchMock = vi.fn(async (input: string) => {
+      if (input === 'https://challenges.cloudflare.com/turnstile/v0/siteverify') {
+        return new Response(JSON.stringify({ success: true, action: 'subscribe_email' }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ id: 'email_1' }), { status: 200 });
+    });
     vi.stubGlobal('fetch', fetchMock);
     try {
       const response = await handleSubscribeEmail(new Request('https://api.example.test/api/subscribe/email', {
         method: 'POST',
-        body: JSON.stringify({ email: 'reader@example.test' }),
+        headers: { 'cf-connecting-ip': '203.0.113.17' },
+        body: JSON.stringify({ email: 'reader@example.test', turnstileToken: 'turnstile-response' }),
       }), emailEnv(cache));
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual({ ok: true, status: 'pending' });
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const [, verifyInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(String(verifyInit.body))).toMatchObject({
+        secret: 'turnstile-test-secret',
+        response: 'turnstile-response',
+        remoteip: '203.0.113.17',
+      });
+      const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
       expect(JSON.parse(String(init.body))).toMatchObject({
         to: ['reader@example.test'],
         subject: 'Confirm your Codex Resets subscription',
       });
       expect(Object.keys(cache).some((key) => key.startsWith('subscribe:confirm:'))).toBe(true);
       expect(Object.keys(cache).some((key) => key.includes('reader@example.test'))).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('rejects an unverified email intake without sending a confirmation', async () => {
+    const cache: Record<string, string | null> = {};
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ success: false }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const response = await handleSubscribeEmail(new Request('https://api.example.test/api/subscribe/email', {
+        method: 'POST',
+        headers: { 'cf-connecting-ip': '203.0.113.18' },
+        body: JSON.stringify({ email: 'reader@example.test', turnstileToken: 'invalid-response' }),
+      }), emailEnv(cache));
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toEqual({ error: 'subscription verification failed' });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(Object.keys(cache).some((key) => key.startsWith('subscribe:confirm:'))).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('limits repeated email intake attempts from the same network address', async () => {
+    const cache: Record<string, string | null> = {};
+    const fetchMock = vi.fn(async (input: string) => {
+      if (input === 'https://challenges.cloudflare.com/turnstile/v0/siteverify') {
+        return new Response(JSON.stringify({ success: true, action: 'subscribe_email' }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ id: 'email_1' }), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const response = await handleSubscribeEmail(new Request('https://api.example.test/api/subscribe/email', {
+          method: 'POST',
+          headers: { 'cf-connecting-ip': '203.0.113.19' },
+          body: JSON.stringify({ email: 'reader@example.test', turnstileToken: `turnstile-${attempt}` }),
+        }), emailEnv(cache));
+        expect(response.status).toBe(200);
+      }
+
+      const limited = await handleSubscribeEmail(new Request('https://api.example.test/api/subscribe/email', {
+        method: 'POST',
+        headers: { 'cf-connecting-ip': '203.0.113.19' },
+        body: JSON.stringify({ email: 'reader@example.test', turnstileToken: 'turnstile-6' }),
+      }), emailEnv(cache));
+
+      expect(limited.status).toBe(429);
+      await expect(limited.json()).resolves.toEqual({ error: 'too many subscription attempts; try again later' });
+      expect(fetchMock).toHaveBeenCalledTimes(6);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -184,6 +279,31 @@ describe('pipeline read endpoints', () => {
       expect(JSON.parse(String(init.body))).toMatchObject({
         to: ['reader@example.test'],
         subject: '[Test] Codex Resets alert delivery',
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('sends a bounded diagnostic email for a pipeline health failure', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: 'email_health' }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await sendHealthAlert(emailEnv(), {
+        startedAt: '2026-08-22T13:30:00.000Z',
+        trigger: 'cron',
+        scrape: 'failed',
+        tweetsSeen: 0,
+        candidates: 0,
+        inserted: 0,
+        notifiedEmails: 0,
+        notifiedPush: 0,
+        errors: ['scrape: all sources unavailable'],
+      });
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(String(init.body))).toMatchObject({
+        to: ['ops@example.test'],
+        subject: '[Action required] Codex Resets Worker health failed',
       });
     } finally {
       vi.unstubAllGlobals();

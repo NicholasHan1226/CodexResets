@@ -1,15 +1,17 @@
 import type { Env, ResetRecordRow, RunReport } from './types';
-import { scrapeTweets, scrapeNewsMentions, detectResetEvents } from './scrape';
+import { scrapeTweets, detectResetEvents } from './scrape';
 import { sbSelect } from './supabase';
 import { hasPrivilegedAccess, privInsertResets } from './privileged';
 import { buildSignalsSnapshot } from './signals';
-import { notifyAll } from './notify';
+import { notifyAll, sendHealthAlert } from './notify';
 
 const HOUR = 3600 * 1000;
 // Seed with the newest bundled reset so the snapshot works before the DB
 // has any rows (and if the DB is ever unreachable).
 const SEED_RESET_TS = Date.parse('2026-08-13T01:01:00Z');
 const FALLBACK_MEDIAN_DAYS = 3.8;
+const HEALTH_ALERT_COOLDOWN_SECONDS = 6 * 60 * 60;
+const HEALTH_ALERT_KEY = 'health:alert:last_sent';
 
 export async function runPipeline(env: Env, trigger: string): Promise<RunReport> {
   const report: RunReport = {
@@ -41,14 +43,9 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
 
   // 3. Detect reset candidates, dedupe against known records, insert new ones.
   //    Only strong (announcement-phrased) candidates are auto-inserted; weak
-  //    mentions are logged for manual review. When every tweet mirror is
-  //    down, fall back to Google News mentions.
-  let detection = detectResetEvents(scrape.tweets);
-  if (!scrape.ok) {
-    const news = await scrapeNewsMentions();
-    detection = detectResetEvents(news);
-    if (news.length > 0) report.scrapeInstance = (report.scrapeInstance || '') + ' +news-fallback';
-  }
+  //    mentions are logged for manual review. scrapeTweets already uses
+  //    Google News as its final degraded source.
+  const detection = detectResetEvents(scrape.tweets);
   const candidates = detection.strong;
   report.candidates = candidates.length;
   report.weakCandidates = detection.weak.length;
@@ -109,7 +106,19 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   snapshot.sources.database = records.length > 0 ? 'live' : 'fallback';
   await env.CACHE.put('signals:latest', JSON.stringify(snapshot), { expirationTtl: 7 * 24 * HOUR / 1000 });
 
-  // 6. Health report
+  // 6. Health report and a rate-limited operational email when the pipeline
+  // cannot collect or process a healthy snapshot.
+  if ((report.scrape === 'failed' || report.errors.length > 0) && env.HEALTH_ALERT_EMAIL && env.RESEND_API_KEY) {
+    if (!await env.CACHE.get(HEALTH_ALERT_KEY)) {
+      try {
+        await sendHealthAlert(env, report);
+        await env.CACHE.put(HEALTH_ALERT_KEY, report.startedAt, { expirationTtl: HEALTH_ALERT_COOLDOWN_SECONDS });
+      } catch (err) {
+        report.errors.push(`health alert: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  }
+
   await env.CACHE.put('health:last_run', JSON.stringify(report));
   return report;
 }

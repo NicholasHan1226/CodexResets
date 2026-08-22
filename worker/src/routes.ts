@@ -7,6 +7,8 @@ import { sendSubscriptionConfirmation, sendTestEmail } from './notify';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CONFIRM_TTL_SECONDS = 24 * 60 * 60;
 const REQUEST_COOLDOWN_SECONDS = 5 * 60;
+const IP_RATE_WINDOW_SECONDS = 10 * 60;
+const IP_RATE_LIMIT = 5;
 
 /** GET /api/signals — the snapshot the browser consumes */
 export async function handleSignals(env: Env): Promise<Response> {
@@ -147,15 +149,29 @@ export async function handleUnsubscribeEmail(url: URL, env: Env): Promise<Respon
 
 /** POST /api/subscribe/email — begin a double opt-in email subscription. */
 export async function handleSubscribeEmail(request: Request, env: Env): Promise<Response> {
-  let body: { email?: string };
+  let body: { email?: string; turnstileToken?: string };
   try {
-    body = await request.json() as { email?: string };
+    body = await request.json() as { email?: string; turnstileToken?: string };
   } catch {
     return json({ error: 'invalid json' }, 400);
   }
   const email = typeof body.email === 'string' ? body.email.toLowerCase().trim() : '';
   if (!EMAIL_RE.test(email) || email.length > 320) return json({ error: 'invalid email' }, 400);
   if (!env.RESEND_API_KEY) return json({ error: 'email delivery is not configured' }, 503);
+  if (!env.TURNSTILE_SECRET) return json({ error: 'subscription verification is not configured' }, 503);
+
+  const clientIp = request.headers.get('cf-connecting-ip');
+  if (!clientIp) return json({ error: 'client address unavailable' }, 400);
+  const ipKey = await valueHash(clientIp);
+  const rateLimitKey = `subscribe:ip:${ipKey}`;
+  const attempts = Number.parseInt((await env.CACHE.get(rateLimitKey)) || '0', 10) || 0;
+  if (attempts >= IP_RATE_LIMIT) return json({ error: 'too many subscription attempts; try again later' }, 429);
+  await env.CACHE.put(rateLimitKey, String(attempts + 1), { expirationTtl: IP_RATE_WINDOW_SECONDS });
+
+  const turnstileToken = typeof body.turnstileToken === 'string' ? body.turnstileToken.trim() : '';
+  if (!turnstileToken || turnstileToken.length > 4096) return json({ error: 'subscription verification required' }, 400);
+  const turnstileOk = await verifyTurnstile(env, turnstileToken, clientIp);
+  if (!turnstileOk) return json({ error: 'subscription verification failed' }, 403);
   const emailKey = await emailHash(email);
   const cooldownKey = `subscribe:cooldown:${emailKey}`;
   if (await env.CACHE.get(cooldownKey)) return json({ ok: true, status: 'pending' });
@@ -224,8 +240,33 @@ function confirmPage(message: string, ok: boolean): string {
 }
 
 async function emailHash(email: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email));
+  return valueHash(email);
+}
+
+async function valueHash(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
+}
+
+/** Validate the short-lived, single-use Turnstile token at the Worker boundary. */
+async function verifyTurnstile(env: Env, token: string, clientIp: string): Promise<boolean> {
+  try {
+    const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        secret: env.TURNSTILE_SECRET,
+        response: token,
+        remoteip: clientIp,
+        idempotency_key: crypto.randomUUID(),
+      }),
+    });
+    if (!response.ok) return false;
+    const result = await response.json() as { success?: boolean; action?: string };
+    return result.success === true && result.action === 'subscribe_email';
+  } catch {
+    return false;
+  }
 }
 
 function isCronAuthorized(request: Request, env: Env): boolean {

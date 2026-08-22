@@ -175,6 +175,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'subscribe.invalidEmail': 'Please enter a valid email',
     'subscribe.success': "Subscribed — we'll email you at 70%.",
     'subscribe.confirmationSent': 'Check your inbox to confirm your subscription.',
+    'subscribe.verificationRequired': 'Complete the human verification before subscribing.',
+    'subscribe.verificationUnavailable': 'Subscription verification is temporarily unavailable.',
     'subscribe.alreadySubscribed': 'This email is already subscribed.',
     'subscribe.welcomeBack': 'Subscription re-activated — welcome back.',
     'subscribe.errorRetry': 'Something went wrong — please try again.',
@@ -235,6 +237,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'about.sourceHistoryDesc': 'every confirmed goodwill reset since Sep 2025',
     'about.privacyTitle': 'Email and privacy',
     'about.privacyDesc': 'An email address is stored only after its recipient confirms the subscription. It is used to send reset alerts and to process unsubscribe requests; this site does not ask for an OpenAI account or personal usage data.',
+    'about.privacyRetention': 'Unconfirmed email addresses expire after 24 hours. A confirmed address remains only while its alert subscription is active; one-click unsubscribe stops future email delivery.',
+    'about.privacyAbuse': 'To protect the subscription form, the service temporarily keeps a hashed network address for up to 10 minutes. It is used only to limit automated requests.',
     'about.backHome': 'back to the tracker',
 
     // Footer
@@ -435,6 +439,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'subscribe.invalidEmail': '请输入有效的邮箱地址',
     'subscribe.success': '已订阅——概率到 70% 时邮件通知你。',
     'subscribe.confirmationSent': '请查收邮箱并完成订阅确认。',
+    'subscribe.verificationRequired': '请先完成人机验证，再订阅。',
+    'subscribe.verificationUnavailable': '订阅验证暂时不可用。',
     'subscribe.alreadySubscribed': '该邮箱已订阅。',
     'subscribe.welcomeBack': '订阅已重新激活。',
     'subscribe.errorRetry': '出错了，请稍后重试。',
@@ -495,6 +501,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'about.sourceHistoryDesc': '自 2025 年 9 月以来每次确认的善意重置',
     'about.privacyTitle': '邮箱与隐私',
     'about.privacyDesc': '只有收件人完成确认后，邮箱才会写入订阅名单。邮箱仅用于发送重置提醒和处理退订；本站不会索取 OpenAI 账户或个人用量数据。',
+    'about.privacyRetention': '未确认的邮箱会在 24 小时后过期。已确认的邮箱仅在提醒订阅保持有效期间留存；一键退订会停止后续邮件投递。',
+    'about.privacyAbuse': '为保护订阅表单，服务会暂存经过哈希处理的网络地址，最长 10 分钟，仅用于限制自动化请求。',
     'about.backHome': '返回追踪器',
 
     // Footer

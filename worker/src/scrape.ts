@@ -22,7 +22,10 @@ const NITTER_INSTANCES = [
  *      a self-hosted instance with X credentials plugged into
  *      RSSHUB_INSTANCES makes this primary again)
  *   2. nitter mirrors (HTML scrape)
- * Every attempt's error is collected so /api/health shows the full picture.
+ *   3. Google News RSS (a degraded, but independently reachable source)
+ * Every failed primary attempt is retained for diagnosis. A populated fallback
+ * is still a successful collection run, so transient mirror churn does not
+ * make the production health endpoint fail closed.
  */
 export async function scrapeTweets(env: Env): Promise<ScrapeResult> {
   const attempted: string[] = [];
@@ -75,12 +78,16 @@ export async function scrapeTweets(env: Env): Promise<ScrapeResult> {
     }
   }
 
+  const news = await scrapeNewsMentions();
+  if (news.length > 0) {
+    return { ok: true, instance: 'google-news', tweets: news, attempted };
+  }
+  attempted.push('google-news: 0 items');
+
   return { ok: false, tweets: [], error: attempted.join(' | '), attempted };
 }
 
-/** Fallback signal source: Google News RSS mentions of a codex reset.
- *  Not a substitute for the primary source, but catches widely-reported
- *  resets when every tweet mirror is down. */
+/** Degraded source: Google News RSS mentions of a Codex reset. */
 export async function scrapeNewsMentions(): Promise<Tweet[]> {
   const url = 'https://news.google.com/rss/search?q=%22codex%22%20%22usage%20limits%22%20reset&hl=en-US&gl=US&ceid=US:en';
   try {

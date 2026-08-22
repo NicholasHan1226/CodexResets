@@ -27,9 +27,9 @@ npx tsc -b --noEmit  # TypeScript check
 `https://api.codexresets.cc` (custom domain; workers.dev is DNS-poisoned in
 some regions — do not rely on it).
 
-- `src/scrape.ts`    — tweet scraping: RSSHub instances → nitter mirrors
-  (xcancel.com currently works from the edge) → Google News RSS fallback for
-  reset detection. All instance errors collected into `attempted[]`.
+- `src/scrape.ts`    — tweet scraping: RSSHub instances → nitter mirrors →
+  Google News RSS degraded source for reset detection. Failed primary attempts
+  remain in `attempted[]`; a populated degraded source keeps the run healthy.
 - `src/signals.ts`   — builds the 4-signal snapshot (tibopost / status_page /
   cooldown / launch_noise), mirrors the frontend model
 - `src/pipeline.ts`  — orchestration: scrape → detect → insert (service role)
@@ -44,7 +44,8 @@ some regions — do not rely on it).
   GET /api/unsubscribe (HMAC email), POST /api/run (Bearer CRON_SECRET)
 - Deploy: `cd worker && CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... npx wrangler deploy`
 - Secrets set: SUPABASE_SERVICE_ROLE_KEY, VAPID_PRIVATE_KEY,
-  UNSUBSCRIBE_SECRET, CRON_SECRET, RESEND_API_KEY (send-only restricted key).
+  UNSUBSCRIBE_SECRET, CRON_SECRET, RESEND_API_KEY (send-only restricted key),
+  TURNSTILE_SECRET, HEALTH_ALERT_EMAIL.
 - Privileged DB access (`src/privileged.ts`) is service-role REST only. No
   database RPC accepts a shared pipeline secret or anonymous caller.
 - Resend remains the outbound email delivery provider; it is independent of

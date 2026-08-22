@@ -140,9 +140,11 @@ export default function About() {
             <span className="mr-2 font-mono font-normal text-primary">❯</span>
             {t('about.privacyTitle')}
           </h2>
-          <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-            {t('about.privacyDesc')}
-          </p>
+          <div className="mt-4 space-y-3 text-sm leading-relaxed text-muted-foreground">
+            <p>{t('about.privacyDesc')}</p>
+            <p>{t('about.privacyRetention')}</p>
+            <p>{t('about.privacyAbuse')}</p>
+          </div>
         </section>
 
         {/* === Disclaimer === */}

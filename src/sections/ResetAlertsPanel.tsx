@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
 import { subscribeEmail, type SubscribeStatus } from '@/lib/subscription';
 import { subscribeToPush, unsubscribeFromPush, isSubscribedToPush, isPushSupported } from '@/lib/push-notifications';
+import { TurnstileWidget } from '@/components/TurnstileWidget';
 
 const statusMessageKey: Record<SubscribeStatus, string> = {
   pending: 'subscribe.confirmationSent',
@@ -9,6 +10,7 @@ const statusMessageKey: Record<SubscribeStatus, string> = {
 };
 
 const ALERT_THRESHOLD = 70;
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 
 function asciiBar(pct: number, width = 10): string {
   const filled = Math.max(0, Math.min(width, Math.round((pct / 100) * width)));
@@ -28,6 +30,16 @@ export function ResetAlertsPanel({ prob24h }: ResetAlertsPanelProps) {
   const [emailDone, setEmailDone] = useState(false);
   const [emailMessage, setEmailMessage] = useState('');
   const [emailError, setEmailError] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const turnstileReset = useRef<(() => void) | null>(null);
+  const handleTurnstileError = useCallback(() => {
+    setTurnstileToken('');
+    setEmailMessage(t('subscribe.verificationUnavailable'));
+    setEmailError(true);
+  }, [t]);
+  const setTurnstileReset = useCallback((reset: (() => void) | null) => {
+    turnstileReset.current = reset;
+  }, []);
 
   const [pushSupported, setPushSupported] = useState(false);
   const [pushSubscribed, setPushSubscribed] = useState(false);
@@ -49,10 +61,15 @@ export function ResetAlertsPanel({ prob24h }: ResetAlertsPanelProps) {
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || emailLoading) return;
+    if (!turnstileToken) {
+      setEmailMessage(t('subscribe.verificationRequired'));
+      setEmailError(true);
+      return;
+    }
     setEmailLoading(true);
     setEmailError(false);
     try {
-      const status = await subscribeEmail(email);
+      const status = await subscribeEmail(email, turnstileToken);
       setEmailMessage(t(statusMessageKey[status]));
       if (status === 'invalid') {
         setEmailError(true);
@@ -64,6 +81,8 @@ export function ResetAlertsPanel({ prob24h }: ResetAlertsPanelProps) {
       setEmailMessage(t('subscribe.errorRetry'));
       setEmailError(true);
     } finally {
+      setTurnstileToken('');
+      turnstileReset.current?.();
       setEmailLoading(false);
     }
   };
@@ -131,25 +150,37 @@ export function ResetAlertsPanel({ prob24h }: ResetAlertsPanelProps) {
               ✓ {emailMessage}
             </p>
           ) : (
-            <form onSubmit={handleEmailSubmit} className="flex items-stretch gap-2">
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <span className="shrink-0 font-mono text-sm text-primary">❯</span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t('subscribe.placeholder')}
-                  className="w-full min-w-0 bg-transparent py-1.5 font-mono text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
-                  required
-                />
+            <form onSubmit={handleEmailSubmit} className="space-y-3">
+              <div className="flex items-stretch gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="shrink-0 font-mono text-sm text-primary">❯</span>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={t('subscribe.placeholder')}
+                    className="w-full min-w-0 bg-transparent py-1.5 font-mono text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={emailLoading || !TURNSTILE_SITE_KEY}
+                  className="shrink-0 bg-primary px-4 font-mono text-xs font-semibold uppercase tracking-wider text-background transition-colors hover:bg-primary/85 disabled:opacity-50"
+                >
+                  {emailLoading ? '···' : t('subscribe.button')}
+                </button>
               </div>
-              <button
-                type="submit"
-                disabled={emailLoading}
-                className="shrink-0 bg-primary px-4 font-mono text-xs font-semibold uppercase tracking-wider text-background transition-colors hover:bg-primary/85 disabled:opacity-50"
-              >
-                {emailLoading ? '···' : t('subscribe.button')}
-              </button>
+              {TURNSTILE_SITE_KEY ? (
+                <TurnstileWidget
+                  siteKey={TURNSTILE_SITE_KEY}
+                  onToken={setTurnstileToken}
+                  onError={handleTurnstileError}
+                  onReady={setTurnstileReset}
+                />
+              ) : (
+                <p className="font-mono text-xs text-destructive">{t('subscribe.verificationUnavailable')}</p>
+              )}
             </form>
           )}
           {emailMessage && !emailDone && (

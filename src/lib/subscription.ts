@@ -6,11 +6,11 @@ const PIPELINE_URL = import.meta.env.VITE_PIPELINE_API_URL || 'https://api.codex
  * Start a double opt-in email subscription. The Worker sends the confirmation
  * email and activates the address only after the recipient follows its link.
  */
-export async function subscribeEmail(email: string): Promise<SubscribeStatus> {
+export async function subscribeEmail(email: string, turnstileToken: string): Promise<SubscribeStatus> {
   const response = await fetch(`${PIPELINE_URL.replace(/\/+$/, '')}/api/subscribe/email`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    body: JSON.stringify({ email: email.trim().toLowerCase(), turnstileToken }),
   });
   const data = await response.json().catch(() => null) as { status?: string; error?: string } | null;
   if (!response.ok) {

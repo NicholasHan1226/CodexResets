@@ -1,5 +1,5 @@
 import { buildPushPayload, type PushMessage, type PushSubscription, type VapidKeys } from '@block65/webcrypto-web-push';
-import type { Env, ResetEvent } from './types';
+import type { Env, ResetEvent, RunReport } from './types';
 import { hasPrivilegedAccess, privListEmails, privListPush, privDeletePush, type PushSubRow } from './privileged';
 import { signToken, escapeHtml } from './util';
 
@@ -117,6 +117,22 @@ export async function sendTestEmail(env: Env, email: string): Promise<void> {
   if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
 }
 
+/** Send an operations alert; callers are responsible for rate limiting. */
+export async function sendHealthAlert(env: Env, report: RunReport): Promise<void> {
+  if (!env.RESEND_API_KEY || !env.HEALTH_ALERT_EMAIL) return;
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      from: env.RESEND_FROM,
+      to: [env.HEALTH_ALERT_EMAIL],
+      subject: '[Action required] Codex Resets Worker health failed',
+      html: healthAlertHtml(env, report),
+    }),
+  });
+  if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
+}
+
 function emailHtml(env: Env, excerpt: string, resetLocal: string, unsubUrl: string): string {
   return `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
@@ -154,6 +170,21 @@ function testEmailHtml(env: Env): string {
     <h1 style="margin:0 0 12px;font-size:20px">Test alert delivery</h1>
     <p style="margin:0 0 16px;font-size:14px;color:#3d4250">This is an administrator-initiated delivery test. It does not indicate a Codex reset and does not change your subscription.</p>
     <a href="${env.SITE_URL}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open dashboard</a>
+  </div>
+</body></html>`;
+}
+
+function healthAlertHtml(env: Env, report: RunReport): string {
+  const errors = report.errors.length > 0 ? report.errors.slice(0, 3).join('\n') : 'No diagnostic details were recorded.';
+  return `<!doctype html>
+<html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
+  <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
+    <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#d97706">! codex resets operations</p>
+    <h1 style="margin:0 0 12px;font-size:20px">Worker health check failed</h1>
+    <p style="margin:0 0 12px;font-size:14px;color:#3d4250">The scheduled pipeline run at ${escapeHtml(report.startedAt)} finished with status <strong>${escapeHtml(report.scrape)}</strong>.</p>
+    <pre style="white-space:pre-wrap;margin:0 0 16px;padding:12px;background:#f8fafc;border:1px solid #e4e6ea;font-size:12px;color:#3d4250">${escapeHtml(errors)}</pre>
+    <a href="${workerBase(env)}/api/health" style="display:inline-block;background:#d97706;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open health report</a>
+    <p style="margin:16px 0 0;font-size:11px;color:#9aa0ac">At most one health-failure alert is sent every six hours.</p>
   </div>
 </body></html>`;
 }

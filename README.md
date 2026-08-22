@@ -49,9 +49,16 @@ and become part of the downloaded browser bundle:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_VAPID_PUBLIC_KEY`
+- `VITE_TURNSTILE_SITE_KEY`
 
 Never put a service-role key, `CRON_SECRET`, VAPID private key, Resend API key,
 or any other secret in an `VITE_*` variable or this file.
+
+Email subscription intake requires a Cloudflare Turnstile token with the
+`subscribe_email` action. Configure its server-side `TURNSTILE_SECRET` as a
+Worker secret; the public site key is the only Turnstile value embedded in the
+Pages bundle. The Worker also limits each hashed client address to five email
+subscription attempts per ten minutes.
 
 ## Database and email delivery
 
@@ -125,5 +132,6 @@ Cloudflare dashboard.
 
 `/api/health` is a monitor-ready endpoint: it returns HTTP 503 when the last
 scheduled run or signal snapshot is missing, failed, or older than 90 minutes.
-Use that endpoint as the alert target; the response includes non-secret check
+The Worker sends one Resend health-failure alert every six hours when
+`HEALTH_ALERT_EMAIL` is configured. The response includes non-secret check
 states for diagnosis.
