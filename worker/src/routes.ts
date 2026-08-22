@@ -3,6 +3,8 @@ import { json, html, escapeHtml, verifyToken } from './util';
 import { hasPrivilegedAccess, privUpsertPush, privDeletePush, privDeleteEmail, privActivateEmail } from './privileged';
 import { runPipeline } from './pipeline';
 import { sendPushSubscriptionTest, sendSubscriptionConfirmation, sendTestEmail } from './notify';
+import { getForecastCalibration } from './forecast';
+import { getOfficialCodexDiscovery } from './discovery';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CONFIRM_TTL_SECONDS = 24 * 60 * 60;
@@ -60,7 +62,11 @@ export async function handleHealthDetails(request: Request, env: Env): Promise<R
   const report = parseJson<RunReport>(await env.CACHE.get('health:last_run'));
   const date = new Date().toISOString().slice(0, 10);
   const deliveryToday = parseJson<DeliveryMetrics>(await env.CACHE.get(`metrics:delivery:${date}`));
-  return json({ now: new Date().toISOString(), lastRun: report, deliveryToday });
+  const [forecastCalibration, officialDiscovery] = await Promise.all([
+    getForecastCalibration(env),
+    getOfficialCodexDiscovery(env),
+  ]);
+  return json({ now: new Date().toISOString(), lastRun: report, deliveryToday, forecastCalibration, officialDiscovery });
 }
 
 function publicRunReport(report: RunReport | null): Omit<RunReport, 'errors' | 'candidateSamples' | 'scrapeInstance'> & { errorCount: number } | null {

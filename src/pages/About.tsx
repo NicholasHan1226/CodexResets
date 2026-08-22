@@ -85,49 +85,6 @@ export default function About() {
           </div>
         </section>
 
-        {/* === Data sources & disclaimer === */}
-        <hr className="my-10 border-border/30" />
-        <section aria-label="Data sources">
-          <h2 className="text-lg font-semibold text-foreground">
-            <span className="mr-2 font-mono font-normal text-primary">❯</span>
-            {t('about.sourcesTitle')}
-          </h2>
-          <div className="mt-4 space-y-3 text-sm leading-relaxed text-muted-foreground">
-            <p>{t('about.sourcesDesc')}</p>
-            <ul className="space-y-1.5 font-mono text-xs">
-              <li className="flex gap-2">
-                <span className="text-primary">·</span>
-                <a
-                  href="https://x.com/thsottiaux"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  @thsottiaux
-                </a>
-                <span className="text-muted-foreground/60">— {t('about.sourceTibo')}</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-primary">·</span>
-                <a
-                  href="https://status.openai.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  status.openai.com
-                </a>
-                <span className="text-muted-foreground/60">— {t('about.sourceStatus')}</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-primary">·</span>
-                <span className="text-foreground">{t('about.sourceHistory')}</span>
-                <span className="text-muted-foreground/60">— {t('about.sourceHistoryDesc')}</span>
-              </li>
-            </ul>
-          </div>
-        </section>
-
         {/* === Email and privacy === */}
         <hr className="my-10 border-border/30" />
         <section aria-label="Email and privacy">

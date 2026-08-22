@@ -21,6 +21,14 @@ interface ForecastEvaluation extends ForecastSample {
   resetIn48h: boolean;
 }
 
+export interface ForecastCalibration {
+  samples: number;
+  brier24h: number | null;
+  brier48h: number | null;
+  modelCounts: Record<'logistic' | 'weibull', number>;
+  latest: Pick<ForecastSample, 'at' | 'model' | 'prob24h' | 'prob48h'> | null;
+}
+
 function toForecastRecords(records: ResetRecordRow[]): ResetRecord[] {
   return records
     .filter((record) => record.verified && record.auto_state !== 'retracted')
@@ -50,6 +58,29 @@ function parseSamples(raw: string | null): ForecastSample[] {
   }
 }
 
+function parseSample(raw: string | null): ForecastSample | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<ForecastSample>;
+    return typeof parsed.at === 'number'
+      && typeof parsed.dueAt === 'number'
+      && (parsed.model === 'logistic' || parsed.model === 'weibull')
+      && typeof parsed.prob24h === 'number'
+      && typeof parsed.prob48h === 'number'
+      ? parsed as ForecastSample
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseEvaluations(raw: string | null): ForecastEvaluation[] {
+  return parseSamples(raw).filter((sample): sample is ForecastEvaluation => (
+    typeof (sample as Partial<ForecastEvaluation>).resetIn24h === 'boolean'
+      && typeof (sample as Partial<ForecastEvaluation>).resetIn48h === 'boolean'
+  ));
+}
+
 function hasResetBetween(records: ResetRecord[], start: number, end: number): boolean {
   return records.some((record) => record.timestamp > start && record.timestamp <= end);
 }
@@ -76,7 +107,7 @@ export async function recordForecastSnapshot(env: Env, rows: ResetRecordRow[], n
   const due = pending.filter((sample) => sample.dueAt <= now);
   const remaining = pending.filter((sample) => sample.dueAt > now);
   if (due.length > 0) {
-    const previous = parseSamples(await env.CACHE.get(FORECAST_EVALUATIONS_KEY)) as ForecastEvaluation[];
+    const previous = parseEvaluations(await env.CACHE.get(FORECAST_EVALUATIONS_KEY));
     const evaluations = [
       ...previous,
       ...due.map((sample) => ({
@@ -95,4 +126,34 @@ export async function recordForecastSnapshot(env: Env, rows: ResetRecordRow[], n
   }
   await env.CACHE.put(FORECAST_PENDING_KEY, JSON.stringify(remaining), { expirationTtl: FORECAST_TTL_SECONDS });
   await env.CACHE.put('forecast:latest', JSON.stringify(snapshot), { expirationTtl: FORECAST_TTL_SECONDS });
+}
+
+/** Protected operational readback; never included in public product APIs. */
+export async function getForecastCalibration(env: Env): Promise<ForecastCalibration> {
+  const [evaluationsRaw, latestRaw] = await Promise.all([
+    env.CACHE.get(FORECAST_EVALUATIONS_KEY),
+    env.CACHE.get('forecast:latest'),
+  ]);
+  const evaluations = parseEvaluations(evaluationsRaw);
+  const modelCounts: ForecastCalibration['modelCounts'] = { logistic: 0, weibull: 0 };
+  let error24 = 0;
+  let error48 = 0;
+  for (const evaluation of evaluations) {
+    modelCounts[evaluation.model] += 1;
+    error24 += (evaluation.prob24h - Number(evaluation.resetIn24h)) ** 2;
+    error48 += (evaluation.prob48h - Number(evaluation.resetIn48h)) ** 2;
+  }
+  const latest = parseSample(latestRaw);
+  return {
+    samples: evaluations.length,
+    brier24h: evaluations.length > 0 ? error24 / evaluations.length : null,
+    brier48h: evaluations.length > 0 ? error48 / evaluations.length : null,
+    modelCounts,
+    latest: latest && {
+      at: latest.at,
+      model: latest.model,
+      prob24h: latest.prob24h,
+      prob48h: latest.prob48h,
+    },
+  };
 }

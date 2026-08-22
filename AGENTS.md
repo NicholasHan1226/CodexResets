@@ -39,6 +39,8 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   (`health:last_run`)
 - `src/forecast.ts`  — private daily prediction snapshots and automatic
   24/48-hour outcome resolution in KV; visitor UI does not read these records
+- `src/discovery.ts` — isolated OpenAI-owned Codex update discovery context;
+  it never becomes a reset candidate or notification input
 - `src/notify.ts`    — Resend email (HMAC-signed unsubscribe links) +
   Web Push via @block65/webcrypto-web-push (prunes 404/410 endpoints)
 - Runtime compatibility: `nodejs_compat` is enabled because the Web Push

@@ -61,6 +61,10 @@ Worker's automatic stabilization, correction, or notification rules.
 The Worker also retains one non-PII forecast snapshot per UTC day and resolves
 its 24/48-hour outcome after the horizon closes. These private KV samples are
 kept for 120 days and are not shown in the visitor interface.
+The protected `/api/health/details` response includes the resulting sample
+count, 24/48-hour Brier scores, model usage counts, and the latest snapshot.
+An OpenAI-owned Codex changelog is checked as discovery context only; it can
+never create a candidate, raise a forecast, confirm a reset, or send an alert.
 
 ## Mainland-user behavior
 

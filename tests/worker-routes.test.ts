@@ -3,7 +3,8 @@ import { handleConfirmEmail, handleHealth, handleHealthDetails, handleResendWebh
 import { isExpiredPushEndpoint, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
 import { getStatusEvidence } from '../worker/src/signals';
 import { shouldSendHealthAlert } from '../worker/src/pipeline';
-import { recordForecastSnapshot } from '../worker/src/forecast';
+import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
+import { refreshOfficialCodexDiscovery } from '../worker/src/discovery';
 import type { Env, RunReport } from '../worker/src/types';
 import { detectResetEvents, detectResetRetractions, isRetractionForCandidate, isTimelyAutomatedCandidate, scrapeTweets } from '../worker/src/scrape';
 
@@ -620,5 +621,35 @@ describe('forecast snapshot retention', () => {
     }, ...rows], now + 49 * 60 * 60 * 1000);
     const evaluations = JSON.parse(cache['forecast:evaluations'] || '[]') as Array<{ resetIn24h: boolean; resetIn48h: boolean }>;
     expect(evaluations).toEqual(expect.arrayContaining([expect.objectContaining({ resetIn24h: true, resetIn48h: true })]));
+    await expect(getForecastCalibration(env)).resolves.toMatchObject({
+      samples: 1,
+      brier24h: expect.any(Number),
+      brier48h: expect.any(Number),
+      latest: expect.objectContaining({ model: expect.any(String) }),
+    });
+    const details = await handleHealthDetails(
+      new Request('https://api.example.test/api/health/details', { headers: { authorization: 'Bearer calibration-test' } }),
+      { ...env, CRON_SECRET: 'calibration-test' },
+    );
+    await expect(details.json()).resolves.toMatchObject({ forecastCalibration: { samples: 1 } });
+  });
+});
+
+describe('official discovery isolation', () => {
+  it('caches official update context without turning it into a reset candidate', async () => {
+    const cache: Record<string, string | null> = {};
+    const fetchMock = vi.fn().mockResolvedValue(new Response('<html><body>Codex usage limits and banked reset details</body></html>', {
+      headers: { 'last-modified': 'Fri, 22 Aug 2026 12:00:00 GMT' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const first = await refreshOfficialCodexDiscovery(envWith(cache));
+      const second = await refreshOfficialCodexDiscovery(envWith(cache));
+      expect(first).toMatchObject({ reachable: true, resetContextFound: true });
+      expect(second).toEqual(first);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

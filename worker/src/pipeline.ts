@@ -19,6 +19,7 @@ import {
 import { buildSignalsSnapshot, getStatusEvidence } from './signals';
 import { notifyAll, sendHealthAlert } from './notify';
 import { recordForecastSnapshot } from './forecast';
+import { refreshOfficialCodexDiscovery } from './discovery';
 
 const HOUR = 3600 * 1000;
 // Seed with the newest bundled reset so the snapshot works before the DB
@@ -53,6 +54,9 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   report.scrapeInstance = scrape.instance;
   report.tweetsSeen = scrape.tweets.length;
   if (!scrape.ok && scrape.error) report.errors.push(`scrape: ${scrape.error}`);
+  // Secondary official discovery is deliberately isolated from candidate and
+  // alert flows. A changelog page can provide context, never confirmation.
+  await refreshOfficialCodexDiscovery(env);
   await applyDirectSourceGate(env, scrape, report);
   const statusEvidence = await getStatusEvidence();
   report.statusGate = statusEvidence.state === 'incident' ? 'hold' : statusEvidence.state;
