@@ -13,6 +13,10 @@ export interface NotifyResult {
   errors: string[];
 }
 
+export function isExpiredPushEndpoint(status: number): boolean {
+  return status === 404 || status === 410;
+}
+
 /** Fan out a freshly detected reset to every subscriber (email + web push) */
 export async function notifyAll(env: Env, event: ResetEvent): Promise<NotifyResult> {
   const errors: string[] = [];
@@ -217,7 +221,7 @@ async function sendPush(env: Env, row: PushSubRow, event: ResetEvent): Promise<'
 
   const payload = await buildPushPayload(message, subscription, vapid);
   const res = await fetch(subscription.endpoint, payload);
-  if (res.status === 404 || res.status === 410) return 'gone';
+  if (isExpiredPushEndpoint(res.status)) return 'gone';
   if (!res.ok) throw new Error(`push endpoint ${res.status}`);
   return 'sent';
 }

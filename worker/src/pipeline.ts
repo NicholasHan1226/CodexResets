@@ -1,4 +1,4 @@
-import type { Env, ResetRecordRow, RunReport } from './types';
+import type { DeliveryMetrics, Env, ResetRecordRow, RunReport } from './types';
 import {
   scrapeTweets,
   detectResetEvents,
@@ -17,6 +17,7 @@ import {
   privRetractAutomatedReset,
 } from './privileged';
 import { buildSignalsSnapshot } from './signals';
+import { getStatusEvidence } from './signals';
 import { notifyAll, sendHealthAlert } from './notify';
 
 const HOUR = 3600 * 1000;
@@ -28,6 +29,10 @@ const HEALTH_ALERT_COOLDOWN_SECONDS = 6 * 60 * 60;
 const HEALTH_ALERT_KEY = 'health:alert:last_sent';
 const AUTOMATION_STABILIZATION_MS = 30 * 60 * 1000;
 const RETRACTION_WINDOW_MS = 72 * HOUR;
+const DIRECT_SOURCE_FAILURE_KEY = 'direct-source:consecutive-failures';
+const DIRECT_SOURCE_FAILURE_TTL_SECONDS = 3 * 24 * 60 * 60;
+const DIRECT_SOURCE_FAILURE_ALERT_AT = 3;
+const DELIVERY_METRIC_TTL_SECONDS = 31 * 24 * 60 * 60;
 
 export async function runPipeline(env: Env, trigger: string): Promise<RunReport> {
   const report: RunReport = {
@@ -48,6 +53,9 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   report.scrapeInstance = scrape.instance;
   report.tweetsSeen = scrape.tweets.length;
   if (!scrape.ok && scrape.error) report.errors.push(`scrape: ${scrape.error}`);
+  await applyDirectSourceGate(env, scrape, report);
+  const statusEvidence = await getStatusEvidence();
+  report.statusGate = statusEvidence.state === 'incident' ? 'hold' : statusEvidence.state;
 
   // 2. Discoveries go through a Worker-owned stabilization window. A direct
   // target-account source is required; news-only fallback never promotes a
@@ -111,7 +119,7 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   // 4. Automatically enroll older pending discoveries, retract any that have
   //    a later source correction, and confirm stable ones. This replaces the
   //    manual database toggle while retaining a reversible pre-delivery state.
-  if (scrape.sourceKind === 'direct' && hasPrivilegedAccess(env)) {
+  if (scrape.sourceKind === 'direct' && hasPrivilegedAccess(env) && statusEvidence.state !== 'incident') {
     const now = Date.now();
     for (const record of allRecords) {
       if (record.verified || record.auto_state === 'retracted') continue;
@@ -163,6 +171,10 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
       record.auto_confirm_after = null;
       report.autoConfirmed = (report.autoConfirmed || 0) + 1;
     }
+  } else if (scrape.sourceKind === 'direct' && statusEvidence.state === 'incident') {
+    report.autoHeldByStatus = allRecords.filter(
+      (record) => record.automated && !record.verified && record.auto_state === 'observed' && Date.parse(record.auto_confirm_after || '') <= Date.now(),
+    ).length;
   }
 
   // 5. Deliver automatically confirmed resets. The earlier migration marked
@@ -191,7 +203,7 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
     latestResetTs = Number(await env.CACHE.get('latest_reset_ts')) || SEED_RESET_TS;
   }
   const medianGapDays = computeMedianGapDays(records) ?? FALLBACK_MEDIAN_DAYS;
-  const snapshot = await buildSignalsSnapshot(env, scrape, latestResetTs, medianGapDays);
+  const snapshot = await buildSignalsSnapshot(env, scrape, latestResetTs, medianGapDays, statusEvidence);
   snapshot.sources.database = records.length > 0 ? 'live' : 'fallback';
   await env.CACHE.put('signals:latest', JSON.stringify(snapshot), { expirationTtl: 7 * 24 * HOUR / 1000 });
 
@@ -208,8 +220,55 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
     }
   }
 
+  try {
+    await updateDeliveryMetrics(env, report);
+  } catch (err) {
+    report.errors.push(`metrics: ${err instanceof Error ? err.message : String(err)}`);
+  }
   await env.CACHE.put('health:last_run', JSON.stringify(report));
   return report;
+}
+
+async function applyDirectSourceGate(env: Env, scrape: Awaited<ReturnType<typeof scrapeTweets>>, report: RunReport): Promise<void> {
+  if (scrape.sourceKind === 'direct') {
+    report.directSource = 'live';
+    await env.CACHE.delete(DIRECT_SOURCE_FAILURE_KEY);
+    return;
+  }
+  report.directSource = scrape.sourceKind === 'degraded' ? 'degraded' : 'down';
+  const failures = (Number(await env.CACHE.get(DIRECT_SOURCE_FAILURE_KEY)) || 0) + 1;
+  report.directSourceFailures = failures;
+  await env.CACHE.put(DIRECT_SOURCE_FAILURE_KEY, String(failures), { expirationTtl: DIRECT_SOURCE_FAILURE_TTL_SECONDS });
+  if (failures >= DIRECT_SOURCE_FAILURE_ALERT_AT) {
+    report.errors.push(`direct source unavailable for ${failures} consecutive runs; automated confirmation remains paused`);
+  }
+}
+
+async function updateDeliveryMetrics(env: Env, report: RunReport): Promise<void> {
+  const date = report.startedAt.slice(0, 10);
+  const key = `metrics:delivery:${date}`;
+  let previous: Partial<DeliveryMetrics> = {};
+  const raw = await env.CACHE.get(key);
+  if (raw) {
+    try { previous = JSON.parse(raw) as Partial<DeliveryMetrics>; } catch { /* replace malformed metrics */ }
+  }
+  const next: DeliveryMetrics = {
+    date,
+    runs: (previous.runs || 0) + 1,
+    directRuns: (previous.directRuns || 0) + (report.directSource === 'live' ? 1 : 0),
+    degradedRuns: (previous.degradedRuns || 0) + (report.directSource === 'degraded' ? 1 : 0),
+    failedRuns: (previous.failedRuns || 0) + (report.directSource === 'down' ? 1 : 0),
+    candidates: (previous.candidates || 0) + report.candidates,
+    staleCandidates: (previous.staleCandidates || 0) + (report.staleCandidates || 0),
+    autoQueued: (previous.autoQueued || 0) + (report.autoQueued || 0),
+    autoConfirmed: (previous.autoConfirmed || 0) + (report.autoConfirmed || 0),
+    autoRetracted: (previous.autoRetracted || 0) + (report.autoRetracted || 0),
+    statusHeld: (previous.statusHeld || 0) + (report.autoHeldByStatus || 0),
+    emails: (previous.emails || 0) + report.notifiedEmails,
+    pushes: (previous.pushes || 0) + report.notifiedPush,
+    errors: (previous.errors || 0) + report.errors.length,
+  };
+  await env.CACHE.put(key, JSON.stringify(next), { expirationTtl: DELIVERY_METRIC_TTL_SECONDS });
 }
 
 function computeMedianGapDays(records: ResetRecordRow[]): number | null {

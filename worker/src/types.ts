@@ -88,6 +88,12 @@ export interface RunReport {
   trigger: string;
   scrape: 'ok' | 'failed';
   scrapeInstance?: string;
+  /** Direct target-account availability is distinct from a news fallback. */
+  directSource?: 'live' | 'degraded' | 'down';
+  /** Consecutive non-direct runs, reset after a direct target-account read. */
+  directSourceFailures?: number;
+  /** An official Codex/rate-limit incident pauses automated confirmation. */
+  statusGate?: 'clear' | 'hold' | 'unavailable';
   tweetsSeen: number;
   candidates: number;
   /** Automatically discovered records entering the stabilization window. */
@@ -98,6 +104,8 @@ export interface RunReport {
   autoConfirmed?: number;
   /** Pending automated records withdrawn after a later correction signal. */
   autoRetracted?: number;
+  /** Stable candidates held because the official status page reports an incident. */
+  autoHeldByStatus?: number;
   /** reset+context mentions that lacked announcement phrasing (never auto-inserted) */
   weakCandidates?: number;
   /** Strong direct-source matches older than the automatic delivery window. */
@@ -108,6 +116,24 @@ export interface RunReport {
   notifiedEmails: number;
   notifiedPush: number;
   errors: string[];
+}
+
+/** A compact, non-PII operational roll-up retained in KV for 31 days. */
+export interface DeliveryMetrics {
+  date: string;
+  runs: number;
+  directRuns: number;
+  degradedRuns: number;
+  failedRuns: number;
+  candidates: number;
+  staleCandidates: number;
+  autoQueued: number;
+  autoConfirmed: number;
+  autoRetracted: number;
+  statusHeld: number;
+  emails: number;
+  pushes: number;
+  errors: number;
 }
 
 export type HealthCheck = 'ok' | 'missing' | 'stale' | 'failed';

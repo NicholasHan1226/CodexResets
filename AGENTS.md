@@ -74,6 +74,10 @@ some regions — do not rely on it).
   or subscriber delivery. Corrections must match the reset topic (banked,
   limits, quota, or credits), and alerts older than 48 hours are discarded.
   Google News remains discovery-only and cannot create an alert.
+- Three consecutive non-direct collection runs produce a rate-limited health
+  alert and keep automatic confirmation paused. An active official Codex or
+  usage-limit incident is a contradiction gate: it can hold delivery but never
+  creates a reset. KV retains a 31-day non-PII delivery roll-up.
 
 ## Project Structure
 ```

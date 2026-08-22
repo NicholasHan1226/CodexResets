@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { handleConfirmEmail, handleHealth, handleResendWebhook, handleSignals, handleSubscribeEmail, handleTestEmail } from '../worker/src/routes';
 import { sendHealthAlert } from '../worker/src/notify';
+import { isExpiredPushEndpoint } from '../worker/src/notify';
+import { getStatusEvidence } from '../worker/src/signals';
 import type { Env } from '../worker/src/types';
 import { detectResetEvents, detectResetRetractions, isRetractionForCandidate, isTimelyAutomatedCandidate, scrapeTweets } from '../worker/src/scrape';
 
@@ -94,6 +96,38 @@ describe('pipeline read endpoints', () => {
       ok: false,
       checks: { lastRun: 'failed', signals: 'stale' },
     });
+  });
+
+  it('reports a compact non-PII daily delivery roll-up in operational health', async () => {
+    const now = new Date().toISOString();
+    const date = now.slice(0, 10);
+    const response = await handleHealth(envWith({
+      'health:last_run': JSON.stringify({ startedAt: now, scrape: 'ok', errors: [] }),
+      'signals:latest': JSON.stringify({ generatedAt: Date.now() }),
+      [`metrics:delivery:${date}`]: JSON.stringify({ date, runs: 2, emails: 1, pushes: 0 }),
+    }));
+    await expect(response.json()).resolves.toMatchObject({ deliveryToday: { runs: 2, emails: 1 } });
+  });
+
+  it('classifies 404 and 410 push responses as safely removable endpoints', () => {
+    expect(isExpiredPushEndpoint(404)).toBe(true);
+    expect(isExpiredPushEndpoint(410)).toBe(true);
+    expect(isExpiredPushEndpoint(503)).toBe(false);
+  });
+
+  it('uses an official relevant incident only as a hold signal', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      incidents: [
+        { name: 'Codex rate limit errors', status: 'investigating', resolved_at: null },
+        { name: 'Unrelated incident', status: 'investigating', resolved_at: null },
+      ],
+    }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await expect(getStatusEvidence()).resolves.toEqual({ state: 'incident', incidentCount: 1 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('keeps an explicit Codex reset notice strong and promotion noise weak', () => {

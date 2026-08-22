@@ -10,6 +10,11 @@ interface StatusIncident {
   name: string;
 }
 
+export interface StatusEvidence {
+  state: 'clear' | 'incident' | 'unavailable';
+  incidentCount: number;
+}
+
 /**
  * Build the four-signal snapshot server-side, mirroring the frontend model.
  * The browser reads this payload via /api/signals instead of attempting
@@ -19,7 +24,8 @@ export async function buildSignalsSnapshot(
   env: Env,
   scrape: ScrapeResult,
   latestResetTs: number,
-  medianGapDays: number
+  medianGapDays: number,
+  statusEvidence?: StatusEvidence,
 ): Promise<SignalsPayload> {
   const now = Date.now();
   const daysSince = (now - latestResetTs) / DAY;
@@ -27,7 +33,7 @@ export async function buildSignalsSnapshot(
 
   const [tibo, statusPage] = await Promise.all([
     Promise.resolve(buildTiboSignal(scrape, now)),
-    buildStatusSignal(now),
+    buildStatusSignal(now, statusEvidence),
   ]);
 
   const cooldown: SignalSnapshot = {
@@ -124,13 +130,29 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
   };
 }
 
-async function buildStatusSignal(now: number): Promise<SignalSnapshot> {
+async function buildStatusSignal(now: number, evidence?: StatusEvidence): Promise<SignalSnapshot> {
   const base = {
     source: 'status_page',
     label: 'OpenAI Status',
     updatedAt: now,
     sourceUrl: 'https://status.openai.com/history',
   };
+  const current = evidence || await getStatusEvidence();
+  if (current.state === 'incident') {
+    return {
+      ...base,
+      status: 'active',
+      value: 0.6,
+      description: 'signals.statusActiveIncidents',
+      descriptionParams: { n: current.incidentCount },
+    };
+  }
+  if (current.state === 'clear') return { ...base, status: 'idle', value: 0.08, description: 'signals.statusClear' };
+  return { ...base, status: 'idle', value: 0.05, description: 'signals.statusDown' };
+}
+
+/** Independent official status evidence. It can block a risky confirmation, never create one. */
+export async function getStatusEvidence(): Promise<StatusEvidence> {
   try {
     const res = await fetch('https://status.openai.com/api/v2/incidents.json', {
       signal: AbortSignal.timeout(8000),
@@ -141,17 +163,10 @@ async function buildStatusSignal(now: number): Promise<SignalSnapshot> {
     const active = (data.incidents || []).filter(
       (i) => i.status !== 'resolved' && !i.resolved_at && KEYWORDS.some((k) => i.name.toLowerCase().includes(k))
     );
-    if (active.length > 0) {
-      return {
-        ...base,
-        status: 'active',
-        value: 0.6,
-        description: 'signals.statusActiveIncidents',
-        descriptionParams: { n: active.length },
-      };
-    }
-    return { ...base, status: 'idle', value: 0.08, description: 'signals.statusClear' };
+    return active.length > 0
+      ? { state: 'incident', incidentCount: active.length }
+      : { state: 'clear', incidentCount: 0 };
   } catch {
-    return { ...base, status: 'idle', value: 0.05, description: 'signals.statusDown' };
+    return { state: 'unavailable', incidentCount: 0 };
   }
 }

@@ -31,6 +31,11 @@ held for one scheduled interval, and then confirmed and delivered. A later
 direct-source correction within the stabilization window automatically retracts
 the matching pending notice. Notices older than 48 hours and news-only degraded
 discovery never create an email alert.
+After three consecutive direct-source failures, the Worker raises a health alert
+and keeps automated confirmation paused. An active official Codex/rate-limit
+incident also holds confirmation; status-page availability alone never creates
+a reset. Daily non-PII run and delivery metrics are retained in Worker KV for
+31 days and exposed only through the operational health response.
 Resend `email.bounced` and `email.complained` webhooks are HMAC-verified at
 `POST /api/webhooks/resend` and delete the affected subscription.
 

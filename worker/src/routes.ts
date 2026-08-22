@@ -1,4 +1,4 @@
-import type { Env, HealthCheck, HealthChecks, RunReport } from './types';
+import type { DeliveryMetrics, Env, HealthCheck, HealthChecks, RunReport } from './types';
 import { json, html, escapeHtml, verifyToken } from './util';
 import { hasPrivilegedAccess, privUpsertPush, privDeletePush, privDeleteEmail, privActivateEmail } from './privileged';
 import { runPipeline } from './pipeline';
@@ -32,12 +32,14 @@ export async function handleHealth(env: Env): Promise<Response> {
   const signals = await env.CACHE.get('signals:latest');
   const report = parseJson<RunReport>(lastRun);
   const snapshot = parseJson<{ generatedAt?: number }>(signals);
+  const todayMetrics = parseJson<DeliveryMetrics>(await env.CACHE.get(`metrics:delivery:${new Date().toISOString().slice(0, 10)}`));
   const checks = healthChecks(report, snapshot?.generatedAt);
   const ok = checks.lastRun === 'ok' && checks.signals === 'ok';
   return json({
     ok,
     now: new Date().toISOString(),
     lastRun: report,
+    deliveryToday: todayMetrics,
     signalsGeneratedAt: snapshot?.generatedAt ?? null,
     checks,
     configured: {

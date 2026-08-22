@@ -6,19 +6,21 @@
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
 const PIPELINE_API_URL = (import.meta.env.VITE_PIPELINE_API_URL || '').replace(/\/+$/, '');
 
-// Report the subscription to the pipeline so the server can fan out alerts.
-// Fire-and-forget: a failed report must not break the local subscription UX.
-async function reportSubscription(data: PushSubscriptionData): Promise<void> {
-  if (!PIPELINE_API_URL) return;
+// Report the subscription to the pipeline so server-side fan-out and local
+// browser state stay in sync.
+async function reportSubscription(data: PushSubscriptionData): Promise<boolean> {
+  if (!PIPELINE_API_URL) return false;
   try {
-    await fetch(`${PIPELINE_API_URL}/api/subscribe/push`, {
+    const response = await fetch(`${PIPELINE_API_URL}/api/subscribe/push`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(data),
       signal: AbortSignal.timeout(8000),
     });
+    return response.ok;
   } catch (err) {
     console.warn('Failed to report push subscription:', err);
+    return false;
   }
 }
 
@@ -86,8 +88,15 @@ export async function subscribeToPush(): Promise<PushSubscriptionData | null> {
         auth: subscriptionData.keys?.auth || '',
       },
     };
-    // Server-side fan-out needs this subscription — report it async
-    void reportSubscription(data);
+    if (!data.endpoint || !data.keys.p256dh || !data.keys.auth) {
+      await subscription.unsubscribe();
+      return null;
+    }
+    // A local subscription is useful only when the Worker accepted it too.
+    if (!await reportSubscription(data)) {
+      await subscription.unsubscribe();
+      return null;
+    }
     return data;
   } catch (error) {
     console.error('Failed to subscribe to push:', error);
