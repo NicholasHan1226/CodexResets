@@ -17,6 +17,9 @@ The Worker runs every 30 minutes. Its public read endpoints are:
 - `GET /api/signals` — latest four-signal browser snapshot.
 - `GET /api/health` — coarse latest-run and snapshot freshness only; detailed
   capability and delivery diagnostics stay on the authenticated operations route.
+- `GET /api/release-status` — a binary formal-release gate for automation; it
+  exposes no calibration details and is `true` only after the private 80%
+  production-evidence criterion passes.
 - `GET /api/health/details` — full diagnostics for an administrator with the
   `CRON_SECRET` bearer token; raw upstream errors are excluded from public
   health.

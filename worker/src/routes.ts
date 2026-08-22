@@ -3,7 +3,7 @@ import { json, html, escapeHtml, verifyToken } from './util';
 import { hasPrivilegedAccess, privUpsertPush, privDeletePush, privDeleteEmail, privActivateEmail } from './privileged';
 import { runPipeline } from './pipeline';
 import { sendPushSubscriptionTest, sendSubscriptionConfirmation, sendTestEmail } from './notify';
-import { getForecastCalibration } from './forecast';
+import { FORECAST_RELEASE_STATUS_KEY, getForecastCalibration } from './forecast';
 import { getOfficialCodexDiscovery } from './discovery';
 import { getSubscriptionQuality, getXWebhookQuality, recordSubscriptionMetric, recordXWebhookOutcome } from './operational-metrics';
 
@@ -62,6 +62,11 @@ export async function handleHealth(env: Env): Promise<Response> {
     signalsGeneratedAt: snapshot?.generatedAt ?? null,
     checks,
   }, ok ? 200 : 503);
+}
+
+/** Public, binary release gate for automation. Calibration evidence stays private. */
+export async function handleReleaseStatus(env: Env): Promise<Response> {
+  return json({ ready: (await env.CACHE.get(FORECAST_RELEASE_STATUS_KEY)) === '1' });
 }
 
 /** Protected full diagnostics; public health deliberately exposes no source URLs or raw errors. */

@@ -18,7 +18,7 @@ import {
 } from './privileged';
 import { buildSignalsSnapshot, getStatusEvidence } from './signals';
 import { notifyAll, sendCalibrationAlert, sendHealthAlert } from './notify';
-import { getForecastCalibration, recordForecastSnapshot } from './forecast';
+import { FORECAST_RELEASE_STATUS_KEY, getForecastCalibration, recordForecastSnapshot, type ForecastCalibration } from './forecast';
 import { refreshOfficialCodexDiscovery } from './discovery';
 import { recordSubscriptionMetric } from './operational-metrics';
 
@@ -36,6 +36,7 @@ const DIRECT_SOURCE_FAILURE_TTL_SECONDS = 3 * 24 * 60 * 60;
 const DIRECT_SOURCE_FAILURE_ALERT_AT = 3;
 const DELIVERY_METRIC_TTL_SECONDS = 31 * 24 * 60 * 60;
 const FORECAST_CALIBRATION_ALERT_TTL_SECONDS = 120 * 24 * 60 * 60;
+const FORECAST_RELEASE_STATUS_TTL_SECONDS = 2 * 60 * 60;
 
 export async function runPipeline(env: Env, trigger: string): Promise<RunReport> {
   const report: RunReport = {
@@ -188,9 +189,16 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   const records = allRecords.filter((record) => record.verified);
   try {
     await recordForecastSnapshot(env, records, Date.now());
-    await maybeSendCalibrationAlert(env);
+    const calibration = await getForecastCalibration(env);
+    await env.CACHE.put(
+      FORECAST_RELEASE_STATUS_KEY,
+      calibration.decisionAccuracy48h.status === 'passed' ? '1' : '0',
+      { expirationTtl: FORECAST_RELEASE_STATUS_TTL_SECONDS },
+    );
+    await maybeSendCalibrationAlert(env, calibration);
   } catch (err) {
     report.errors.push(`forecast snapshot: ${err instanceof Error ? err.message : String(err)}`);
+    await env.CACHE.put(FORECAST_RELEASE_STATUS_KEY, '0', { expirationTtl: FORECAST_RELEASE_STATUS_TTL_SECONDS }).catch(() => {});
   }
   for (const record of records.filter((row) => !row.notified_at)) {
     const outcome = await notifyAll(env, {
@@ -250,9 +258,8 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
  * measurable degradation. This is deliberately an ops notice, not a source
  * of live prediction or notification behavior.
  */
-async function maybeSendCalibrationAlert(env: Env): Promise<void> {
+async function maybeSendCalibrationAlert(env: Env, calibration: ForecastCalibration): Promise<void> {
   if (!env.HEALTH_ALERT_EMAIL || !env.RESEND_API_KEY) return;
-  const calibration = await getForecastCalibration(env);
   const milestone = calibration.samples === 7 || calibration.samples === 14 || calibration.samples === 30;
   const degradation = calibration.samples >= 14 && calibration.trend === 'degrading';
   if (!milestone && !degradation) return;

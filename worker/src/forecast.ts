@@ -10,6 +10,8 @@ const FORECAST_PENDING_KEY = 'forecast:pending';
 const FORECAST_EVALUATIONS_KEY = 'forecast:evaluations';
 const FORECAST_SAMPLE_DAY_KEY = 'forecast:sample-day';
 const FORECAST_LATEST_KEY = 'forecast:latest';
+/** Coarse public release gate; private calibration details never leave the admin route. */
+export const FORECAST_RELEASE_STATUS_KEY = 'forecast:release-ready';
 
 export interface ForecastStore {
   get(key: string): Promise<string | null | undefined>;

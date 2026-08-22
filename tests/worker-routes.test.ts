@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { handleConfirmEmail, handleHealth, handleHealthDetails, handleResendWebhook, handleSignals, handleSubscribeEmail, handleSubscribePush, handleTestEmail, handleUnsubscribeEmail, handleUnsubscribePush, handleXWebhook } from '../worker/src/routes';
+import { handleConfirmEmail, handleHealth, handleHealthDetails, handleReleaseStatus, handleResendWebhook, handleSignals, handleSubscribeEmail, handleSubscribePush, handleTestEmail, handleUnsubscribeEmail, handleUnsubscribePush, handleXWebhook } from '../worker/src/routes';
 import { isExpiredPushEndpoint, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
 import { signToken } from '../worker/src/util';
 import { buildSignalsSnapshot, getStatusEvidence } from '../worker/src/signals';
@@ -85,6 +85,14 @@ async function xWebhookRequest(body: string, secret = 'x-consumer-test-secret'):
 }
 
 describe('pipeline read endpoints', () => {
+  it('exposes only the binary forecast release gate to automation', async () => {
+    const collecting = await handleReleaseStatus(envWith({}));
+    await expect(collecting.json()).resolves.toEqual({ ready: false });
+
+    const ready = await handleReleaseStatus(envWith({ 'forecast:release-ready': '1' }));
+    await expect(ready.json()).resolves.toEqual({ ready: true });
+  });
+
   it('automatically confirms a stabilized direct-source reset without duplicate insertion or fanout', async () => {
     const cache: Record<string, string | null> = {};
     const now = Date.now();
@@ -143,6 +151,7 @@ describe('pipeline read endpoints', () => {
       const confirm = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith('/rest/v1/reset_records?id=eq.observed-reset') && init?.method === 'PATCH');
       expect(JSON.parse(String(confirm?.[1]?.body))).toEqual({ verified: true, auto_state: 'confirmed', auto_confirm_after: null });
       expect(JSON.parse(cache['health:last_run'] || '{}')).toMatchObject({ autoConfirmed: 1, errors: [] });
+      expect(cache['forecast:release-ready']).toBe('0');
     } finally {
       vi.unstubAllGlobals();
     }
