@@ -2,6 +2,12 @@ import type { Env, HealthCheck, HealthChecks, RunReport } from './types';
 import { json, html, escapeHtml, verifyToken } from './util';
 import { hasPrivilegedAccess, privUpsertPush, privDeletePush, privDeactivateEmail } from './privileged';
 import { runPipeline } from './pipeline';
+import { sendSubscriptionConfirmation, sendTestEmail } from './notify';
+import { sb } from './supabase';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const CONFIRM_TTL_SECONDS = 24 * 60 * 60;
+const REQUEST_COOLDOWN_SECONDS = 5 * 60;
 
 /** GET /api/signals — the snapshot the browser consumes */
 export async function handleSignals(env: Env): Promise<Response> {
@@ -129,7 +135,7 @@ export async function handleUnsubscribePush(request: Request, env: Env): Promise
 export async function handleUnsubscribeEmail(url: URL, env: Env): Promise<Response> {
   const email = (url.searchParams.get('e') || '').toLowerCase().trim();
   const token = url.searchParams.get('t') || '';
-  const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const validEmail = EMAIL_RE.test(email);
   if (!validEmail || !token) return html(unsubPage('Invalid unsubscribe link.', false), 400);
   if (!env.UNSUBSCRIBE_SECRET || !hasPrivilegedAccess(env)) {
     return html(unsubPage('Server not configured.', false), 503);
@@ -141,6 +147,71 @@ export async function handleUnsubscribeEmail(url: URL, env: Env): Promise<Respon
   return html(unsubPage(`<b>${escapeHtml(email)}</b> has been unsubscribed. You will no longer receive reset alerts.`, true));
 }
 
+/** POST /api/subscribe/email — begin a double opt-in email subscription. */
+export async function handleSubscribeEmail(request: Request, env: Env): Promise<Response> {
+  let body: { email?: string };
+  try {
+    body = await request.json() as { email?: string };
+  } catch {
+    return json({ error: 'invalid json' }, 400);
+  }
+  const email = typeof body.email === 'string' ? body.email.toLowerCase().trim() : '';
+  if (!EMAIL_RE.test(email) || email.length > 320) return json({ error: 'invalid email' }, 400);
+  if (!env.RESEND_API_KEY) return json({ error: 'email delivery is not configured' }, 503);
+
+  const emailKey = await emailHash(email);
+  const cooldownKey = `subscribe:cooldown:${emailKey}`;
+  if (await env.CACHE.get(cooldownKey)) return json({ ok: true, status: 'pending' });
+
+  const token = crypto.randomUUID();
+  await env.CACHE.put(`subscribe:confirm:${token}`, JSON.stringify({ email }), { expirationTtl: CONFIRM_TTL_SECONDS });
+  await env.CACHE.put(cooldownKey, '1', { expirationTtl: REQUEST_COOLDOWN_SECONDS });
+  try {
+    await sendSubscriptionConfirmation(env, email, token);
+  } catch (err) {
+    await env.CACHE.delete(`subscribe:confirm:${token}`);
+    await env.CACHE.delete(cooldownKey);
+    throw err;
+  }
+  return json({ ok: true, status: 'pending' });
+}
+
+/** GET /api/subscribe/confirm?t=... — activate a previously confirmed email. */
+export async function handleConfirmEmail(url: URL, env: Env): Promise<Response> {
+  const token = url.searchParams.get('t') || '';
+  if (!/^[0-9a-f-]{36}$/i.test(token)) return html(confirmPage('Invalid or expired confirmation link.', false), 400);
+
+  const key = `subscribe:confirm:${token}`;
+  const pending = parseJson<{ email?: string }>(await env.CACHE.get(key));
+  const email = pending?.email?.toLowerCase().trim() || '';
+  if (!EMAIL_RE.test(email)) return html(confirmPage('This confirmation link has expired.', false), 410);
+
+  const res = await sb(env, 'rpc/subscribe_email', {
+    method: 'POST',
+    body: JSON.stringify({ p_email: email }),
+  });
+  if (!res.ok) return html(confirmPage('We could not activate this subscription. Please try again later.', false), 502);
+  const status = String(await res.json());
+  if (status === 'invalid') return html(confirmPage('This confirmation link is invalid.', false), 400);
+  await env.CACHE.delete(key);
+  return html(confirmPage('Subscription confirmed. You will receive reset alerts at this address.', true));
+}
+
+/** POST /api/test-email — protected single-recipient delivery exercise. */
+export async function handleTestEmail(request: Request, env: Env): Promise<Response> {
+  if (!isCronAuthorized(request, env)) return json({ error: 'unauthorized' }, 401);
+  let body: { email?: string };
+  try {
+    body = await request.json() as { email?: string };
+  } catch {
+    return json({ error: 'invalid json' }, 400);
+  }
+  const email = typeof body.email === 'string' ? body.email.toLowerCase().trim() : '';
+  if (!EMAIL_RE.test(email) || email.length > 320) return json({ error: 'invalid email' }, 400);
+  await sendTestEmail(env, email);
+  return json({ ok: true });
+}
+
 function unsubPage(message: string, ok: boolean): string {
   return `<!doctype html><html><body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0b0c0f;color:#f0f2f5;font-family:-apple-system,'Segoe UI',Roboto,sans-serif">
   <div style="text-align:center;padding:24px">
@@ -150,11 +221,29 @@ function unsubPage(message: string, ok: boolean): string {
   </div></body></html>`;
 }
 
-/** POST /api/run — manual trigger (protected by CRON_SECRET) */
-export async function handleRun(request: Request, env: Env): Promise<Response> {
+function confirmPage(message: string, ok: boolean): string {
+  return `<!doctype html><html><body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0b0c0f;color:#f0f2f5;font-family:-apple-system,'Segoe UI',Roboto,sans-serif">
+  <div style="text-align:center;padding:24px">
+    <p style="font-family:Menlo,monospace;color:${ok ? '#10a37f' : '#ef4444'};font-size:13px">❯ codex resets</p>
+    <p style="font-size:16px;margin:12px 0 20px">${message}</p>
+    <a href="https://codexresets.cc" style="color:#10a37f;font-size:13px;text-decoration:none">← Back to dashboard</a>
+  </div></body></html>`;
+}
+
+async function emailHash(email: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email));
+  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
+}
+
+function isCronAuthorized(request: Request, env: Env): boolean {
   const auth = request.headers.get('authorization') || '';
   const token = auth.replace(/^bearer\s+/i, '');
-  if (!env.CRON_SECRET || token !== env.CRON_SECRET) {
+  return Boolean(env.CRON_SECRET && token === env.CRON_SECRET);
+}
+
+/** POST /api/run — manual trigger (protected by CRON_SECRET) */
+export async function handleRun(request: Request, env: Env): Promise<Response> {
+  if (!isCronAuthorized(request, env)) {
     return json({ error: 'unauthorized' }, 401);
   }
   const report = await runPipeline(env, 'manual');

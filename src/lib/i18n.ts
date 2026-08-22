@@ -162,7 +162,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Subscribe
     'subscribe.title': 'RESET RADAR',
-    'subscribe.description': "We'll email at 70%, then once more if the button actually gets pressed.",
+    'subscribe.description': "We'll email at 70%, then once more if the button actually gets pressed. Confirm your email first.",
     'subscribe.command': 'watch resets --threshold 70% --channel email',
     'subscribe.nowLabel': 'now',
     'subscribe.alertAt': 'alert at {n}%',
@@ -174,6 +174,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'subscribe.subscribers': '{n} subscribers',
     'subscribe.invalidEmail': 'Please enter a valid email',
     'subscribe.success': "Subscribed — we'll email you at 70%.",
+    'subscribe.confirmationSent': 'Check your inbox to confirm your subscription.',
     'subscribe.alreadySubscribed': 'This email is already subscribed.',
     'subscribe.welcomeBack': 'Subscription re-activated — welcome back.',
     'subscribe.errorRetry': 'Something went wrong — please try again.',
@@ -232,6 +233,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'about.sourceStatus': 'official OpenAI service health',
     'about.sourceHistory': 'Verified reset history',
     'about.sourceHistoryDesc': 'every confirmed goodwill reset since Sep 2025',
+    'about.privacyTitle': 'Email and privacy',
+    'about.privacyDesc': 'An email address is stored only after its recipient confirms the subscription. It is used to send reset alerts and to process unsubscribe requests; this site does not ask for an OpenAI account or personal usage data.',
     'about.backHome': 'back to the tracker',
 
     // Footer
@@ -419,7 +422,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Subscribe
     'subscribe.title': '重置雷达',
-    'subscribe.description': '概率达到70%时邮件通知，重置确认后再次通知。',
+    'subscribe.description': '概率达到70%时邮件通知，重置确认后再次通知。请先完成邮箱确认。',
     'subscribe.command': 'watch resets --threshold 70% --channel email',
     'subscribe.nowLabel': '当前',
     'subscribe.alertAt': '{n}% 时触发',
@@ -431,6 +434,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'subscribe.subscribers': '{n} 位订阅者',
     'subscribe.invalidEmail': '请输入有效的邮箱地址',
     'subscribe.success': '已订阅——概率到 70% 时邮件通知你。',
+    'subscribe.confirmationSent': '请查收邮箱并完成订阅确认。',
     'subscribe.alreadySubscribed': '该邮箱已订阅。',
     'subscribe.welcomeBack': '订阅已重新激活。',
     'subscribe.errorRetry': '出错了，请稍后重试。',
@@ -489,6 +493,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'about.sourceStatus': 'OpenAI 官方服务状态',
     'about.sourceHistory': '已验证的重置历史',
     'about.sourceHistoryDesc': '自 2025 年 9 月以来每次确认的善意重置',
+    'about.privacyTitle': '邮箱与隐私',
+    'about.privacyDesc': '只有收件人完成确认后，邮箱才会写入订阅名单。邮箱仅用于发送重置提醒和处理退订；本站不会索取 OpenAI 账户或个人用量数据。',
     'about.backHome': '返回追踪器',
 
     // Footer

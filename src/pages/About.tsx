@@ -133,6 +133,18 @@ export default function About() {
           </div>
         </section>
 
+        {/* === Email and privacy === */}
+        <hr className="my-10 border-border/30" />
+        <section aria-label="Email and privacy">
+          <h2 className="text-lg font-semibold text-foreground">
+            <span className="mr-2 font-mono font-normal text-primary">❯</span>
+            {t('about.privacyTitle')}
+          </h2>
+          <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+            {t('about.privacyDesc')}
+          </p>
+        </section>
+
         {/* === Disclaimer === */}
         <hr className="my-10 border-border/30" />
         <section aria-label="Disclaimer">

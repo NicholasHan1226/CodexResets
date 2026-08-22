@@ -4,9 +4,7 @@ import { subscribeEmail, type SubscribeStatus } from '@/lib/subscription';
 import { subscribeToPush, unsubscribeFromPush, isSubscribedToPush, isPushSupported } from '@/lib/push-notifications';
 
 const statusMessageKey: Record<SubscribeStatus, string> = {
-  new: 'subscribe.success',
-  existing: 'subscribe.alreadySubscribed',
-  reactivated: 'subscribe.welcomeBack',
+  pending: 'subscribe.confirmationSent',
   invalid: 'subscribe.invalidEmail',
 };
 

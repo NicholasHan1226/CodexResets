@@ -84,6 +84,39 @@ async function sendEmail(env: Env, email: string, event: ResetEvent): Promise<bo
   return true;
 }
 
+/** Send an explicit opt-in confirmation before an address enters the alert list. */
+export async function sendSubscriptionConfirmation(env: Env, email: string, token: string): Promise<void> {
+  if (!env.RESEND_API_KEY) throw new Error('RESEND_API_KEY not configured');
+  const confirmUrl = `${workerBase(env)}/api/subscribe/confirm?t=${encodeURIComponent(token)}`;
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      from: env.RESEND_FROM,
+      to: [email],
+      subject: 'Confirm your Codex Resets subscription',
+      html: confirmationHtml(confirmUrl),
+    }),
+  });
+  if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
+}
+
+/** Admin-only delivery exercise; it never reads subscribers or runs the pipeline. */
+export async function sendTestEmail(env: Env, email: string): Promise<void> {
+  if (!env.RESEND_API_KEY) throw new Error('RESEND_API_KEY not configured');
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      from: env.RESEND_FROM,
+      to: [email],
+      subject: '[Test] Codex Resets alert delivery',
+      html: testEmailHtml(env),
+    }),
+  });
+  if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
+}
+
 function emailHtml(env: Env, excerpt: string, resetLocal: string, unsubUrl: string): string {
   return `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
@@ -96,6 +129,31 @@ function emailHtml(env: Env, excerpt: string, resetLocal: string, unsubUrl: stri
     <a href="${env.SITE_URL}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open dashboard</a>
     <hr style="margin:20px 0 12px;border:none;border-top:1px solid #e4e6ea" />
     <p style="margin:0;font-size:11px;color:#9aa0ac">You received this because you subscribed at codexresets.cc · <a href="${unsubUrl}" style="color:#9aa0ac">Unsubscribe</a></p>
+  </div>
+</body></html>`;
+}
+
+function confirmationHtml(confirmUrl: string): string {
+  return `<!doctype html>
+<html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
+  <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
+    <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#10a37f">❯ codex resets</p>
+    <h1 style="margin:0 0 12px;font-size:20px">Confirm your subscription</h1>
+    <p style="margin:0 0 16px;font-size:14px;color:#3d4250">Confirm this address to receive Codex usage-reset alerts. If you did not request this, you can safely ignore this email.</p>
+    <a href="${confirmUrl}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Confirm subscription</a>
+    <p style="margin:20px 0 0;font-size:11px;color:#9aa0ac">This confirmation link expires in 24 hours.</p>
+  </div>
+</body></html>`;
+}
+
+function testEmailHtml(env: Env): string {
+  return `<!doctype html>
+<html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
+  <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
+    <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#10a37f">❯ codex resets</p>
+    <h1 style="margin:0 0 12px;font-size:20px">Test alert delivery</h1>
+    <p style="margin:0 0 16px;font-size:14px;color:#3d4250">This is an administrator-initiated delivery test. It does not indicate a Codex reset and does not change your subscription.</p>
+    <a href="${env.SITE_URL}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open dashboard</a>
   </div>
 </body></html>`;
 }

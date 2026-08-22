@@ -4,9 +4,12 @@ import {
   handleSignals,
   handleHealth,
   handleSubscribePush,
+  handleSubscribeEmail,
+  handleConfirmEmail,
   handleUnsubscribePush,
   handleUnsubscribeEmail,
   handleRun,
+  handleTestEmail,
 } from './routes';
 import { runPipeline } from './pipeline';
 
@@ -29,6 +32,12 @@ export default {
         case '/api/subscribe/push':
           if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
           return await handleSubscribePush(request, env);
+        case '/api/subscribe/email':
+          if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+          return await handleSubscribeEmail(request, env);
+        case '/api/subscribe/confirm':
+          if (request.method !== 'GET') return json({ error: 'method not allowed' }, 405);
+          return await handleConfirmEmail(url, env);
         case '/api/unsubscribe/push':
           if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
           return await handleUnsubscribePush(request, env);
@@ -37,6 +46,9 @@ export default {
         case '/api/run':
           if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
           return await handleRun(request, env);
+        case '/api/test-email':
+          if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+          return await handleTestEmail(request, env);
         default:
           return json({ error: 'not found' }, 404);
       }

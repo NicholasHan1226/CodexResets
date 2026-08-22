@@ -1,22 +1,22 @@
-import { getSupabase } from "@/lib/supabase";
+export type SubscribeStatus = 'pending' | 'invalid';
 
-export type SubscribeStatus = 'new' | 'existing' | 'reactivated' | 'invalid';
+const PIPELINE_URL = import.meta.env.VITE_PIPELINE_API_URL || 'https://api.codexresets.cc';
 
 /**
- * Subscribe an email to Codex Reset notifications.
- * Single atomic RPC (security definer): validates, inserts, or re-activates.
- * Anon has no SELECT/UPDATE on subscriptions — this function is the only
- * write path, which keeps the email list unreadable via the public key.
+ * Start a double opt-in email subscription. The Worker sends the confirmation
+ * email and activates the address only after the recipient follows its link.
  */
 export async function subscribeEmail(email: string): Promise<SubscribeStatus> {
-  const supabase = await getSupabase();
-  const { data, error } = await supabase.rpc('subscribe_email', {
-    p_email: email.trim().toLowerCase(),
+  const response = await fetch(`${PIPELINE_URL.replace(/\/+$/, '')}/api/subscribe/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
   });
-  if (error) throw new Error(error.message);
-  const status = String(data);
-  if (status === 'new' || status === 'existing' || status === 'reactivated' || status === 'invalid') {
-    return status;
+  const data = await response.json().catch(() => null) as { status?: string; error?: string } | null;
+  if (!response.ok) {
+    if (response.status === 400) return 'invalid';
+    throw new Error(data?.error || `subscription request failed: ${response.status}`);
   }
-  throw new Error(`unexpected status: ${status}`);
+  if (data?.status === 'pending') return 'pending';
+  throw new Error('unexpected subscription response');
 }

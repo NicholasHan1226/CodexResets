@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { handleHealth, handleSignals } from '../worker/src/routes';
+import { describe, expect, it, vi } from 'vitest';
+import { handleConfirmEmail, handleHealth, handleSignals, handleSubscribeEmail, handleTestEmail } from '../worker/src/routes';
 import type { Env } from '../worker/src/types';
 import { detectResetEvents } from '../worker/src/scrape';
 
@@ -7,8 +7,22 @@ function envWith(cacheEntries: Record<string, string | null>): Env {
   return {
     CACHE: {
       get: async (key: string) => cacheEntries[key] ?? null,
+      put: async (key: string, value: string) => { cacheEntries[key] = value; },
+      delete: async (key: string) => { delete cacheEntries[key]; },
     },
   } as unknown as Env;
+}
+
+function emailEnv(cacheEntries: Record<string, string | null> = {}): Env {
+  return {
+    ...envWith(cacheEntries),
+    SUPABASE_URL: 'https://db.example.test',
+    SUPABASE_ANON_KEY: 'anon-test-key',
+    RESEND_API_KEY: 'resend-test-key',
+    RESEND_FROM: 'Codex Resets <alerts@example.test>',
+    SITE_URL: 'https://codexresets.cc',
+    CRON_SECRET: 'cron-test-secret',
+  };
 }
 
 describe('pipeline read endpoints', () => {
@@ -71,5 +85,80 @@ describe('pipeline read endpoints', () => {
 
     expect(detection.strong.map((event) => event.link)).toEqual(['https://example.test/reset']);
     expect(detection.weak.map((event) => event.link)).toEqual(['https://example.test/question']);
+  });
+
+  it('requires an email confirmation before activating a subscriber', async () => {
+    const cache: Record<string, string | null> = {};
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: 'email_1' }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const response = await handleSubscribeEmail(new Request('https://api.example.test/api/subscribe/email', {
+        method: 'POST',
+        body: JSON.stringify({ email: 'reader@example.test' }),
+      }), emailEnv(cache));
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ ok: true, status: 'pending' });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(String(init.body))).toMatchObject({
+        to: ['reader@example.test'],
+        subject: 'Confirm your Codex Resets subscription',
+      });
+      expect(Object.keys(cache).some((key) => key.startsWith('subscribe:confirm:'))).toBe(true);
+      expect(Object.keys(cache).some((key) => key.includes('reader@example.test'))).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('activates only a valid pending confirmation token', async () => {
+    const token = '01234567-89ab-cdef-0123-456789abcdef';
+    const cache: Record<string, string | null> = {
+      [`subscribe:confirm:${token}`]: JSON.stringify({ email: 'reader@example.test' }),
+    };
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify('new'), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const response = await handleConfirmEmail(
+        new URL(`https://api.example.test/api/subscribe/confirm?t=${token}`),
+        emailEnv(cache),
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.text()).resolves.toContain('Subscription confirmed');
+      expect(cache[`subscribe:confirm:${token}`]).toBeUndefined();
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('https://db.example.test/rest/v1/rpc/subscribe_email');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps the delivery exercise cron-protected and single-recipient', async () => {
+    const env = emailEnv();
+    const unauthorized = await handleTestEmail(new Request('https://api.example.test/api/test-email', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'reader@example.test' }),
+    }), env);
+    expect(unauthorized.status).toBe(401);
+
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: 'email_2' }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const response = await handleTestEmail(new Request('https://api.example.test/api/test-email', {
+        method: 'POST',
+        headers: { authorization: 'Bearer cron-test-secret' },
+        body: JSON.stringify({ email: 'reader@example.test' }),
+      }), env);
+
+      expect(response.status).toBe(200);
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(String(init.body))).toMatchObject({
+        to: ['reader@example.test'],
+        subject: '[Test] Codex Resets alert delivery',
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

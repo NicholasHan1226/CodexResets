@@ -16,6 +16,15 @@ The Worker runs every 30 minutes. Its public read endpoints are:
 
 - `GET /api/signals` — latest four-signal browser snapshot.
 - `GET /api/health` — latest run result and configured capability booleans.
+- `POST /api/subscribe/email` — starts a confirmation email; the address is
+  activated only by `GET /api/subscribe/confirm?t=...` within 24 hours.
+
+Email delivery uses Resend. Link tracking is served from
+`links.codexresets.cc`; open tracking stays disabled. Cloudflare Web Analytics
+is enabled for aggregate product and web-vital metrics. The Worker also has a
+protected `POST /api/test-email` delivery exercise for an administrator: it
+requires `Authorization: Bearer $CRON_SECRET`, accepts exactly one JSON email
+recipient, and never reads subscribers or runs the pipeline.
 
 ## Local development
 
