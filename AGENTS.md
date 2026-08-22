@@ -36,6 +36,8 @@ some regions — do not rely on it).
   (`health:last_run`)
 - `src/notify.ts`    — Resend email (HMAC-signed unsubscribe links) +
   Web Push via @block65/webcrypto-web-push (prunes 404/410 endpoints)
+- Runtime compatibility: `nodejs_compat` is enabled because the Web Push
+  library imports `node:crypto`.
 - `src/routes.ts`    — GET /api/signals, GET /api/health,
   POST /api/subscribe/push, POST /api/unsubscribe/push,
   GET /api/unsubscribe (HMAC email), POST /api/run (Bearer CRON_SECRET)

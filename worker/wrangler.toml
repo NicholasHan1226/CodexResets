@@ -1,6 +1,7 @@
 name = "codex-resets-pipeline"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
 
 # Custom domain on the existing Cloudflare zone — workers.dev is
 # DNS-poisoned in some regions, the site's own domain is far more reliable.
