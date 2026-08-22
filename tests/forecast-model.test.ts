@@ -3,6 +3,7 @@ import { probabilityWithin, scoreForecastModels, scoreHighConfidenceDecisions, s
 import { mergeResetEpisodes } from '../src/lib/reset-episodes';
 import { RESET_HISTORY } from '../src/lib/reset-data';
 import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
+import { ForecastLedger } from '../worker/src/forecast-ledger';
 import type { Env, ResetRecordRow } from '../worker/src/types';
 import type { ResetRecord } from '../src/types/reset';
 
@@ -109,6 +110,36 @@ describe('reset episode forecasting', () => {
     expect(JSON.parse(cache['forecast:evaluations'] || '[]')).toEqual([
       expect.objectContaining({ resetIn24h: false, resetIn48h: false }),
     ]);
+  });
+
+  it('keeps forecast evidence in one private durable ledger', async () => {
+    const cache: Record<string, string> = {};
+    const ledger = new ForecastLedger({
+      storage: {
+        get: async (key: string) => cache[key],
+        put: async (key: string, value: string) => { cache[key] = value; },
+      },
+    } as unknown as DurableObjectState);
+    const now = Date.parse('2026-08-20T00:00:00Z');
+    const rows: ResetRecordRow[] = Array.from({ length: 6 }, (_, index) => ({
+      id: `ledger-reset-${index}`,
+      reset_date: new Date(now - (index + 1) * 4 * DAY_MS).toISOString(),
+      source_url: null,
+      description: null,
+      verified: true,
+      auto_state: 'confirmed',
+    }));
+    const record = async (at: number, inputRows = rows) => ledger.fetch(new Request('https://forecast-ledger/record', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ now: at, rows: inputRows.map(({ id, reset_date, verified, auto_state }) => ({ id, reset_date, verified, auto_state })) }),
+    }));
+
+    expect((await record(now)).status).toBe(200);
+    expect((await record(now + 49 * 60 * 60 * 1000)).status).toBe(200);
+    const calibration = await (await ledger.fetch(new Request('https://forecast-ledger/calibration'))).json() as { samples: number };
+    expect(calibration.samples).toBe(1);
+    expect(JSON.parse(cache['forecast:evaluations'] || '[]')).toHaveLength(1);
   });
 
   it('excludes direct-announcement samples from formal future-accuracy scoring', async () => {

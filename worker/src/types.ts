@@ -2,6 +2,8 @@ export interface Env {
   CACHE: KVNamespace;
   /** Per-scope, per-client atomic request quota. */
   RATE_LIMITER: DurableObjectNamespace;
+  /** Private single-writer forecast evidence ledger. */
+  FORECAST_LEDGER?: DurableObjectNamespace;
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
   /** Required for every Worker-owned write and private read. */

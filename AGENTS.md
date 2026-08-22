@@ -38,7 +38,8 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   (`signals:latest`) → health report
   (`health:last_run`)
 - `src/forecast.ts`  — private daily prediction snapshots and automatic
-  24/48-hour outcome resolution in KV; 7/14/30 review thresholds and a
+  24/48-hour outcome resolution through a single-writer Durable Object ledger;
+  7/14/30 review thresholds and a
   seven-sample Brier trend are private operations evidence, never visitor copy
 - `src/discovery.ts` — isolated OpenAI-owned Codex update discovery context;
   it never becomes a reset candidate or notification input

@@ -24,6 +24,10 @@ The Worker runs every 30 minutes. Its public read endpoints are:
 Public subscription intake uses a per-client Durable Object quota, so concurrent
 requests cannot race the quota counter. The quota state is isolated by hashed
 client address and scope; it does not store the address itself.
+
+Forecast snapshots and their 48-hour outcomes are written through a separate
+private Durable Object ledger. This keeps cron and signed-webhook runs from
+losing or double-settling calibration evidence.
 - `POST /api/subscribe/email` — starts a confirmation email; the address is
   activated only by `GET /api/subscribe/confirm?t=...` within 24 hours.
 

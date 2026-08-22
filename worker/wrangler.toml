@@ -42,9 +42,17 @@ id = "dce055cfe41c4e819b3af1c2dd735a14"
 name = "RATE_LIMITER"
 class_name = "RateLimiter"
 
+[[durable_objects.bindings]]
+name = "FORECAST_LEDGER"
+class_name = "ForecastLedger"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["RateLimiter"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["ForecastLedger"]
 
 [triggers]
 crons = ["*/30 * * * *"]

@@ -17,6 +17,7 @@ import {
 import { runPipeline } from './pipeline';
 
 export { RateLimiter } from './rate-limit';
+export { ForecastLedger } from './forecast-ledger';
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {

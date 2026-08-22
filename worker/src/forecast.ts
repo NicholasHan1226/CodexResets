@@ -10,6 +10,11 @@ const FORECAST_PENDING_KEY = 'forecast:pending';
 const FORECAST_EVALUATIONS_KEY = 'forecast:evaluations';
 const FORECAST_SAMPLE_DAY_KEY = 'forecast:sample-day';
 
+export interface ForecastStore {
+  get(key: string): Promise<string | null | undefined>;
+  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
+}
+
 interface ForecastSample {
   at: number;
   dueAt: number;
@@ -67,8 +72,7 @@ function toForecastRecords(records: ResetRecordRow[]): ResetRecord[] {
         id: record.id,
         date: new Date(timestamp).toISOString().slice(0, 10),
         timestamp,
-        reason: record.description || 'verified reset',
-        source: record.source_url || undefined,
+        reason: 'verified reset',
         verified: true,
       }];
     });
@@ -134,6 +138,27 @@ export async function recordForecastSnapshot(
   rows: ResetRecordRow[],
   now = Date.now(),
 ): Promise<void> {
+  if (env.FORECAST_LEDGER) {
+    const response = await env.FORECAST_LEDGER.get(env.FORECAST_LEDGER.idFromName('production')).fetch('https://forecast-ledger/record', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        now,
+        rows: rows.map(({ id, reset_date, verified, auto_state }) => ({ id, reset_date, verified, auto_state })),
+      }),
+    });
+    if (!response.ok) throw new Error(`forecast ledger ${response.status}`);
+    return;
+  }
+  await recordForecastSnapshotInStore(env.CACHE, rows, now);
+}
+
+/** Internal ledger operation, exported for the Durable Object and deterministic tests. */
+export async function recordForecastSnapshotInStore(
+  store: ForecastStore,
+  rows: ResetRecordRow[],
+  now = Date.now(),
+): Promise<void> {
   const observedRecords = toForecastRecords(rows);
   const records = recordsForModel(observedRecords, now);
   if (records.length < 4) return;
@@ -147,11 +172,13 @@ export async function recordForecastSnapshot(
     prob48h: probabilityWithin(records, selection.model, now, 48),
   };
 
-  const pending = parseSamples(await env.CACHE.get(FORECAST_PENDING_KEY));
+  const pending = parseSamples((await store.get(FORECAST_PENDING_KEY)) ?? null);
   const due = pending.filter((sample) => sample.dueAt <= now);
   const remaining = pending.filter((sample) => sample.dueAt > now);
   if (due.length > 0) {
-    const previous = parseEvaluations(await env.CACHE.get(FORECAST_EVALUATIONS_KEY));
+    const cutoff = now - FORECAST_TTL_SECONDS * 1000;
+    const previous = parseEvaluations((await store.get(FORECAST_EVALUATIONS_KEY)) ?? null)
+      .filter((evaluation) => evaluation.at >= cutoff);
     const evaluations = [
       ...previous,
       ...due.map((sample) => ({
@@ -159,26 +186,36 @@ export async function recordForecastSnapshot(
         resetIn24h: hasResetBetween(observedRecords, sample.at, sample.at + DAY_MS),
         resetIn48h: hasResetBetween(observedRecords, sample.at, sample.dueAt),
       })),
-    ].slice(-180);
-    await env.CACHE.put(FORECAST_EVALUATIONS_KEY, JSON.stringify(evaluations), { expirationTtl: FORECAST_TTL_SECONDS });
+    ].slice(-120);
+    await store.put(FORECAST_EVALUATIONS_KEY, JSON.stringify(evaluations), { expirationTtl: FORECAST_TTL_SECONDS });
   }
 
   const day = new Date(now).toISOString().slice(0, 10);
-  if (await env.CACHE.get(FORECAST_SAMPLE_DAY_KEY) !== day) {
+  if (await store.get(FORECAST_SAMPLE_DAY_KEY) !== day) {
     remaining.push(snapshot);
-    await env.CACHE.put(FORECAST_SAMPLE_DAY_KEY, day, { expirationTtl: FORECAST_TTL_SECONDS });
+    await store.put(FORECAST_SAMPLE_DAY_KEY, day, { expirationTtl: FORECAST_TTL_SECONDS });
   }
-  await env.CACHE.put(FORECAST_PENDING_KEY, JSON.stringify(remaining), { expirationTtl: FORECAST_TTL_SECONDS });
-  await env.CACHE.put('forecast:latest', JSON.stringify(snapshot), { expirationTtl: FORECAST_TTL_SECONDS });
+  await store.put(FORECAST_PENDING_KEY, JSON.stringify(remaining), { expirationTtl: FORECAST_TTL_SECONDS });
+  await store.put('forecast:latest', JSON.stringify(snapshot), { expirationTtl: FORECAST_TTL_SECONDS });
 }
 
 /** Protected operational readback; never included in public product APIs. */
 export async function getForecastCalibration(env: Env): Promise<ForecastCalibration> {
+  if (env.FORECAST_LEDGER) {
+    const response = await env.FORECAST_LEDGER.get(env.FORECAST_LEDGER.idFromName('production')).fetch('https://forecast-ledger/calibration');
+    if (!response.ok) throw new Error(`forecast ledger ${response.status}`);
+    return await response.json() as ForecastCalibration;
+  }
+  return getForecastCalibrationFromStore(env.CACHE);
+}
+
+/** Internal ledger read, exported for the Durable Object and deterministic tests. */
+export async function getForecastCalibrationFromStore(store: ForecastStore): Promise<ForecastCalibration> {
   const [evaluationsRaw, latestRaw] = await Promise.all([
-    env.CACHE.get(FORECAST_EVALUATIONS_KEY),
-    env.CACHE.get('forecast:latest'),
+    store.get(FORECAST_EVALUATIONS_KEY),
+    store.get('forecast:latest'),
   ]);
-  const evaluations = calibrationEvaluations(parseEvaluations(evaluationsRaw));
+  const evaluations = calibrationEvaluations(parseEvaluations(evaluationsRaw ?? null));
   const modelCounts: ForecastCalibration['modelCounts'] = { logistic: 0, weibull: 0 };
   let error24 = 0;
   let error48 = 0;
@@ -187,7 +224,7 @@ export async function getForecastCalibration(env: Env): Promise<ForecastCalibrat
     error24 += (evaluation.prob24h - Number(evaluation.resetIn24h)) ** 2;
     error48 += (evaluation.prob48h - Number(evaluation.resetIn48h)) ** 2;
   }
-  const latest = parseSample(latestRaw);
+  const latest = parseSample(latestRaw ?? null);
   const recentBrier = meanCombinedBrier(evaluations.slice(-7));
   const previousBrier = evaluations.length >= 14 ? meanCombinedBrier(evaluations.slice(-14, -7)) : null;
   const trend = previousBrier === null || recentBrier === null
