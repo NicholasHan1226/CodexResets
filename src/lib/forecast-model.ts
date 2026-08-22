@@ -1,6 +1,6 @@
 import { calculateResetProbability, fitWeibull } from './weibull';
 import { intervalDays, median, mergeResetEpisodes } from './reset-episodes';
-import type { ResetRecord, ResetSignal } from '../types/reset';
+import type { ResetRecord } from '../types/reset';
 
 export type ForecastModelName = 'logistic' | 'weibull';
 
@@ -152,7 +152,7 @@ export function scoreHighConfidenceDecisions(
     if (past.length < MIN_HISTORY) continue;
     const model = selectForecastModel(past).model;
     modelCounts[model] += 1;
-    const probability = probabilityWithin(past, model, cutoff, 48, false);
+    const probability = probabilityWithin(past, model, cutoff, 48);
     const actual = episodes.some((episode) => episode.timestamp > cutoff && episode.timestamp <= cutoff + 48 * 60 * 60 * 1000);
     samples += 1;
     if (probability < threshold && probability > 1 - threshold) continue;
@@ -182,26 +182,10 @@ export function probabilityWithin(
   model: ForecastModelName,
   now: number,
   horizonHours: number,
-  hasStrongDirectSignal: boolean,
 ): number {
   const episodes = mergeResetEpisodes(records);
   const latest = episodes[0];
-  if (!latest) return hasStrongDirectSignal ? 0.35 : 0.08;
+  if (!latest) return 0.08;
   const elapsedDays = Math.max(0, (now - latest.timestamp) / DAY_MS);
-  const base = probabilityFor(model, episodes, elapsedDays, horizonHours);
-  // A fresh signed/direct announcement is predictive, but never a standalone
-  // confirmation. The Worker retains its stabilization and correction gates.
-  return hasStrongDirectSignal ? 1 - (1 - base) * 0.65 : base;
-}
-
-export function hasFreshStrongDirectSignal(signals: ResetSignal[] | undefined, now: number): boolean {
-  const signal = signals?.find((item) => item.source === 'tibopost');
-  return Boolean(
-    signal
-      && signal.status === 'active'
-      && signal.value >= 0.8
-      && signal.description === 'signals.resetAnnounced'
-      && now - signal.updatedAt >= 0
-      && now - signal.updatedAt <= DAY_MS,
-  );
+  return probabilityFor(model, episodes, elapsedDays, horizonHours);
 }

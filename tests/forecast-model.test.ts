@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { hasFreshStrongDirectSignal, probabilityWithin, scoreForecastModels, scoreHighConfidenceDecisions, selectForecastModel } from '../src/lib/forecast-model';
+import { probabilityWithin, scoreForecastModels, scoreHighConfidenceDecisions, selectForecastModel } from '../src/lib/forecast-model';
 import { mergeResetEpisodes } from '../src/lib/reset-episodes';
 import { RESET_HISTORY } from '../src/lib/reset-data';
 import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
 import type { Env, ResetRecordRow } from '../worker/src/types';
-import type { ResetRecord, ResetSignal } from '../src/types/reset';
+import type { ResetRecord } from '../src/types/reset';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -47,22 +47,14 @@ describe('reset episode forecasting', () => {
     expect(score.modelCounts).toEqual({ logistic: 13, weibull: 125 });
   });
 
-  it('uses only a fresh strong direct announcement to raise the near-term probability', () => {
+  it('keeps direct announcements out of the future-facing probability model', () => {
     const history = regularHistory();
     const now = history[0].timestamp + 3 * DAY_MS;
-    const baseline = probabilityWithin(history, 'logistic', now, 24, false);
-    const lifted = probabilityWithin(history, 'logistic', now, 24, true);
-    const strong: ResetSignal = {
-      source: 'tibopost', label: 'Tibo Posting', description: 'signals.resetAnnounced',
-      value: 0.9, status: 'active', updatedAt: now,
-    };
-    expect(lifted).toBeGreaterThan(baseline);
-    expect(probabilityWithin(history, 'logistic', now + 30 * DAY_MS, 48, true)).toBeLessThanOrEqual(0.9);
-    expect(hasFreshStrongDirectSignal([strong], now)).toBe(true);
-    expect(hasFreshStrongDirectSignal([{ ...strong, updatedAt: now - 25 * 60 * 60 * 1000 }], now)).toBe(false);
+    expect(probabilityWithin(history, 'logistic', now, 24)).toBeGreaterThan(0);
+    expect(probabilityWithin(history, 'logistic', now + 30 * DAY_MS, 48)).toBeLessThanOrEqual(0.9);
   });
 
-  it('records the same direct-signal lift used by the browser into private forecast evidence', async () => {
+  it('records a history-only production forecast snapshot', async () => {
     const createEnv = () => {
       const cache: Record<string, string> = {};
       return {
@@ -85,14 +77,11 @@ describe('reset episode forecasting', () => {
       auto_state: 'confirmed',
     }));
 
-    const baselineStore = createEnv();
-    const liftedStore = createEnv();
-    await recordForecastSnapshot(baselineStore.env, rows, now, false);
-    await recordForecastSnapshot(liftedStore.env, rows, now, true);
-    const baseline = JSON.parse(baselineStore.cache['forecast:latest'] || '{}') as { prob24h: number };
-    const lifted = JSON.parse(liftedStore.cache['forecast:latest'] || '{}') as { prob24h: number; strongDirectSignal: boolean };
-    expect(lifted.strongDirectSignal).toBe(true);
-    expect(lifted.prob24h).toBeGreaterThan(baseline.prob24h);
+    const store = createEnv();
+    await recordForecastSnapshot(store.env, rows, now);
+    const snapshot = JSON.parse(store.cache['forecast:latest'] || '{}') as { prob24h: number; strongDirectSignal?: boolean };
+    expect(snapshot.prob24h).toBeGreaterThan(0);
+    expect(snapshot.strongDirectSignal).toBeUndefined();
   });
 
   it('starts future-only production scoring with a sparse live database', async () => {

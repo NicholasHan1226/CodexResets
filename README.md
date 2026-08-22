@@ -60,9 +60,9 @@ within 24 hours into one reset episode. This prevents one product reset from
 being counted as several short reset intervals. On each refresh, the browser
 backtests logistic and Weibull interval models against earlier time-ordered
 24/48-hour cutoffs and uses the lower-Brier candidate when enough historical
-samples are available. A fresh strong signal from the configured direct source
-can lift only the near-term forecast; it never confirms a reset or changes the
-Worker's automatic stabilization, correction, or notification rules.
+samples are available. Direct-source reset announcements are used only for the
+Worker's automatic stabilization, correction, and notification rules; they do
+not alter the future-facing probability.
 The Worker also retains one non-PII forecast snapshot per UTC day and resolves
 its 24/48-hour outcome after the horizon closes. These private KV samples are
 kept for 120 days and are not shown in the visitor interface.
@@ -79,11 +79,9 @@ the latest seven resolved forecasts with the preceding seven; milestones and a
 measurable degradation send one rate-limited operations email when configured.
 This never changes the public UI or bypasses the browser model's existing
 time-ordered model selection.
-When a fresh, timely direct-account reset announcement is present, the Worker
-stores the same bounded probability lift used by the browser in its private
-forecast snapshot. Because that announcement is already observed rather than
-a future event, those snapshots are excluded from calibration and formal
-release scoring; they cannot inflate the accuracy result.
+Direct reset announcements are already-observed information, so they are not
+part of the browser or Worker probability model. Legacy private snapshots that
+contained one are excluded from calibration and formal release scoring.
 An OpenAI-owned Codex changelog is checked as discovery context only; it can
 never create a candidate, raise a forecast, confirm a reset, or send an alert.
 

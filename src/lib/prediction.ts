@@ -1,5 +1,5 @@
 import type { PlanningAdvice, ProbabilityPoint, ResetPrediction, ResetRecord, ResetSignal } from '@/types/reset';
-import { hasFreshStrongDirectSignal, probabilityWithin, selectForecastModel } from '@/lib/forecast-model';
+import { probabilityWithin, selectForecastModel } from '@/lib/forecast-model';
 import { computeIntervalStats, getEffectiveHistory, setDynamicResetHistory } from '@/lib/reset-data';
 
 export { setDynamicResetHistory };
@@ -10,13 +10,12 @@ function generateCurve(
   history: ResetRecord[],
   now: Date,
   model: ReturnType<typeof selectForecastModel>['model'],
-  hasStrongSignal: boolean,
 ): ProbabilityPoint[] {
   const rawPoints: ProbabilityPoint[] = [];
   let priorCumulative = 0;
 
   for (let horizonHours = 3; horizonHours <= 7 * 24; horizonHours += 3) {
-    const cumulative = probabilityWithin(history, model, now.getTime(), horizonHours, hasStrongSignal);
+    const cumulative = probabilityWithin(history, model, now.getTime(), horizonHours);
     const pointAt = new Date(now.getTime() + horizonHours * HOUR_MS);
     rawPoints.push({
       date: pointAt.toISOString().slice(0, 10),
@@ -95,9 +94,8 @@ function generateOfflineSignals(now: Date): ResetSignal[] {
 /**
  * Generates a probability forecast from canonical reset episodes. Logistic
  * and Weibull candidates are scored on time-ordered historical cutoffs and
- * the lower-Brier model is selected automatically. A fresh direct strong
- * announcement can only lift the near-term forecast; it never confirms a
- * reset or bypasses Worker-side stabilization.
+ * the lower-Brier model is selected automatically. Direct reset announcements
+ * drive the delivery pipeline, but never alter a future-facing probability.
  */
 export function generatePrediction(records?: ResetRecord[], liveSignals?: ResetSignal[]): ResetPrediction {
   if (records) setDynamicResetHistory(records);
@@ -110,11 +108,10 @@ export function generatePrediction(records?: ResetRecord[], liveSignals?: ResetS
   const daysSince = Math.max(0, (now.getTime() - lastReset) / (24 * HOUR_MS));
   const stats = computeIntervalStats();
   const signals = liveSignals || generateOfflineSignals(now);
-  const strongSignal = hasFreshStrongDirectSignal(liveSignals, now.getTime());
-  const curve = generateCurve(canonicalHistory, now, selection.model, strongSignal);
+  const curve = generateCurve(canonicalHistory, now, selection.model);
   const window = findResetWindow(curve);
-  const prob24h = probabilityWithin(canonicalHistory, selection.model, now.getTime(), 24, strongSignal);
-  const prob48h = probabilityWithin(canonicalHistory, selection.model, now.getTime(), 48, strongSignal);
+  const prob24h = probabilityWithin(canonicalHistory, selection.model, now.getTime(), 24);
+  const prob48h = probabilityWithin(canonicalHistory, selection.model, now.getTime(), 48);
 
   return {
     windowStart: window.start,

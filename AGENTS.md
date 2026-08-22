@@ -103,8 +103,8 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
 - Formal-release forecast accuracy is a protected 48-hour high-confidence
   decision gate: at least 20 resolved decisions and five positive predictions,
   with both overall decision accuracy and positive precision >=80%. Do not
-  call an imbalanced no-reset baseline "80% accurate". Worker snapshots must
-  record the same fresh-direct-signal probability lift that the browser uses.
+  call an imbalanced no-reset baseline "80% accurate". Worker snapshots and
+  the browser must use the same forward-looking, history-only probability.
 - When the Worker cannot be reached, production browsers stay on the local
   prediction model instead of fanning out to external RSS/status proxies.
   This keeps the site responsive on constrained networks. Email is the primary

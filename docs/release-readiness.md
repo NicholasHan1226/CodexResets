@@ -25,10 +25,9 @@ table is sparse, but every production score is still settled only from a
 future, confirmed database outcome. Neither baseline nor regression evidence
 can make the production gate pass.
 
-A direct reset announcement is preserved in the private snapshot for parity
-with the live visitor model, but it is excluded from the formal accuracy gate:
-by the time the pipeline sees that announcement, it is already-observed
-information rather than a future prediction.
+Direct reset announcements are already-observed information, not future
+predictions. They are excluded from the probability model and formal accuracy
+gate; any legacy private sample containing one remains excluded as well.
 
 ## Why the accuracy gate is strict
 

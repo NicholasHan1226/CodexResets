@@ -16,7 +16,7 @@ interface ForecastSample {
   model: 'logistic' | 'weibull';
   prob24h: number;
   prob48h: number;
-  /** A fresh, direct reset announcement existed when this forecast was made. */
+  /** Retained only to exclude legacy samples created before the forward-only model. */
   strongDirectSignal?: boolean;
 }
 
@@ -133,7 +133,6 @@ export async function recordForecastSnapshot(
   env: Env,
   rows: ResetRecordRow[],
   now = Date.now(),
-  strongDirectSignal = false,
 ): Promise<void> {
   const observedRecords = toForecastRecords(rows);
   const records = recordsForModel(observedRecords, now);
@@ -144,9 +143,8 @@ export async function recordForecastSnapshot(
     at: now,
     dueAt: now + 48 * 60 * 60 * 1000,
     model: selection.model,
-    prob24h: probabilityWithin(records, selection.model, now, 24, strongDirectSignal),
-    prob48h: probabilityWithin(records, selection.model, now, 48, strongDirectSignal),
-    strongDirectSignal,
+    prob24h: probabilityWithin(records, selection.model, now, 24),
+    prob48h: probabilityWithin(records, selection.model, now, 48),
   };
 
   const pending = parseSamples(await env.CACHE.get(FORECAST_PENDING_KEY));
