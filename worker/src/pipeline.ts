@@ -208,7 +208,7 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
 
   // 7. Health report and a rate-limited operational email when the pipeline
   // cannot collect or process a healthy snapshot.
-  if ((report.scrape === 'failed' || report.errors.length > 0) && env.HEALTH_ALERT_EMAIL && env.RESEND_API_KEY) {
+  if (shouldSendHealthAlert(report) && env.HEALTH_ALERT_EMAIL && env.RESEND_API_KEY) {
     if (!await env.CACHE.get(HEALTH_ALERT_KEY)) {
       try {
         await sendHealthAlert(env, report);
@@ -226,6 +226,17 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
   }
   await env.CACHE.put('health:last_run', JSON.stringify(report));
   return report;
+}
+
+/**
+ * A single upstream mirror miss is observable through /api/health but does
+ * not page the operator. Other processing failures still alert immediately;
+ * a direct-source outage alerts after the existing three-run confirmation
+ * gate, when automation remains paused.
+ */
+export function shouldSendHealthAlert(report: RunReport): boolean {
+  const hasNonScrapeFailure = report.errors.some((error) => !error.startsWith('scrape:'));
+  return hasNonScrapeFailure || (report.directSourceFailures || 0) >= DIRECT_SOURCE_FAILURE_ALERT_AT;
 }
 
 async function applyDirectSourceGate(env: Env, scrape: Awaited<ReturnType<typeof scrapeTweets>>, report: RunReport): Promise<void> {

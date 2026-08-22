@@ -3,7 +3,8 @@ import { handleConfirmEmail, handleHealth, handleResendWebhook, handleSignals, h
 import { sendHealthAlert } from '../worker/src/notify';
 import { isExpiredPushEndpoint } from '../worker/src/notify';
 import { getStatusEvidence } from '../worker/src/signals';
-import type { Env } from '../worker/src/types';
+import { shouldSendHealthAlert } from '../worker/src/pipeline';
+import type { Env, RunReport } from '../worker/src/types';
 import { detectResetEvents, detectResetRetractions, isRetractionForCandidate, isTimelyAutomatedCandidate, scrapeTweets } from '../worker/src/scrape';
 
 function envWith(cacheEntries: Record<string, string | null>): Env {
@@ -113,6 +114,23 @@ describe('pipeline read endpoints', () => {
     expect(isExpiredPushEndpoint(404)).toBe(true);
     expect(isExpiredPushEndpoint(410)).toBe(true);
     expect(isExpiredPushEndpoint(503)).toBe(false);
+  });
+
+  it('waits for repeated direct-source outages before sending an operational email', () => {
+    expect(shouldSendHealthAlert({
+      scrape: 'failed',
+      directSourceFailures: 1,
+      errors: ['scrape: upstream mirrors unavailable'],
+    } as RunReport)).toBe(false);
+    expect(shouldSendHealthAlert({
+      scrape: 'failed',
+      directSourceFailures: 3,
+      errors: ['scrape: upstream mirrors unavailable'],
+    } as RunReport)).toBe(true);
+    expect(shouldSendHealthAlert({
+      scrape: 'ok',
+      errors: ['records read: upstream unavailable'],
+    } as RunReport)).toBe(true);
   });
 
   it('uses an official relevant incident only as a hold signal', async () => {

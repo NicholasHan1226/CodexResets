@@ -156,5 +156,6 @@ Cloudflare dashboard.
 `/api/health` is a monitor-ready endpoint: it returns HTTP 503 when the last
 scheduled run or signal snapshot is missing, failed, or older than 90 minutes.
 The Worker sends one Resend health-failure alert every six hours when
-`HEALTH_ALERT_EMAIL` is configured. The response includes non-secret check
+`HEALTH_ALERT_EMAIL` is configured for non-source processing errors or three
+consecutive direct-source failures. The response includes non-secret check
 states for diagnosis.
