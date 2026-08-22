@@ -1,18 +1,13 @@
-export interface Env {
-  CACHE: KVNamespace;
-  /** Per-scope, per-client atomic request quota. */
-  RATE_LIMITER: DurableObjectNamespace;
-  /** Private single-writer forecast evidence ledger. */
-  FORECAST_LEDGER?: DurableObjectNamespace;
-  SUPABASE_URL: string;
-  SUPABASE_ANON_KEY: string;
+/**
+ * Public bindings are generated from wrangler.toml in
+ * worker-configuration.d.ts. Keep only dashboard-managed secrets here: they
+ * deliberately do not appear in source control or the generated config type.
+ */
+export interface Env extends Cloudflare.Env {
   /** Required for every Worker-owned write and private read. */
   SUPABASE_SERVICE_ROLE_KEY?: string;
-  VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
-  VAPID_SUBJECT: string;
   RESEND_API_KEY?: string;
-  RESEND_FROM: string;
   /** Cloudflare Turnstile server secret for the public email-intake form. */
   TURNSTILE_SECRET?: string;
   /** Private recipient for deduplicated Worker health-failure alerts. */
@@ -25,9 +20,6 @@ export interface Env {
   X_CONSUMER_SECRET?: string;
   UNSUBSCRIBE_SECRET?: string;
   CRON_SECRET?: string;
-  RSSHUB_INSTANCES: string;
-  TARGET_ACCOUNT: string;
-  SITE_URL: string;
 }
 
 export interface Tweet {

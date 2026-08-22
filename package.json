@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "quality:cloudflare": "pnpm run lint && pnpm test && pnpm run build && pnpm --dir worker exec tsc --noEmit && pnpm --dir worker exec wrangler deploy --dry-run",
+    "quality:cloudflare": "pnpm run lint && pnpm test && pnpm run build && pnpm --dir worker exec wrangler types --check && pnpm --dir worker exec tsc --noEmit && pnpm --dir worker exec wrangler deploy --dry-run",
     "verify:production-build": "node scripts/verify-production-build.mjs"
   },
   "dependencies": {

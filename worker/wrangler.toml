@@ -1,6 +1,6 @@
 name = "codex-resets-pipeline"
 main = "src/index.ts"
-compatibility_date = "2024-09-23"
+compatibility_date = "2026-08-22"
 compatibility_flags = ["nodejs_compat"]
 
 # Route API requests through the primary domain. Pages serves the UI while the
@@ -56,3 +56,9 @@ new_sqlite_classes = ["ForecastLedger"]
 
 [triggers]
 crons = ["*/30 * * * *"]
+
+# Keep production failures diagnosable without adding any public diagnostics
+# or logging user subscription data.
+[observability]
+enabled = true
+head_sampling_rate = 1

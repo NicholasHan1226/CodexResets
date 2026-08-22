@@ -196,11 +196,15 @@ npx wrangler pages deploy dist --project-name=codex-resets
 ### Cloudflare Worker
 
 The Worker source is in `worker/`. It uses `nodejs_compat` because the Web Push
-library imports `node:crypto`.
+library imports `node:crypto`. `worker/worker-configuration.d.ts` is generated
+by Wrangler from the Worker configuration and must remain current; the
+Cloudflare quality gate verifies it before compiling. Production observability
+is enabled with full head sampling for Worker failures and traces; it does not
+add public diagnostics or log subscription content.
 
 The `codex-resets-pipeline` Worker is connected to
 `NicholasHan1226/CodexResets`: Cloudflare builds `main` from the `/worker` root,
-runs `pnpm install --frozen-lockfile && pnpm exec tsc --noEmit`, then deploys
+runs `pnpm install --frozen-lockfile && pnpm exec wrangler types --check && pnpm exec tsc --noEmit`, then deploys
 with `pnpm exec wrangler deploy`. This is the production delivery path for
 Worker changes; its account-scoped deployment token and runtime secrets stay
 in Cloudflare.
