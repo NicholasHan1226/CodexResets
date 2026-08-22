@@ -3,7 +3,7 @@ import { handleConfirmEmail, handleHealth, handleHealthDetails, handleResendWebh
 import { isExpiredPushEndpoint, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
 import { signToken } from '../worker/src/util';
 import { buildSignalsSnapshot, getStatusEvidence } from '../worker/src/signals';
-import { shouldSendHealthAlert } from '../worker/src/pipeline';
+import { runPipeline, shouldSendHealthAlert } from '../worker/src/pipeline';
 import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
 import { refreshOfficialCodexDiscovery } from '../worker/src/discovery';
 import { getSubscriptionQuality, getXWebhookQuality } from '../worker/src/operational-metrics';
@@ -85,6 +85,69 @@ async function xWebhookRequest(body: string, secret = 'x-consumer-test-secret'):
 }
 
 describe('pipeline read endpoints', () => {
+  it('automatically confirms a stabilized direct-source reset without duplicate insertion or fanout', async () => {
+    const cache: Record<string, string | null> = {};
+    const now = Date.now();
+    const sourceUrl = 'https://x.com/thsottiaux/status/1';
+    const env = {
+      ...emailEnv(cache),
+      TARGET_ACCOUNT: 'thsottiaux',
+      X_BEARER_TOKEN: 'x-app-only-test-token',
+      RSSHUB_INSTANCES: '',
+      PUBLIC_URL: 'https://codexresets.cc',
+      VAPID_SUBJECT: 'mailto:alerts@example.test',
+    };
+    const observed = {
+      id: 'observed-reset',
+      reset_date: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
+      source_url: sourceUrl,
+      description: 'Codex usage limits are reset for everyone',
+      verified: false,
+      automated: true,
+      auto_state: 'observed',
+      auto_confirm_after: new Date(now - 60 * 1000).toISOString(),
+      // A recovered, previously delivered row must not be replayed to users.
+      notified_at: new Date(now - 30 * 60 * 1000).toISOString(),
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/2/users/by/username/')) return new Response(JSON.stringify({ data: { id: '123' } }));
+      if (url.includes('/2/users/123/tweets')) {
+        return new Response(JSON.stringify({ data: [{
+          id: '1',
+          text: observed.description,
+          created_at: new Date(now - 5 * 60 * 1000).toISOString(),
+        }] }));
+      }
+      if (url === 'https://help.openai.com/en/articles/11428266-codex-changelog') return new Response('<html>Codex updates</html>');
+      if (url === 'https://status.openai.com/api/v2/incidents.json') return new Response(JSON.stringify({ incidents: [] }));
+      if (url.startsWith('https://db.example.test/rest/v1/reset_records?select=')) return new Response(JSON.stringify([observed]));
+      if (url === 'https://db.example.test/rest/v1/reset_records?id=eq.observed-reset' && init?.method === 'PATCH') return new Response(null, { status: 204 });
+      throw new Error(`unexpected pipeline request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const report = await runPipeline(env, 'test');
+
+      expect(report).toMatchObject({
+        scrape: 'ok',
+        directSource: 'live',
+        candidates: 1,
+        autoConfirmed: 1,
+        notifiedEmails: 0,
+        notifiedPush: 0,
+        errors: [],
+      });
+      const insert = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith('/rest/v1/reset_records') && init?.method === 'POST');
+      expect(insert).toBeUndefined();
+      const confirm = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith('/rest/v1/reset_records?id=eq.observed-reset') && init?.method === 'PATCH');
+      expect(JSON.parse(String(confirm?.[1]?.body))).toEqual({ verified: true, auto_state: 'confirmed', auto_confirm_after: null });
+      expect(JSON.parse(cache['health:last_run'] || '{}')).toMatchObject({ autoConfirmed: 1, errors: [] });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('never turns degraded mirror content into a public reset announcement', async () => {
     const now = Date.now();
     const snapshot = await buildSignalsSnapshot(
