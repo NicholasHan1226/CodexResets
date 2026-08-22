@@ -4,6 +4,8 @@ import type { ForecastCalibration } from './forecast';
 import { hasPrivilegedAccess, privListEmails, privListPush, privDeletePush, type PushSubRow } from './privileged';
 import { signToken, escapeHtml } from './util';
 
+const UNSUBSCRIBE_TTL_SECONDS = 30 * 24 * 60 * 60;
+
 interface SubscriptionRow {
   email: string;
 }
@@ -40,7 +42,7 @@ export async function sendPushSubscriptionTest(env: Env, row: PushSubRow): Promi
     }),
     options: { ttl: 60 },
   }, subscription, vapid);
-  const res = await fetch(subscription.endpoint, payload);
+  const res = await fetch(subscription.endpoint, { ...payload, redirect: 'error', signal: AbortSignal.timeout(8_000) });
   if (isExpiredPushEndpoint(res.status)) return 'gone';
   if (!res.ok) throw new Error(`push endpoint ${res.status}`);
   return 'sent';
@@ -97,8 +99,9 @@ export async function notifyAll(env: Env, event: ResetEvent): Promise<NotifyResu
 
 async function sendEmail(env: Env, email: string, event: ResetEvent): Promise<boolean> {
   if (!env.RESEND_API_KEY) return false;
-  const token = env.UNSUBSCRIBE_SECRET ? await signToken(email.toLowerCase(), env.UNSUBSCRIBE_SECRET) : '';
-  const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&t=${token}`;
+  const expiresAt = Math.floor(Date.now() / 1000) + UNSUBSCRIBE_TTL_SECONDS;
+  const token = env.UNSUBSCRIBE_SECRET ? await signToken(`${email.toLowerCase()}.${expiresAt}`, env.UNSUBSCRIBE_SECRET) : '';
+  const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&x=${expiresAt}&t=${token}`;
   const resetLocal = new Date(event.ts).toUTCString();
 
   const res = await fetch('https://api.resend.com/emails', {
@@ -283,7 +286,7 @@ async function sendPush(env: Env, row: PushSubRow, event: ResetEvent): Promise<'
   };
 
   const payload = await buildPushPayload(message, subscription, vapid);
-  const res = await fetch(subscription.endpoint, payload);
+  const res = await fetch(subscription.endpoint, { ...payload, redirect: 'error', signal: AbortSignal.timeout(8_000) });
   if (isExpiredPushEndpoint(res.status)) return 'gone';
   if (!res.ok) throw new Error(`push endpoint ${res.status}`);
   return 'sent';

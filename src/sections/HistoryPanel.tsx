@@ -66,6 +66,7 @@ export function HistoryPanel() {
             const daysSince = nextReset
               ? ((nextReset.timestamp - reset.timestamp) / 86400000).toFixed(1)
               : null;
+            const sourceUrl = safeSourceUrl(reset.source);
             return (
               <div
                 key={reset.id}
@@ -82,9 +83,9 @@ export function HistoryPanel() {
                 <span className="text-sm text-muted-foreground truncate">
                   {reset.reason}
                 </span>
-                {reset.source && (
+                {sourceUrl && (
                   <a
-                    href={reset.source}
+                    href={sourceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="shrink-0 font-mono text-xs text-primary hover:underline ml-auto"
@@ -111,3 +112,13 @@ export function HistoryPanel() {
 }
 
 export default HistoryPanel;
+
+function safeSourceUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}

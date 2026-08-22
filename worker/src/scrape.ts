@@ -23,14 +23,12 @@ interface XApiResult {
 
 /**
  * Fetch the target account's recent posts. Strategy chain:
- *   1. RSSHub instances (public ones mostly dropped the twitter route, but
- *      a self-hosted instance with X credentials plugged into
- *      RSSHUB_INSTANCES makes this primary again)
- *   2. nitter mirrors (HTML scrape)
- *   3. Google News RSS (a degraded, but independently reachable source)
- * Every failed primary attempt is retained for diagnosis. A populated fallback
- * is still a successful collection run, so transient mirror churn does not
- * make the production health endpoint fail closed.
+ *   1. authenticated X API (the only source allowed to confirm or deliver)
+ *   2. RSSHub instances (discovery-only)
+ *   3. nitter mirrors (discovery-only)
+ *   4. Google News RSS (discovery-only)
+ * Mirrors provide useful operational context, but never authoritative reset
+ * evidence: a compromised mirror must not be able to create subscriber alerts.
  */
 export async function scrapeTweets(env: Env): Promise<ScrapeResult> {
   const attempted: string[] = [];
@@ -62,7 +60,7 @@ export async function scrapeTweets(env: Env): Promise<ScrapeResult> {
         attempted.push(`${base}: 0 items`);
         continue;
       }
-      return { ok: true, instance: base, sourceKind: 'direct', tweets, attempted };
+      return { ok: true, instance: base, sourceKind: 'degraded', tweets, attempted };
     } catch (err) {
       attempted.push(`${base}: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -83,7 +81,7 @@ export async function scrapeTweets(env: Env): Promise<ScrapeResult> {
         attempted.push(`${base}: 0 items`);
         continue;
       }
-      return { ok: true, instance: base, sourceKind: 'direct', tweets, attempted };
+      return { ok: true, instance: base, sourceKind: 'degraded', tweets, attempted };
     } catch (err) {
       attempted.push(`${base}: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -100,8 +98,8 @@ export async function scrapeTweets(env: Env): Promise<ScrapeResult> {
 
 /**
  * Prefer the authenticated X API when its app-only token is configured. The
- * public mirror chain remains a no-credential fallback, but never becomes an
- * equally trusted source for confirmation while this direct feed is healthy.
+ * public mirror chain remains discovery-only and never becomes trusted reset
+ * evidence, including when the authenticated feed is unavailable.
  */
 async function scrapeOfficialXTimeline(env: Env): Promise<XApiResult> {
   if (!env.X_BEARER_TOKEN) return { tweets: [] };

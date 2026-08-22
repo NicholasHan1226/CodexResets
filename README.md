@@ -29,13 +29,14 @@ protected `POST /api/test-email` delivery exercise for an administrator: it
 requires `Authorization: Bearer $CRON_SECRET`, accepts exactly one JSON email
 recipient, and never reads subscribers or runs the pipeline.
 
-When configured, the official X API is the preferred direct-account source;
-the public RSS/Nitter mirror chain remains a no-credential fallback. Strong
-notices from the configured target account are automatically recorded,
-held for one scheduled interval, and then confirmed and delivered. A later
-direct-source correction within the stabilization window automatically retracts
-the matching pending notice. Notices older than 48 hours and news-only degraded
-discovery never create an email alert.
+When configured, the authenticated official X API is the only direct-account
+source permitted to create, confirm, or deliver an automated alert. RSS/Nitter
+and news feeds remain discovery-only operational context. Strong notices from
+the configured target account are automatically recorded, held for one
+scheduled interval, and then confirmed and delivered. A later direct-source
+correction within the stabilization window automatically retracts the matching
+pending notice. Notices older than 48 hours and all degraded discovery never
+create an email alert.
 After three consecutive direct-source failures, the Worker raises a health alert
 and keeps automated confirmation paused. An active official Codex/rate-limit
 incident also holds confirmation; status-page availability alone never creates
@@ -95,9 +96,9 @@ Web Push remains optional because device, browser, and notification policies
 vary across mainland networks and mobile platforms.
 
 Every successful browser Push subscription receives an immediate, clearly
-labelled test notification. The Worker retains the endpoint only when its
-server-side registration succeeds; `404` and `410` provider responses remove
-stale endpoints automatically.
+labelled test notification. The Worker accepts only supported browser-push
+authorities, applies an IP quota before storage, never follows endpoint
+redirects, and removes `404`/`410` stale endpoints automatically.
 
 ## Local development
 
@@ -133,8 +134,8 @@ Activity `post.create` events, also configure `X_CONSUMER_SECRET` (the X app
 Consumer Secret) and register `https://codexresets.cc/api/webhooks/x` in
 the X Developer Console. Webhook deliveries are authenticated with that secret
 and only accelerate a fresh official-timeline read; they never create an alert
-directly. Without the bearer token, the Worker continues using public mirrors
-and never lets a news-only fallback create an automatic alert.
+directly. Without the bearer token, the Worker may still show degraded
+discovery context but does not create, confirm, or deliver an automated alert.
 
 Email subscription intake requires a Cloudflare Turnstile token with the
 `subscribe_email` action. Configure its server-side `TURNSTILE_SECRET` as a
@@ -147,8 +148,9 @@ subscription attempts per ten minutes.
 The managed database is Supabase project `wwhypilqiognyxkpqkss`. The public
 browser bundle may use only the publishable key to read reset history; all
 subscription, push, and pipeline writes require the Worker-only
-`SUPABASE_SERVICE_ROLE_KEY` secret in Cloudflare. The repository baseline is
-in `supabase/migrations/20260822195000_initial_schema.sql`.
+`SUPABASE_SERVICE_ROLE_KEY` secret in Cloudflare. The public policy exposes
+only `verified` reset history; pending and retracted lifecycle rows remain
+Worker-only. Apply all migrations in `supabase/migrations/` before release.
 
 Resend remains the email delivery provider. Moving the database does not
 change its API key, verified sender domain, or mail routing.

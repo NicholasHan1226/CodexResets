@@ -12,9 +12,21 @@ const CONFIRM_TTL_SECONDS = 24 * 60 * 60;
 const REQUEST_COOLDOWN_SECONDS = 5 * 60;
 const IP_RATE_WINDOW_SECONDS = 10 * 60;
 const IP_RATE_LIMIT = 5;
+const PUSH_RATE_LIMIT = 5;
 const WEBHOOK_REPLAY_TTL_SECONDS = 7 * 24 * 60 * 60;
 const WEBHOOK_MAX_AGE_MS = 5 * 60 * 1000;
 const X_WEBHOOK_MAX_BYTES = 256 * 1024;
+const RESEND_WEBHOOK_MAX_BYTES = 256 * 1024;
+const SUBSCRIPTION_BODY_MAX_BYTES = 8 * 1024;
+const X_WEBHOOK_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const UNSUBSCRIBE_MAX_FUTURE_SECONDS = 31 * 24 * 60 * 60;
+const PUSH_ENDPOINT_HOSTS = new Set([
+  'fcm.googleapis.com',
+  'updates.push.services.mozilla.com',
+  'push.services.mozilla.com',
+  'web.push.apple.com',
+  'wns.windows.com',
+]);
 
 /** GET /api/signals — the snapshot the browser consumes */
 export async function handleSignals(env: Env): Promise<Response> {
@@ -118,17 +130,19 @@ interface PushSubscribeBody {
 
 /** POST /api/subscribe/push — store a browser push subscription */
 export async function handleSubscribePush(request: Request, env: Env): Promise<Response> {
-  let body: PushSubscribeBody;
-  try {
-    body = (await request.json()) as PushSubscribeBody;
-  } catch {
-    return json({ error: 'invalid json' }, 400);
+  const clientIp = request.headers.get('cf-connecting-ip') || 'unknown';
+  if (!await allowRateLimitedRequest(env, 'push', clientIp, PUSH_RATE_LIMIT)) {
+    return json({ error: 'too many push subscription attempts; try again later' }, 429);
   }
+  const parsed = await readJsonWithin<PushSubscribeBody>(request, SUBSCRIPTION_BODY_MAX_BYTES);
+  if (parsed === null) return json({ error: 'payload too large' }, 413);
+  if (!parsed) return json({ error: 'invalid json' }, 400);
+  const body = parsed;
   const { endpoint, keys } = body;
-  if (!endpoint || typeof endpoint !== 'string' || !endpoint.startsWith('https://')) {
+  if (!isAllowedPushEndpoint(endpoint)) {
     return json({ error: 'invalid endpoint' }, 400);
   }
-  if (!keys?.p256dh || !keys?.auth) {
+  if (!keys?.p256dh || !keys?.auth || !isPushKey(keys.p256dh, 80, 256) || !isPushKey(keys.auth, 16, 64)) {
     return json({ error: 'missing keys' }, 400);
   }
   if (endpoint.length > 1024 || keys.p256dh.length > 256 || keys.auth.length > 64) {
@@ -143,7 +157,7 @@ export async function handleSubscribePush(request: Request, env: Env): Promise<R
     auth: keys.auth,
   };
   const res = await privUpsertPush(env, { ...subscription, user_agent: request.headers.get('user-agent')?.slice(0, 256) ?? null });
-  if (!res.ok) return json({ error: `db: ${res.status} ${await res.text()}` }, 502);
+  if (!res.ok) return json({ error: 'subscription storage unavailable' }, 502);
   try {
     const result = await sendPushSubscriptionTest(env, subscription);
     if (result === 'gone') {
@@ -162,12 +176,10 @@ export async function handleSubscribePush(request: Request, env: Env): Promise<R
 
 /** POST /api/unsubscribe/push — remove a push subscription by endpoint */
 export async function handleUnsubscribePush(request: Request, env: Env): Promise<Response> {
-  let body: { endpoint?: string };
-  try {
-    body = (await request.json()) as { endpoint?: string };
-  } catch {
-    return json({ error: 'invalid json' }, 400);
-  }
+  const parsed = await readJsonWithin<{ endpoint?: string }>(request, SUBSCRIPTION_BODY_MAX_BYTES);
+  if (parsed === null) return json({ error: 'payload too large' }, 413);
+  if (!parsed) return json({ error: 'invalid json' }, 400);
+  const body = parsed;
   if (!body.endpoint || typeof body.endpoint !== 'string') {
     return json({ error: 'missing endpoint' }, 400);
   }
@@ -183,12 +195,13 @@ export async function handleUnsubscribePush(request: Request, env: Env): Promise
 export async function handleUnsubscribeEmail(url: URL, env: Env): Promise<Response> {
   const email = (url.searchParams.get('e') || '').toLowerCase().trim();
   const token = url.searchParams.get('t') || '';
+  const expiresAt = Number(url.searchParams.get('x'));
   const validEmail = EMAIL_RE.test(email);
-  if (!validEmail || !token) return html(unsubPage('Invalid unsubscribe link.', false), 400);
+  if (!validEmail || !token || !isValidUnsubscribeExpiry(expiresAt)) return html(unsubPage('Invalid or expired unsubscribe link.', false), 400);
   if (!env.UNSUBSCRIBE_SECRET || !hasPrivilegedAccess(env)) {
     return html(unsubPage('Server not configured.', false), 503);
   }
-  const ok = await verifyToken(email, token, env.UNSUBSCRIBE_SECRET);
+  const ok = await verifyToken(`${email}.${expiresAt}`, token, env.UNSUBSCRIBE_SECRET);
   if (!ok) return html(unsubPage('Invalid or expired unsubscribe link.', false), 403);
 
   const res = await privDeleteEmail(env, email);
@@ -200,7 +213,14 @@ export async function handleUnsubscribeEmail(url: URL, env: Env): Promise<Respon
 /** POST /api/webhooks/resend — signed bounce and complaint suppression. */
 export async function handleResendWebhook(request: Request, env: Env): Promise<Response> {
   if (!env.RESEND_WEBHOOK_SECRET || !hasPrivilegedAccess(env)) return json({ error: 'webhook not configured' }, 503);
-  const raw = await request.text();
+  const rawBytes = await readBodyWithin(request, RESEND_WEBHOOK_MAX_BYTES);
+  if (!rawBytes) return json({ error: 'payload too large' }, 413);
+  let raw: string;
+  try {
+    raw = new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(rawBytes);
+  } catch {
+    return json({ error: 'invalid webhook body' }, 400);
+  }
   const id = request.headers.get('svix-id') || '';
   const timestamp = request.headers.get('svix-timestamp') || '';
   const signature = request.headers.get('svix-signature') || '';
@@ -264,6 +284,10 @@ export async function handleXWebhook(request: Request, url: URL, env: Env, ctx: 
     ctx.waitUntil(recordXWebhookOutcome(env, 'ignored').catch(() => {}));
     return json({ ok: true, ignored: true });
   }
+  if (!isFreshXPost(data.payload.created_at)) {
+    ctx.waitUntil(recordXWebhookOutcome(env, 'ignored').catch(() => {}));
+    return json({ ok: true, ignored: true });
+  }
 
   const replayKey = `x:webhook:${data.event_uuid}`;
   if (await env.CACHE.get(replayKey)) {
@@ -294,14 +318,19 @@ function isXPost(payload: XActivityPost | undefined): payload is Required<XActiv
   return payload.id.length > 0 && payload.text.length > 0 && Number.isFinite(Date.parse(payload.created_at));
 }
 
+function isFreshXPost(createdAt: string): boolean {
+  const timestamp = Date.parse(createdAt);
+  if (!Number.isFinite(timestamp)) return false;
+  const now = Date.now();
+  return timestamp <= now + WEBHOOK_MAX_AGE_MS && now - timestamp <= X_WEBHOOK_MAX_AGE_MS;
+}
+
 /** POST /api/subscribe/email — begin a double opt-in email subscription. */
 export async function handleSubscribeEmail(request: Request, env: Env): Promise<Response> {
-  let body: { email?: string; turnstileToken?: string };
-  try {
-    body = await request.json() as { email?: string; turnstileToken?: string };
-  } catch {
-    return json({ error: 'invalid json' }, 400);
-  }
+  const parsed = await readJsonWithin<{ email?: string; turnstileToken?: string }>(request, SUBSCRIPTION_BODY_MAX_BYTES);
+  if (parsed === null) return json({ error: 'payload too large' }, 413);
+  if (!parsed) return json({ error: 'invalid json' }, 400);
+  const body = parsed;
   const email = typeof body.email === 'string' ? body.email.toLowerCase().trim() : '';
   if (!EMAIL_RE.test(email) || email.length > 320) return json({ error: 'invalid email' }, 400);
   if (!env.RESEND_API_KEY) return json({ error: 'email delivery is not configured' }, 503);
@@ -309,11 +338,7 @@ export async function handleSubscribeEmail(request: Request, env: Env): Promise<
 
   const clientIp = request.headers.get('cf-connecting-ip');
   if (!clientIp) return json({ error: 'client address unavailable' }, 400);
-  const ipKey = await valueHash(clientIp);
-  const rateLimitKey = `subscribe:ip:${ipKey}`;
-  const attempts = Number.parseInt((await env.CACHE.get(rateLimitKey)) || '0', 10) || 0;
-  if (attempts >= IP_RATE_LIMIT) return json({ error: 'too many subscription attempts; try again later' }, 429);
-  await env.CACHE.put(rateLimitKey, String(attempts + 1), { expirationTtl: IP_RATE_WINDOW_SECONDS });
+  if (!await allowRateLimitedRequest(env, 'email', clientIp, IP_RATE_LIMIT)) return json({ error: 'too many subscription attempts; try again later' }, 429);
 
   const turnstileToken = typeof body.turnstileToken === 'string' ? body.turnstileToken.trim() : '';
   if (!turnstileToken || turnstileToken.length > 4096) return json({ error: 'subscription verification required' }, 400);
@@ -405,6 +430,42 @@ async function emailHash(email: string): Promise<string> {
 async function valueHash(value: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
+}
+
+async function allowRateLimitedRequest(env: Env, scope: string, clientIp: string, limit: number): Promise<boolean> {
+  const ipKey = await valueHash(clientIp);
+  const rateLimitKey = `rate:${scope}:ip:${ipKey}`;
+  const attempts = Number.parseInt((await env.CACHE.get(rateLimitKey)) || '0', 10) || 0;
+  if (attempts >= limit) return false;
+  await env.CACHE.put(rateLimitKey, String(attempts + 1), { expirationTtl: IP_RATE_WINDOW_SECONDS });
+  return true;
+}
+
+function isAllowedPushEndpoint(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 1024) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:'
+      && !url.username
+      && !url.password
+      && !url.port
+      && PUSH_ENDPOINT_HOSTS.has(url.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+function isPushKey(value: unknown, minLength: number, maxLength: number): value is string {
+  return typeof value === 'string'
+    && value.length >= minLength
+    && value.length <= maxLength
+    && /^[A-Za-z0-9+/_-]+={0,2}$/.test(value);
+}
+
+function isValidUnsubscribeExpiry(expiresAt: number): boolean {
+  if (!Number.isSafeInteger(expiresAt)) return false;
+  const now = Math.floor(Date.now() / 1000);
+  return expiresAt >= now && expiresAt <= now + UNSUBSCRIBE_MAX_FUTURE_SECONDS;
 }
 
 /** Validate the short-lived, single-use Turnstile token at the Worker boundary. */
@@ -516,6 +577,16 @@ async function readBodyWithin(request: Request, maxBytes: number): Promise<Uint8
     offset += chunk.byteLength;
   }
   return body;
+}
+
+async function readJsonWithin<T>(request: Request, maxBytes: number): Promise<T | undefined | null> {
+  const raw = await readBodyWithin(request, maxBytes);
+  if (!raw) return null;
+  try {
+    return JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(raw)) as T;
+  } catch {
+    return undefined;
+  }
 }
 
 function base64Bytes(value: string): Uint8Array {

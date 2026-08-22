@@ -35,7 +35,7 @@ export interface Tweet {
 export interface ScrapeResult {
   ok: boolean;
   instance?: string;
-  /** Direct means the configured target account; degraded means news-only discovery. */
+  /** Direct means authenticated target-account evidence; degraded means discovery-only context. */
   sourceKind?: 'direct' | 'degraded';
   tweets: Tweet[];
   error?: string;

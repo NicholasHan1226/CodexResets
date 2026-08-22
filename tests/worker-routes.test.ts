@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { handleConfirmEmail, handleHealth, handleHealthDetails, handleResendWebhook, handleSignals, handleSubscribeEmail, handleTestEmail, handleXWebhook } from '../worker/src/routes';
+import { handleConfirmEmail, handleHealth, handleHealthDetails, handleResendWebhook, handleSignals, handleSubscribeEmail, handleSubscribePush, handleTestEmail, handleUnsubscribeEmail, handleXWebhook } from '../worker/src/routes';
 import { isExpiredPushEndpoint, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
+import { signToken } from '../worker/src/util';
 import { getStatusEvidence } from '../worker/src/signals';
 import { shouldSendHealthAlert } from '../worker/src/pipeline';
 import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
@@ -168,7 +169,7 @@ describe('pipeline read endpoints', () => {
         data: {
           event_uuid: 'evt-post-1',
           event_type: 'post.create',
-          payload: { id: 'post-1', text: 'Codex usage limits reset.', created_at: '2026-08-23T00:00:00.000Z' },
+          payload: { id: 'post-1', text: 'Codex usage limits reset.', created_at: new Date().toISOString() },
         },
       });
       const cache: Record<string, string | null> = {};
@@ -186,6 +187,27 @@ describe('pipeline read endpoints', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it('ignores signed X post events outside the freshness window', async () => {
+    const secret = 'x-consumer-test-secret';
+    const waitUntil = vi.fn();
+    const body = JSON.stringify({
+      data: {
+        event_uuid: 'evt-stale-1',
+        event_type: 'post.create',
+        payload: { id: 'post-stale', text: 'Codex usage limits reset.', created_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString() },
+      },
+    });
+    const response = await handleXWebhook(
+      await xWebhookRequest(body, secret),
+      new URL('https://api.example.test/api/webhooks/x'),
+      { ...envWith({}), X_CONSUMER_SECRET: secret },
+      { waitUntil } as unknown as ExecutionContext,
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, ignored: true });
+    expect(waitUntil).toHaveBeenCalledOnce();
   });
 
   it('preserves full diagnostics only for the authorized operations path', async () => {
@@ -363,6 +385,25 @@ describe('pipeline read endpoints', () => {
     }
   });
 
+  it('treats RSSHub content as degraded discovery even when it is available', async () => {
+    const feed = `<?xml version="1.0"?><rss><channel><item>
+      <title>Codex usage limits reset for subscribers</title>
+      <link>https://x.com/thsottiaux/status/123</link>
+      <pubDate>Sat, 22 Aug 2026 05:24:00 GMT</pubDate>
+    </item></channel></rss>`;
+    const fetchMock = vi.fn(async (input: string) => {
+      if (input.startsWith('https://rss.example.test/')) return new Response(feed, { status: 200 });
+      return new Response('unavailable', { status: 503 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const result = await scrapeTweets({ ...envWith({}), RSSHUB_INSTANCES: 'https://rss.example.test', TARGET_ACCOUNT: 'thsottiaux' });
+      expect(result).toMatchObject({ ok: true, instance: 'https://rss.example.test', sourceKind: 'degraded' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('requires an email confirmation before activating a subscriber', async () => {
     const cache: Record<string, string | null> = {};
     const fetchMock = vi.fn(async (input: string) => {
@@ -456,6 +497,76 @@ describe('pipeline read endpoints', () => {
     }
   });
 
+  it('rejects oversized public subscription bodies before provider calls', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const response = await handleSubscribeEmail(new Request('https://api.example.test/api/subscribe/email', {
+        method: 'POST',
+        headers: { 'cf-connecting-ip': '203.0.113.20' },
+        body: JSON.stringify({ email: 'reader@example.test', turnstileToken: 'x'.repeat(9_000) }),
+      }), emailEnv());
+      expect(response.status).toBe(413);
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('rejects push registrations for arbitrary HTTPS hosts before storage or delivery', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const response = await handleSubscribePush(new Request('https://api.example.test/api/subscribe/push', {
+        method: 'POST',
+        headers: { 'cf-connecting-ip': '203.0.113.21' },
+        body: JSON.stringify({ endpoint: 'https://attacker.example.test/push', keys: { p256dh: 'a'.repeat(88), auth: 'b'.repeat(24) } }),
+      }), emailEnv());
+      expect(response.status).toBe(400);
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('accepts a supported push authority without exposing storage internals', async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 201 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const response = await handleSubscribePush(new Request('https://api.example.test/api/subscribe/push', {
+        method: 'POST',
+        headers: { 'cf-connecting-ip': '203.0.113.22' },
+        body: JSON.stringify({ endpoint: 'https://fcm.googleapis.com/fcm/send/device', keys: { p256dh: 'a'.repeat(88), auth: 'b'.repeat(24) } }),
+      }), emailEnv());
+      expect(response.status).toBe(200);
+      expect(fetchMock).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('requires a fresh expiry-bound unsubscribe capability', async () => {
+    const expiresAt = Math.floor(Date.now() / 1000) + 60;
+    const token = await signToken(`reader@example.test.${expiresAt}`, 'unsubscribe-test-secret');
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const valid = await handleUnsubscribeEmail(
+        new URL(`https://api.example.test/api/unsubscribe?e=reader@example.test&x=${expiresAt}&t=${token}`),
+        { ...emailEnv(), UNSUBSCRIBE_SECRET: 'unsubscribe-test-secret' },
+      );
+      expect(valid.status).toBe(200);
+      const expired = await handleUnsubscribeEmail(
+        new URL(`https://api.example.test/api/unsubscribe?e=reader@example.test&x=${expiresAt - 120}&t=${token}`),
+        { ...emailEnv(), UNSUBSCRIBE_SECRET: 'unsubscribe-test-secret' },
+      );
+      expect(expired.status).toBe(400);
+      expect(fetchMock).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('activates only a valid pending confirmation token', async () => {
     const token = '01234567-89ab-cdef-0123-456789abcdef';
     const cache: Record<string, string | null> = {
@@ -534,6 +645,21 @@ describe('pipeline read endpoints', () => {
       }), emailEnv());
 
       expect(response.status).toBe(401);
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('rejects an oversized Resend body before signature or subscription work', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const response = await handleResendWebhook(new Request('https://api.example.test/api/webhooks/resend', {
+        method: 'POST',
+        body: 'x'.repeat(300 * 1024),
+      }), emailEnv());
+      expect(response.status).toBe(413);
       expect(fetchMock).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();

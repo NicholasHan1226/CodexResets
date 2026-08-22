@@ -1,125 +1,42 @@
 # Codex Resets API
 
-Base URL: `https://codex-resets-api.nicholashan.workers.dev`
+Base URL: `https://codexresets.cc`
 
-All endpoints are public, read-only, and CORS-enabled.
+Public read endpoints are CORS-enabled. Operational and delivery routes are
+either capability-protected or provider-signed; callers must not treat this API
+as a general data-ingestion or notification interface.
 
----
+## Public reads
 
-## Endpoints
+- `GET /api/signals` — latest Worker-produced signal snapshot for the browser.
+- `GET /api/health` — safe operational status, capability booleans, and compact
+  delivery totals. It deliberately excludes raw errors, source URLs, and
+  candidate text.
 
-### `GET /api/prediction`
+## Subscription lifecycle
 
-Current prediction state for the next Codex reset.
+- `POST /api/subscribe/email` — accepts a small JSON body with `email` and a
+  Turnstile token. It is IP-rate-limited and starts double opt-in only.
+- `GET /api/subscribe/confirm?t=...` — consumes a short-lived confirmation
+  token and activates the address.
+- `GET /api/unsubscribe?e=...&x=...&t=...` — consumes an expiry-bound signed
+  unsubscribe link.
+- `POST /api/subscribe/push` — accepts a bounded browser Push subscription for
+  a supported Web Push authority; it applies an IP quota and sends a delivery
+  test without following redirects.
+- `POST /api/unsubscribe/push` — removes the browser-provided endpoint.
 
-**Response:**
-```json
-{
-  "probability24h": 0.32,
-  "probability48h": 0.48,
-  "daysSinceLastReset": 3.8,
-  "lastResetDate": "2025-08-15T17:00:00Z",
-  "generatedAt": "2025-08-19T12:00:00Z"
-}
-```
+## Provider and administrator routes
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `probability24h` | number | Probability of reset within 24 hours (0-1) |
-| `probability48h` | number | Probability of reset within 48 hours (0-1) |
-| `daysSinceLastReset` | number | Days since last confirmed reset |
-| `lastResetDate` | string | ISO 8601 timestamp of last reset |
-| `generatedAt` | string | ISO 8601 timestamp of this response |
+- `POST /api/webhooks/resend` — only accepts bounded, fresh, Svix-signed Resend
+  events.
+- `GET|POST /api/webhooks/x` — supports X CRC ownership checks and bounded,
+  HMAC-signed fresh post events.
+- `GET /api/health/details`, `POST /api/run`, and `POST /api/test-email` require
+  `Authorization: Bearer $CRON_SECRET` and are not public integration endpoints.
 
----
+## Data boundary
 
-### `GET /api/history`
-
-Reset history (last 20 records).
-
-**Response:**
-```json
-{
-  "records": [
-    {
-      "date": "2025-08-15T17:00:00Z",
-      "timestamp": 1755176400000,
-      "reason": "goodwill",
-      "source": "twitter"
-    }
-  ],
-  "count": 20
-}
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `records` | array | Array of reset records |
-| `count` | number | Number of records returned |
-
----
-
-### `GET /api/signals`
-
-Current signal states from monitoring sources.
-
-**Response:**
-```json
-{
-  "signals": [
-    {
-      "name": "timeSince",
-      "label": "Time Since Last Reset",
-      "level": 0.75,
-      "weight": 0.3,
-      "description": "Days since last reset"
-    }
-  ],
-  "source": "live",
-  "updatedAt": "2025-08-19T12:00:00Z"
-}
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `signals` | array | Array of signal objects |
-| `source` | string | Data source: `live`, `cached`, or `fallback` |
-| `updatedAt` | string | ISO 8601 timestamp |
-
----
-
-### `GET /api/health`
-
-Health check endpoint.
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "timestamp": "2025-08-19T12:00:00Z",
-  "version": "1.0.0",
-  "uptime": 1692288000000
-}
-```
-
----
-
-## Rate Limits
-
-- 100 requests per minute per IP
-- Responses are cached for 60 seconds
-
-## Error Handling
-
-All endpoints return consistent error responses:
-
-```json
-{
-  "error": "Error message description"
-}
-```
-
-| Status Code | Description |
-|-------------|-------------|
-| 200 | Success |
-| 500 | Internal server error |
+The browser uses the Supabase publishable key only for confirmed reset history.
+Subscriptions, Push endpoints, pending lifecycle rows, email delivery, and all
+write operations are Worker service-role operations.

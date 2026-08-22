@@ -64,7 +64,8 @@ export default {
           return json({ error: 'not found' }, 404);
       }
     } catch (err) {
-      return json({ error: err instanceof Error ? err.message : 'internal error' }, 500);
+      console.error('Worker request failed', err);
+      return json({ error: 'internal error' }, 500);
     }
   },
 

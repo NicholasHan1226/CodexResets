@@ -14,6 +14,9 @@ when it can be described as a formally validated public release.
    positive-prediction precision must be at least 80%.
 5. Email confirmation, Resend suppression, browser Push test/pruning, and X
    webhook-to-pipeline telemetry remain available in protected diagnostics.
+6. The authenticated X API is configured, the verified-history Supabase
+   migration is applied, and the deprecated `codex-resets-email` Worker has no
+   active Cloudflare deployment or route.
 
 The codebase also runs a leakage-free historical regression for the same 80%
 criterion: every cutoff chooses its model using only then-known records. It is
