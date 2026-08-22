@@ -59,7 +59,7 @@ lint, unit tests, the production bundle check, Worker TypeScript validation,
 and a Worker bundle dry run before assets are published. GitHub Actions is
 deliberately not used for this project.
 
-Until Git integration is active, deploy a validated `dist/` through the Pages
+For an emergency/manual Pages release, deploy a validated `dist/` through the
 dashboard or with an authorized Wrangler session:
 
 ```bash
@@ -71,7 +71,15 @@ npx wrangler pages deploy dist --project-name=codex-resets
 The Worker source is in `worker/`. It uses `nodejs_compat` because the Web Push
 library imports `node:crypto`.
 
+The `codex-resets-pipeline` Worker is connected to
+`NicholasHan1226/CodexResets`: Cloudflare builds `main` from the `/worker` root,
+runs `pnpm install --frozen-lockfile && pnpm exec tsc --noEmit`, then deploys
+with `pnpm exec wrangler deploy`. This is the production delivery path for
+Worker changes; its account-scoped deployment token and runtime secrets stay
+in Cloudflare.
+
 ```bash
+# Emergency/manual deployment only (requires a locally supplied token)
 pnpm --dir worker exec tsc --noEmit
 pnpm --dir worker exec wrangler deploy --dry-run
 pnpm --dir worker exec wrangler deploy
