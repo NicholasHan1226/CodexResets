@@ -36,7 +36,9 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
   const verdictKey = hasScheduledReset
     ? primaryForecast.window === 'after'
       ? 'hero.answerScheduledAfter'
-      : primaryForecast.window === 'pending'
+      : primaryForecast.window === 'elapsed'
+        ? 'hero.answerScheduledElapsed'
+        : primaryForecast.window === 'pending'
         ? 'hero.answerScheduledPending'
         : 'hero.answerScheduled'
     : pct >= 60
@@ -151,7 +153,11 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
         <span className="text-foreground font-medium">{t('hero.adviceLabel')}</span>{' '}
         {t(hasScheduledReset
-          ? primaryForecast.window === 'pending' ? 'advice.scheduledPending' : 'advice.scheduled'
+          ? primaryForecast.window === 'elapsed'
+            ? 'advice.scheduledElapsed'
+            : primaryForecast.window === 'pending'
+              ? 'advice.scheduledPending'
+              : 'advice.scheduled'
           : `advice.${prediction.advice[timeframe].level}`)}
       </p>
 

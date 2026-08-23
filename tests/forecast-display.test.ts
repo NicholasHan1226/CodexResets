@@ -32,6 +32,12 @@ describe('primary forecast display', () => {
     });
   });
 
+  it('does not present a passed official target as an upcoming schedule', () => {
+    expect(getPrimaryForecast([{ ...scheduledSignal, scheduledAt: now - 60_000 }], 24, now)).toEqual({
+      kind: 'official-schedule', scheduledAt: now - 60_000, window: 'elapsed',
+    });
+  });
+
   it('formats an official target in the visitor timezone without exposing a source URL', () => {
     expect(formatOfficialScheduleTarget(Date.parse('2026-08-23T22:00:00.000Z'), 'zh')).toMatch(/\d{2}:\d{2}/);
   });

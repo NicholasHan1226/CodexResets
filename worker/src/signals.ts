@@ -143,11 +143,14 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
     };
   }
   if (hoursSinceScheduledReset !== null && hoursSinceScheduledReset < SCHEDULED_RESET_SIGNAL_TTL_HOURS) {
+    const targetElapsed = typeof scheduledAt === 'number' && scheduledAt <= now;
     return {
       ...base,
       status: 'active',
       value: 0.8,
-      description: 'signals.resetScheduled',
+      // Keep the official post visible while its confirmation is still
+      // pending, but never describe a timestamp in the past as "upcoming".
+      description: targetElapsed ? 'signals.resetScheduleElapsed' : 'signals.resetScheduled',
       updatedAt: observedAt(scheduledResetTweet),
       scheduledAt,
     };

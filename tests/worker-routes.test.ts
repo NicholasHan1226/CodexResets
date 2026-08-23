@@ -271,6 +271,22 @@ describe('pipeline read endpoints', () => {
     expect(parseScheduledResetAt(scheduled.text, scheduled.ts)).toBe(Date.parse('2026-08-24T22:00:00.000Z'));
     expect(detectResetEvents([scheduled])).toEqual({ strong: [], weak: [] });
 
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-24T22:01:00.000Z'));
+    try {
+      const elapsedSnapshot = await buildSignalsSnapshot(
+        envWith({}),
+        { ok: true, sourceKind: 'direct', tweets: [scheduled] },
+        now - 4 * 24 * 60 * 60 * 1000,
+        3.8,
+        [],
+        { state: 'clear', incidentCount: 0 },
+      );
+      expect(elapsedSnapshot.signals[0].description).toBe('signals.resetScheduleElapsed');
+    } finally {
+      vi.useRealTimers();
+    }
+
     const expiredSnapshot = await buildSignalsSnapshot(
       envWith({}),
       { ok: true, sourceKind: 'direct', tweets: [{ ...scheduled, ts: now - 49 * 60 * 60 * 1000 }] },

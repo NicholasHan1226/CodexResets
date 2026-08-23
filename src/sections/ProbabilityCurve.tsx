@@ -9,7 +9,7 @@ interface ProbabilityCurveProps {
   /** Direct official timing replaces the history-only curve as the public answer. */
   officialSchedule?: {
     targetLabel: string | null;
-    window: 'within' | 'after' | 'pending';
+    window: 'within' | 'after' | 'pending' | 'elapsed';
   };
 }
 
@@ -87,7 +87,9 @@ export function ProbabilityCurve({ curve, hours, officialSchedule }: Probability
       ? 'curve.scheduleWithin'
       : officialSchedule.window === 'after'
         ? 'curve.scheduleAfter'
-        : 'curve.schedulePending';
+        : officialSchedule.window === 'elapsed'
+          ? 'curve.scheduleElapsed'
+          : 'curve.schedulePending';
     return (
       <section aria-label="Official reset timing" className="max-w-4xl">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">

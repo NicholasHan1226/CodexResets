@@ -4,7 +4,7 @@ const HOUR_MS = 60 * 60 * 1000;
 
 export type PrimaryForecast =
   | { kind: 'model' }
-  | { kind: 'official-schedule'; scheduledAt: number | null; window: 'within' | 'after' | 'pending' };
+  | { kind: 'official-schedule'; scheduledAt: number | null; window: 'within' | 'after' | 'pending' | 'elapsed' };
 
 /**
  * The public answer should incorporate information a visitor already knows.
@@ -17,7 +17,9 @@ export function getPrimaryForecast(
   now = Date.now(),
 ): PrimaryForecast {
   const officialSchedule = signals.find(
-    (signal) => signal.source === 'tibopost' && signal.description === 'signals.resetScheduled' && signal.status === 'active',
+    (signal) => signal.source === 'tibopost'
+      && (signal.description === 'signals.resetScheduled' || signal.description === 'signals.resetScheduleElapsed')
+      && signal.status === 'active',
   );
   if (!officialSchedule) return { kind: 'model' };
 
@@ -25,7 +27,7 @@ export function getPrimaryForecast(
   if (typeof scheduledAt !== 'number' || !Number.isFinite(scheduledAt)) {
     return { kind: 'official-schedule', scheduledAt: null, window: 'pending' };
   }
-  if (scheduledAt < now) return { kind: 'official-schedule', scheduledAt, window: 'pending' };
+  if (scheduledAt <= now) return { kind: 'official-schedule', scheduledAt, window: 'elapsed' };
   return {
     kind: 'official-schedule',
     scheduledAt,

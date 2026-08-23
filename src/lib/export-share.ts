@@ -12,7 +12,7 @@ export function buildShareSummary(state: {
   hours: 24 | 48;
   daysSince: number;
   medianDays: number;
-  officialSchedule?: { targetLabel: string | null; window: 'within' | 'after' | 'pending' };
+  officialSchedule?: { targetLabel: string | null; window: 'within' | 'after' | 'pending' | 'elapsed' };
 }, locale: 'en' | 'zh' = 'en'): string {
   if (state.officialSchedule) {
     const target = state.officialSchedule.targetLabel;
@@ -20,6 +20,8 @@ export function buildShareSummary(state: {
       ? (locale === 'zh' ? `在未来 ${state.hours} 小时内` : `within ${state.hours}h`)
       : state.officialSchedule.window === 'after'
         ? (locale === 'zh' ? `在未来 ${state.hours} 小时之后` : `after ${state.hours}h`)
+        : state.officialSchedule.window === 'elapsed'
+          ? (locale === 'zh' ? '预告时间已过，等待确认' : 'target passed, confirmation pending')
         : (locale === 'zh' ? '时间待确认' : 'time pending confirmation');
     return locale === 'zh'
       ? `Codex 重置预判 ❯ 官方已预告${target ? `：${target}` : ''}（${relation}）`
