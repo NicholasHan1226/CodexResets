@@ -9,6 +9,8 @@ interface ProbabilityCurveProps {
   /** Direct official timing replaces the history-only curve as the public answer. */
   officialSchedule?: {
     targetLabel: string | null;
+    /** Compact visitor-clock anchor, e.g. “距现在约 4小时”. */
+    countdownLabel: string | null;
     window: 'within' | 'after' | 'pending' | 'elapsed';
   };
 }
@@ -101,11 +103,18 @@ export function ProbabilityCurve({ curve, hours, officialSchedule }: Probability
             {t(relation, { n: hours ?? 24 })}
           </span>
         </div>
-        <p className="mt-4 border-y border-primary/20 py-5 font-mono text-xl font-semibold text-primary sm:text-2xl">
-          {officialSchedule.targetLabel
-            ? t('curve.scheduleTarget', { time: officialSchedule.targetLabel })
-            : t('curve.schedulePending')}
-        </p>
+        <div className="mt-4 border-y border-primary/20 py-5">
+          <p className="font-mono text-xl font-semibold text-primary sm:text-2xl">
+            {officialSchedule.targetLabel
+              ? t('curve.scheduleTarget', { time: officialSchedule.targetLabel })
+              : t('curve.schedulePending')}
+          </p>
+          {officialSchedule.countdownLabel && (
+            <p className="mt-2 font-mono text-xs text-muted-foreground">
+              {officialSchedule.countdownLabel}
+            </p>
+          )}
+        </div>
       </section>
     );
   }
