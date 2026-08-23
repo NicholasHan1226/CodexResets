@@ -6,15 +6,29 @@
  * 3. Simulated fallback handled by the caller
  */
 
-import type { ResetSignal } from '@/types/reset';
+import type { ResetRecord, ResetSignal } from '@/types/reset';
 
 const PIPELINE_API_URL = (import.meta.env.VITE_PIPELINE_API_URL || '').replace(/\/+$/, '');
-const PIPELINE_TIMEOUT_MS = 6000;
+const PIPELINE_TIMEOUT_MS = 3500;
 export const PIPELINE_SNAPSHOT_MAX_AGE_MS = 90 * 60 * 1000;
 
 interface PipelineSnapshot {
   signals: ResetSignal[];
   generatedAt: number;
+  history?: PipelineHistoryRow[];
+}
+
+interface PipelineHistoryRow {
+  id: string;
+  reset_date: string;
+  verified: true;
+}
+
+export interface DashboardInputs {
+  signals: ResetSignal[];
+  hasRealData: boolean;
+  /** null means an older Worker response needs the direct Supabase fallback. */
+  records: ResetRecord[] | null;
 }
 
 export function isFreshPipelineSnapshot(generatedAt: unknown, now = Date.now()): generatedAt is number {
@@ -24,12 +38,14 @@ export function isFreshPipelineSnapshot(generatedAt: unknown, now = Date.now()):
     && now - generatedAt <= PIPELINE_SNAPSHOT_MAX_AGE_MS;
 }
 
-// Fetch the server-side signal snapshot built by the pipeline worker
-export async function fetchPipelineSignals(): Promise<ResetSignal[] | null> {
+// Fetch the server-side snapshot built by the pipeline Worker. Signals and
+// compact verified history arrive together, avoiding a second critical-path
+// request on the first dashboard render.
+async function fetchPipelineSnapshot(): Promise<PipelineSnapshot | null> {
   if (!PIPELINE_API_URL) return null;
 
-  const cacheKey = 'pipeline_signals';
-  const cached = getCached<ResetSignal[]>(cacheKey);
+  const cacheKey = 'pipeline_snapshot';
+  const cached = getCached<PipelineSnapshot>(cacheKey);
   if (cached) return cached;
 
   try {
@@ -40,11 +56,22 @@ export async function fetchPipelineSignals(): Promise<ResetSignal[] | null> {
     const data = (await res.json()) as PipelineSnapshot;
     if (!isFreshPipelineSnapshot(data.generatedAt) || !Array.isArray(data.signals) || data.signals.length === 0) return null;
     // Snapshot is refreshed every 30min server-side; cache for 5min locally
-    setCache(cacheKey, data.signals, 5 * 60 * 1000);
-    return data.signals;
+    const snapshot: PipelineSnapshot = {
+      signals: data.signals,
+      generatedAt: data.generatedAt,
+      // Older deployed Workers do not have this field; keep the compatible
+      // direct-read fallback only for that short rollout window.
+      history: Array.isArray(data.history) ? data.history : undefined,
+    };
+    setCache(cacheKey, snapshot, 5 * 60 * 1000);
+    return snapshot;
   } catch {
     return null;
   }
+}
+
+export async function fetchPipelineSignals(): Promise<ResetSignal[] | null> {
+  return (await fetchPipelineSnapshot())?.signals ?? null;
 }
 
 // RSS proxies for Twitter/X feeds (fallback chain)
@@ -293,34 +320,63 @@ export async function fetchRealSignals(): Promise<ResetSignal[]> {
 }
 
 // Check if we have real signal data or should fall back to simulated
-export async function getSignalsWithFallback(simulatedSignals: ResetSignal[]): Promise<{ signals: ResetSignal[]; hasRealData: boolean }> {
+export async function getDashboardInputs(simulatedSignals: ResetSignal[]): Promise<DashboardInputs> {
   // Tier 1: server-side pipeline snapshot (most reliable)
-  const pipelineSignals = await fetchPipelineSignals();
-  if (pipelineSignals && pipelineSignals.length > 0) {
-    const pipelineSources = new Set(pipelineSignals.map((s) => s.source));
+  const pipeline = await fetchPipelineSnapshot();
+  if (pipeline && pipeline.signals.length > 0) {
+    const pipelineSources = new Set(pipeline.signals.map((s) => s.source));
     const missing = simulatedSignals.filter((s) => !pipelineSources.has(s.source));
-    return { signals: [...pipelineSignals, ...missing], hasRealData: true };
+    return {
+      signals: [...pipeline.signals, ...missing],
+      hasRealData: true,
+      records: parsePipelineHistory(pipeline.history),
+    };
   }
 
   // In production, falling through to several third-party proxy/status hosts
   // makes a Worker outage slower and less reliable on constrained networks.
   // The local model is the honest, immediately usable fallback instead.
-  if (PIPELINE_API_URL) return { signals: simulatedSignals, hasRealData: false };
+  if (PIPELINE_API_URL) return { signals: simulatedSignals, hasRealData: false, records: null };
 
   // Tier 2: direct browser fetch
   const realSignals = await fetchRealSignals();
   
   if (realSignals.length === 0) {
     // Fall back to simulated data if real fetch fails
-    return { signals: simulatedSignals, hasRealData: false };
+    return { signals: simulatedSignals, hasRealData: false, records: null };
   }
 
   // Merge: use real data where available, simulated for missing sources
   const realSources = new Set(realSignals.map(s => s.source));
   const missingSignals = simulatedSignals.filter(s => !realSources.has(s.source));
   
-  return { 
+  return {
     signals: [...realSignals, ...missingSignals], 
-    hasRealData: true 
+    hasRealData: true,
+    records: null,
   };
+}
+
+/** Compatibility wrapper for non-dashboard callers. */
+export async function getSignalsWithFallback(simulatedSignals: ResetSignal[]): Promise<{ signals: ResetSignal[]; hasRealData: boolean }> {
+  const { signals, hasRealData } = await getDashboardInputs(simulatedSignals);
+  return { signals, hasRealData };
+}
+
+function parsePipelineHistory(history: PipelineHistoryRow[] | undefined): ResetRecord[] | null {
+  if (!history) return null;
+  const records: ResetRecord[] = [];
+  for (const row of history) {
+    if (!row || typeof row.id !== 'string' || typeof row.reset_date !== 'string' || row.verified !== true) continue;
+    const timestamp = Date.parse(row.reset_date);
+    if (!Number.isFinite(timestamp)) continue;
+    records.push({
+      id: row.id,
+      date: new Date(timestamp).toISOString().slice(0, 10),
+      timestamp,
+      reason: 'verified reset',
+      verified: true,
+    });
+  }
+  return records;
 }

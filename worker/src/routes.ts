@@ -32,16 +32,31 @@ const PUSH_ENDPOINT_HOSTS = new Set([
 export async function handleSignals(env: Env): Promise<Response> {
   const raw = await env.CACHE.get('signals:latest');
   if (!raw) return json({ error: 'no snapshot yet' }, 503);
-  const snapshot = parseJson<{ signals?: Array<Record<string, unknown>>; generatedAt?: number }>(raw);
+  const snapshot = parseJson<{
+    signals?: Array<Record<string, unknown>>;
+    generatedAt?: number;
+    history?: Array<{ id?: unknown; reset_date?: unknown; verified?: unknown }>;
+    sources?: unknown;
+  }>(raw);
   if (!snapshot?.signals) return json({ error: 'no snapshot yet' }, 503);
   if (timestampCheck(snapshot.generatedAt, Date.now()) !== 'ok') return json({ error: 'signal snapshot stale' }, 503);
   return json({
-    ...snapshot,
+    generatedAt: snapshot.generatedAt,
+    sources: snapshot.sources,
     signals: snapshot.signals.map((signal) => {
       const publicSignal = { ...signal };
       delete publicSignal.sourceUrl;
       return publicSignal;
     }),
+    // Keep the browser prediction path self-contained without exposing
+    // announcement text, source URLs, lifecycle state, or any subscriber data.
+    history: (snapshot.history || []).flatMap((record) => (
+      typeof record.id === 'string'
+      && typeof record.reset_date === 'string'
+      && record.verified === true
+        ? [{ id: record.id, reset_date: record.reset_date, verified: true }]
+        : []
+    )).slice(0, 100),
   }, 200, {
     'cache-control': 'public, max-age=60',
     'access-control-allow-origin': '*',

@@ -1,4 +1,5 @@
-import type { Env, ScrapeResult, SignalSnapshot, SignalsPayload } from './types';
+import type { Env, PublicResetHistory, ScrapeResult, SignalSnapshot, SignalsPayload } from './types';
+import { readJsonWithin } from './util';
 import { RESET_RE, CONTEXT_RE, isResetAnnouncement } from './scrape';
 
 const HOUR = 3600 * 1000;
@@ -25,6 +26,7 @@ export async function buildSignalsSnapshot(
   scrape: ScrapeResult,
   latestResetTs: number,
   medianGapDays: number,
+  history: PublicResetHistory[],
   statusEvidence?: StatusEvidence,
 ): Promise<SignalsPayload> {
   const now = Date.now();
@@ -62,6 +64,7 @@ export async function buildSignalsSnapshot(
   return {
     signals: [tibo, statusPage, cooldown, launch],
     generatedAt: now,
+    history,
     sources: {
       // A reachable mirror is still useful discovery context, but it is not
       // an authoritative account feed and must not be labelled as live.
@@ -173,7 +176,8 @@ export async function getStatusEvidence(): Promise<StatusEvidence> {
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = (await res.json()) as { incidents?: StatusIncident[] };
+    const data = await readJsonWithin<{ incidents?: StatusIncident[] }>(res, 64 * 1024);
+    if (!data) throw new Error('invalid or oversized status response');
     const KEYWORDS = ['codex', 'rate limit', 'usage limit', 'quota'];
     const active = (data.incidents || []).filter(
       (i) => i.status !== 'resolved' && !i.resolved_at && KEYWORDS.some((k) => i.name.toLowerCase().includes(k))

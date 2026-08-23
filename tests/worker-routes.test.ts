@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { handleConfirmEmail, handleHealth, handleHealthDetails, handleReleaseStatus, handleResendWebhook, handleSignals, handleSubscribeEmail, handleSubscribePush, handleTestEmail, handleUnsubscribeEmail, handleUnsubscribePush, handleXWebhook } from '../worker/src/routes';
-import { isExpiredPushEndpoint, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
+import { isExpiredPushEndpoint, notifyAll, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
 import { signToken } from '../worker/src/util';
 import { buildSignalsSnapshot, getStatusEvidence } from '../worker/src/signals';
 import { runPipeline, runPipelineOnce, shouldSendHealthAlert } from '../worker/src/pipeline';
@@ -172,6 +172,7 @@ describe('pipeline read endpoints', () => {
       },
       now - 4 * 24 * 60 * 60 * 1000,
       3.8,
+      [],
       { state: 'clear', incidentCount: 0 },
     );
 
@@ -196,6 +197,7 @@ describe('pipeline read endpoints', () => {
       },
       now - 4 * 24 * 60 * 60 * 1000,
       3.8,
+      [],
       { state: 'clear', incidentCount: 0 },
     );
     expect(direct.sources.tweets).toBe('live');
@@ -203,14 +205,21 @@ describe('pipeline read endpoints', () => {
   });
 
   it('returns a fresh signal snapshot with browser CORS and security headers enabled', async () => {
-    const snapshot = JSON.stringify({ signals: [{ source: 'tibopost', sourceUrl: 'https://example.test/source' }], generatedAt: Date.now() });
+    const snapshot = JSON.stringify({
+      signals: [{ source: 'tibopost', sourceUrl: 'https://example.test/source' }],
+      generatedAt: Date.now(),
+      history: [{ id: 'verified-reset', reset_date: '2026-08-22T00:00:00.000Z', verified: true, source_url: 'private' }],
+    });
     const response = await handleSignals(envWith({ 'signals:latest': snapshot }));
 
     expect(response.status).toBe(200);
     expect(response.headers.get('access-control-allow-origin')).toBe('*');
     expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
     expect(response.headers.get('x-frame-options')).toBe('DENY');
-    await expect(response.json()).resolves.toEqual(expect.objectContaining({ signals: [{ source: 'tibopost' }] }));
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({
+      signals: [{ source: 'tibopost' }],
+      history: [{ id: 'verified-reset', reset_date: '2026-08-22T00:00:00.000Z', verified: true }],
+    }));
   });
 
   it('rejects a stale signal snapshot instead of serving it as live data', async () => {
@@ -444,6 +453,45 @@ describe('pipeline read endpoints', () => {
     expect(isExpiredPushEndpoint(404)).toBe(true);
     expect(isExpiredPushEndpoint(410)).toBe(true);
     expect(isExpiredPushEndpoint(503)).toBe(false);
+  });
+
+  it('retries only recipients that did not receive a partially failed alert', async () => {
+    const delivered = new Set<string>();
+    const recipients: string[] = [];
+    let secondRecipientAttempts = 0;
+    const ledger = {
+      hasDelivered: async (resetId: string, channel: 'email' | 'push', recipient: string) => delivered.has(`${resetId}:${channel}:${recipient}`),
+      markDelivered: async (resetId: string, channel: 'email' | 'push', recipient: string) => {
+        delivered.add(`${resetId}:${channel}:${recipient}`);
+      },
+    };
+    const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/subscriptions?select=email&is_active=eq.true')) {
+        return new Response(JSON.stringify([{ email: 'first@example.test' }, { email: 'second@example.test' }]));
+      }
+      if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth')) return new Response(JSON.stringify([]));
+      if (url === 'https://api.resend.com/emails') {
+        const body = JSON.parse(String(init?.body)) as { to: string[] };
+        const recipient = body.to[0];
+        recipients.push(recipient);
+        if (recipient === 'second@example.test' && secondRecipientAttempts++ === 0) return new Response('temporary failure', { status: 503 });
+        return new Response(JSON.stringify({ id: `email-${recipients.length}` }), { status: 200 });
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const event = { id: 'reset-1', ts: Date.now(), text: 'confirmed reset', link: '' };
+      const first = await notifyAll(emailEnv(), event, ledger);
+      expect(first).toMatchObject({ emails: 1, errors: [expect.stringContaining('resend 503')], pending: false });
+
+      const retry = await notifyAll(emailEnv(), event, ledger);
+      expect(retry).toMatchObject({ emails: 1, errors: [], pending: false });
+      expect(recipients).toEqual(['first@example.test', 'second@example.test', 'second@example.test']);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('skips an immediate Push test only when VAPID is intentionally unavailable', async () => {

@@ -14,7 +14,9 @@ that collects signals and produces a KV-backed snapshot.
 
 The Worker runs every 30 minutes. Its public read endpoints are:
 
-- `GET /api/signals` — latest four-signal browser snapshot.
+- `GET /api/signals` — latest four-signal browser snapshot and a bounded,
+  model-only verified-reset history, so the first dashboard render does not
+  need a separate database round trip.
 - `GET /api/health` — coarse latest-run and snapshot freshness only; detailed
   capability and delivery diagnostics stay on the authenticated operations route.
 - `GET /api/release-status` — a binary formal-release gate for automation; it
@@ -164,8 +166,9 @@ subscription attempts per ten minutes.
 
 ## Database and email delivery
 
-The managed database is Supabase project `wwhypilqiognyxkpqkss`. The public
-browser bundle may use only the publishable key to read reset history; all
+The managed database is Supabase project `wwhypilqiognyxkpqkss`. The browser
+normally receives verified reset history through the Worker snapshot and uses
+the public Supabase read only as a bounded compatibility fallback; all
 subscription, push, and pipeline writes require the Worker-only
 `SUPABASE_SERVICE_ROLE_KEY` secret in Cloudflare. Anonymous reads are limited
 to `id`, `reset_date`, and `verified` for verified reset history; source URLs,
@@ -174,6 +177,14 @@ all migrations in `supabase/migrations/` before release.
 
 Resend remains the email delivery provider. Moving the database does not
 change its API key, verified sender domain, or mail routing.
+
+Confirmed-alert fan-out uses the existing globally serialized pipeline
+coordinator. It records a 31-day keyed digest for each successfully delivered
+recipient, never the email address or Push endpoint itself. A temporary
+failure therefore retries only the missing recipient on the next automatic
+pipeline run. Each run is deliberately bounded to 50 emails and 50 Push
+endpoints per channel; any remainder continues automatically on later runs
+without needing a separate queue service at the current subscriber scale.
 
 ## Delivery
 

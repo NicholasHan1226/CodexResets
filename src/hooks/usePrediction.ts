@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { generatePrediction } from "@/lib/prediction";
-import { getSignalsWithFallback } from "@/lib/signal-fetcher";
+import { getDashboardInputs } from "@/lib/signal-fetcher";
 import { fetchResetRecords } from "@/lib/reset-records";
 import type { ResetPrediction, ResetRecord } from "@/types/reset";
 
@@ -25,12 +25,14 @@ export function usePrediction() {
     setSignalsLoading(true);
     
     try {
-      // Records (Supabase) and signals (RSS/status page) are independent
-      // network calls — run them in parallel to halve the refresh latency.
+      // Start the compatibility read at the same time. A fresh Worker
+      // snapshot normally supplies its own compact verified history, so this
+      // request is not on the visible critical path after rollout.
       const recordsPromise = fetchResetRecords();
-      const signalsPromise = getSignalsWithFallback(generatePrediction().signals);
+      const dashboardPromise = getDashboardInputs(generatePrediction().signals);
 
-      const [records, { signals, hasRealData }] = await Promise.all([recordsPromise, signalsPromise]);
+      const { signals, hasRealData, records: snapshotRecords } = await dashboardPromise;
+      const records = snapshotRecords ?? await recordsPromise;
       setResetRecords(records);
       setUsingRealData(hasRealData);
 

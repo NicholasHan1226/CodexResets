@@ -1,9 +1,10 @@
 import type { Env, ScrapeResult, Tweet, ResetEvent } from './types';
-import { decodeEntities, readTextWithin, stripTags } from './util';
+import { decodeEntities, readJsonWithin, readTextWithin, stripTags } from './util';
 
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_TWEETS = 15;
 const MAX_EXTERNAL_TEXT_BYTES = 512 * 1024;
+const MAX_OFFICIAL_JSON_BYTES = 64 * 1024;
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 
@@ -125,7 +126,8 @@ async function scrapeOfficialXTimeline(env: Env): Promise<XApiResult> {
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!lookup.ok) return { tweets: [], error: `x-api lookup: HTTP ${lookup.status}` };
-      const body = await lookup.json() as { data?: { id?: string } };
+      const body = await readJsonWithin<{ data?: { id?: string } }>(lookup, MAX_OFFICIAL_JSON_BYTES);
+      if (!body) return { tweets: [], error: 'x-api lookup: invalid or oversized response' };
       userId = body.data?.id || '';
       if (!userId) return { tweets: [], error: 'x-api lookup: no user id' };
       await env.CACHE.put(cacheKey, userId, { expirationTtl: 30 * 24 * 60 * 60 });
@@ -136,7 +138,8 @@ async function scrapeOfficialXTimeline(env: Env): Promise<XApiResult> {
       { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
     );
     if (!timeline.ok) return { tweets: [], error: `x-api timeline: HTTP ${timeline.status}` };
-    const body = await timeline.json() as { data?: Array<{ id?: string; text?: string; created_at?: string }> };
+    const body = await readJsonWithin<{ data?: Array<{ id?: string; text?: string; created_at?: string }> }>(timeline, MAX_OFFICIAL_JSON_BYTES);
+    if (!body) return { tweets: [], error: 'x-api timeline: invalid or oversized response' };
     const tweets = (body.data || []).flatMap((post) => {
       const ts = Date.parse(post.created_at || '');
       if (!post.id || !post.text || Number.isNaN(ts)) return [];

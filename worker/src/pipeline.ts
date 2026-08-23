@@ -1,4 +1,4 @@
-import type { DeliveryMetrics, Env, ResetRecordRow, RunReport } from './types';
+import type { DeliveryLedger, DeliveryMetrics, Env, PublicResetHistory, ResetRecordRow, RunReport } from './types';
 import {
   scrapeTweets,
   detectResetEvents,
@@ -55,7 +55,7 @@ export async function runPipeline(env: Env, trigger: string): Promise<RunReport>
 }
 
 /** The serialized pipeline body; only PipelineCoordinator may invoke this in production. */
-export async function runPipelineOnce(env: Env, trigger: string): Promise<RunReport> {
+export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?: DeliveryLedger): Promise<RunReport> {
   const report: RunReport = {
     startedAt: new Date().toISOString(),
     trigger,
@@ -219,10 +219,11 @@ export async function runPipelineOnce(env: Env, trigger: string): Promise<RunRep
   }
   for (const record of records.filter((row) => !row.notified_at)) {
     const outcome = await notifyAll(env, {
+      id: record.id,
       ts: new Date(record.reset_date).getTime(),
       link: record.source_url || '',
       text: record.description || 'A confirmed Codex usage reset was recorded.',
-    });
+    }, deliveryLedger);
     report.notifiedEmails += outcome.emails;
     report.notifiedPush += outcome.pushes;
     report.prunedPushEndpoints = (report.prunedPushEndpoints || 0) + outcome.prunedPushEndpoints;
@@ -230,7 +231,7 @@ export async function runPipelineOnce(env: Env, trigger: string): Promise<RunRep
       await recordSubscriptionMetric(env, 'push_pruned_after_delivery', outcome.prunedPushEndpoints).catch(() => {});
     }
     report.errors.push(...outcome.errors);
-    if (outcome.errors.length === 0) {
+    if (outcome.errors.length === 0 && !outcome.pending) {
       const marked = await privMarkResetNotified(env, record.id);
       if (!marked.ok) report.errors.push(`notification mark: ${marked.status} ${await marked.text()}`);
     }
@@ -244,7 +245,11 @@ export async function runPipelineOnce(env: Env, trigger: string): Promise<RunRep
     latestResetTs = Number(await env.CACHE.get('latest_reset_ts')) || SEED_RESET_TS;
   }
   const medianGapDays = computeMedianGapDays(records) ?? FALLBACK_MEDIAN_DAYS;
-  const snapshot = await buildSignalsSnapshot(env, scrape, latestResetTs, medianGapDays, statusEvidence);
+  const history: PublicResetHistory[] = records
+    .filter((record) => record.verified && record.auto_state !== 'retracted')
+    .slice(0, 100)
+    .map((record) => ({ id: record.id, reset_date: record.reset_date, verified: true }));
+  const snapshot = await buildSignalsSnapshot(env, scrape, latestResetTs, medianGapDays, history, statusEvidence);
   snapshot.sources.database = records.length > 0 ? 'live' : 'fallback';
   await env.CACHE.put('signals:latest', JSON.stringify(snapshot), { expirationTtl: 7 * 24 * HOUR / 1000 });
 

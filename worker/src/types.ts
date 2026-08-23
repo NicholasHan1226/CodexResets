@@ -76,11 +76,24 @@ export interface SignalSnapshot {
 export interface SignalsPayload {
   signals: SignalSnapshot[];
   generatedAt: number;
+  /** Public, model-only reset fields delivered with the fresh Worker snapshot. */
+  history: PublicResetHistory[];
   sources: {
     tweets: 'live' | 'stale' | 'down';
     statusPage: 'live' | 'down';
     database: 'live' | 'fallback' | 'down';
   };
+}
+
+export interface PublicResetHistory {
+  id: string;
+  reset_date: string;
+  verified: true;
+}
+
+export interface DeliveryLedger {
+  hasDelivered(resetId: string, channel: 'email' | 'push', recipient: string): Promise<boolean>;
+  markDelivered(resetId: string, channel: 'email' | 'push', recipient: string): Promise<void>;
 }
 
 export interface RunReport {

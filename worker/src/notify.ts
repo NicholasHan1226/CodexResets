@@ -1,5 +1,5 @@
 import { buildPushPayload, type PushMessage, type PushSubscription, type VapidKeys } from '@block65/webcrypto-web-push';
-import type { Env, ResetEvent, RunReport } from './types';
+import type { DeliveryLedger, Env, ResetEvent, RunReport } from './types';
 import type { ForecastCalibration } from './forecast';
 import { hasPrivilegedAccess, privListEmails, privListPush, privDeletePush, type PushSubRow } from './privileged';
 import { signToken, escapeHtml } from './util';
@@ -7,6 +7,7 @@ import { signToken, escapeHtml } from './util';
 const UNSUBSCRIBE_TTL_SECONDS = 30 * 24 * 60 * 60;
 const OUTBOUND_TIMEOUT_MS = 8_000;
 const DELIVERY_CONCURRENCY = 10;
+const MAX_DELIVERIES_PER_CHANNEL_RUN = 50;
 
 interface SubscriptionRow {
   email: string;
@@ -17,6 +18,8 @@ export interface NotifyResult {
   pushes: number;
   prunedPushEndpoints: number;
   errors: string[];
+  /** More recipients remain and will continue automatically on the next run. */
+  pending: boolean;
 }
 
 export function isExpiredPushEndpoint(status: number): boolean {
@@ -59,10 +62,10 @@ export async function sendPushSubscriptionTest(env: Env, row: PushSubRow): Promi
 }
 
 /** Fan out a freshly detected reset to every subscriber (email + web push) */
-export async function notifyAll(env: Env, event: ResetEvent): Promise<NotifyResult> {
+export async function notifyAll(env: Env, event: ResetEvent & { id: string }, deliveryLedger?: DeliveryLedger): Promise<NotifyResult> {
   const errors: string[] = [];
   if (!hasPrivilegedAccess(env)) {
-    return { emails: 0, pushes: 0, prunedPushEndpoints: 0, errors: ['notify skipped: no privileged DB access'] };
+    return { emails: 0, pushes: 0, prunedPushEndpoints: 0, errors: ['notify skipped: no privileged DB access'], pending: false };
   }
 
   let emails: SubscriptionRow[] = [];
@@ -78,13 +81,21 @@ export async function notifyAll(env: Env, event: ResetEvent): Promise<NotifyResu
     errors.push(`fetch pushes: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  const emailResults = await settleInBatches(emails, (row) => sendEmail(env, row.email, event));
+  const emailCandidates = await pendingRecipients(emails, 'email', event.id, (row) => row.email, deliveryLedger);
+  const emailBatch = emailCandidates.slice(0, MAX_DELIVERIES_PER_CHANNEL_RUN);
+  const emailResults = await settleInBatches(emailBatch, (candidate) => sendEmail(env, candidate.row.email, event));
   const sentEmails = emailResults.filter((r) => r.status === 'fulfilled' && r.value).length;
-  for (const r of emailResults) {
+  for (let index = 0; index < emailResults.length; index++) {
+    const r = emailResults[index];
+    if (r.status === 'fulfilled' && r.value && deliveryLedger) {
+      await deliveryLedger.markDelivered(event.id, 'email', emailBatch[index].recipient);
+    }
     if (r.status === 'rejected') errors.push(`email: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`);
   }
 
-  const pushResults = await settleInBatches(pushes, (row) => sendPush(env, row, event));
+  const pushCandidates = await pendingRecipients(pushes, 'push', event.id, (row) => row.endpoint, deliveryLedger);
+  const pushBatch = pushCandidates.slice(0, MAX_DELIVERIES_PER_CHANNEL_RUN);
+  const pushResults = await settleInBatches(pushBatch, (candidate) => sendPush(env, candidate.row, event));
   let sentPushes = 0;
   let prunedPushEndpoints = 0;
   for (let i = 0; i < pushResults.length; i++) {
@@ -92,9 +103,11 @@ export async function notifyAll(env: Env, event: ResetEvent): Promise<NotifyResu
     if (r.status === 'fulfilled') {
       if (r.value === 'gone') {
         // Endpoint is dead — prune it so the list stays clean
-        await privDeletePush(env, pushes[i].endpoint).catch(() => {});
+        await privDeletePush(env, pushBatch[i].row.endpoint).catch(() => {});
+        if (deliveryLedger) await deliveryLedger.markDelivered(event.id, 'push', pushBatch[i].recipient);
         prunedPushEndpoints++;
       } else if (r.value === 'sent') {
+        if (deliveryLedger) await deliveryLedger.markDelivered(event.id, 'push', pushBatch[i].recipient);
         sentPushes++;
       }
     } else {
@@ -102,7 +115,34 @@ export async function notifyAll(env: Env, event: ResetEvent): Promise<NotifyResu
     }
   }
 
-  return { emails: sentEmails, pushes: sentPushes, prunedPushEndpoints, errors };
+  return {
+    emails: sentEmails,
+    pushes: sentPushes,
+    prunedPushEndpoints,
+    errors,
+    pending: emailCandidates.length > emailBatch.length || pushCandidates.length > pushBatch.length,
+  };
+}
+
+interface PendingRecipient<T> {
+  row: T;
+  recipient: string;
+}
+
+async function pendingRecipients<T>(
+  rows: T[],
+  channel: 'email' | 'push',
+  resetId: string,
+  recipientOf: (row: T) => string,
+  deliveryLedger?: DeliveryLedger,
+): Promise<PendingRecipient<T>[]> {
+  const candidates = rows.map((row) => ({ row, recipient: recipientOf(row) }));
+  if (!deliveryLedger) return candidates;
+  const deliveryState = await Promise.all(candidates.map(async (candidate) => ({
+    candidate,
+    delivered: await deliveryLedger.hasDelivered(resetId, channel, candidate.recipient),
+  })));
+  return deliveryState.filter((entry) => !entry.delivered).map((entry) => entry.candidate);
 }
 
 // --- Email (Resend HTTPS API) ----------------------------------------------

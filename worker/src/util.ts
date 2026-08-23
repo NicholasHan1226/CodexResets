@@ -95,6 +95,17 @@ export async function readTextWithin(response: Response, maxBytes: number): Prom
   return new TextDecoder('utf-8', { fatal: false, ignoreBOM: false }).decode(bytes);
 }
 
+/** Parse a third-party JSON response only after applying the same body bound. */
+export async function readJsonWithin<T>(response: Response, maxBytes: number): Promise<T | null> {
+  const text = await readTextWithin(response, maxBytes);
+  if (text === null) return null;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+}
+
 export function timingSafeEqual(left: string, right: string): boolean {
   if (left.length !== right.length) return false;
   let diff = 0;

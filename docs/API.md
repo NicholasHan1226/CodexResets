@@ -8,7 +8,10 @@ as a general data-ingestion or notification interface.
 
 ## Public reads
 
-- `GET /api/signals` — latest Worker-produced signal snapshot for the browser.
+- `GET /api/signals` — latest Worker-produced signal snapshot plus a bounded
+  list of confirmed reset `id`/`reset_date` history used by the dashboard
+  model. It excludes source URLs, announcement text, lifecycle internals, and
+  all subscription data.
 - `GET /api/health` — coarse pipeline health and snapshot freshness. Detailed
   diagnostics, delivery totals, capabilities, raw errors, source URLs, and
   candidate text are not public.
@@ -38,7 +41,8 @@ as a general data-ingestion or notification interface.
 
 ## Data boundary
 
-The browser uses the Supabase publishable key only for `id`, `reset_date`, and
-`verified` on confirmed reset history. Source URLs, original announcement text,
-subscriptions, Push endpoints, pending lifecycle rows, email delivery, and all
-write operations are Worker service-role operations.
+The browser normally receives confirmed reset history from the same fresh
+Worker snapshot as its signals; a bounded direct Supabase read remains only as
+a rollout/outage compatibility fallback. Source URLs, original announcement
+text, subscriptions, Push endpoints, pending lifecycle rows, email delivery,
+and all write operations are Worker service-role operations.
