@@ -157,7 +157,7 @@ async function pendingRecipients<T>(
 
 // --- Email (Resend HTTPS API) ----------------------------------------------
 
-async function sendEmail(env: Env, email: string, event: ResetEvent): Promise<boolean> {
+async function sendEmail(env: Env, email: string, event: ResetEvent & { id: string }): Promise<boolean> {
   // A missing mail credential is a delivery failure, not a successful no-op:
   // leaving the reset unmarked lets the next automated run recover after the
   // credential is restored.
@@ -173,6 +173,10 @@ async function sendEmail(env: Env, email: string, event: ResetEvent): Promise<bo
     headers: {
       authorization: `Bearer ${env.RESEND_API_KEY}`,
       'content-type': 'application/json',
+      // The Durable Object ledger is the long-lived delivery guard. Resend's
+      // idempotency key closes the shorter gap between a successful external
+      // send and persisting that guard (for example a retry after a timeout).
+      'idempotency-key': await resetEmailIdempotencyKey(event.id, email),
     },
     body: JSON.stringify({
       from: env.RESEND_FROM,
@@ -185,6 +189,13 @@ async function sendEmail(env: Env, email: string, event: ResetEvent): Promise<bo
   });
   if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
   return true;
+}
+
+/** Keep the provider-visible idempotency key deterministic without exposing an email address. */
+async function resetEmailIdempotencyKey(resetId: string, email: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.trim().toLowerCase()));
+  const fingerprint = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `reset/${resetId}/email/${fingerprint}`;
 }
 
 /** Send an explicit opt-in confirmation before an address enters the alert list. */

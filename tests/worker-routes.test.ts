@@ -598,12 +598,14 @@ describe('pipeline read endpoints', () => {
 
   it('includes a confirmed reset type and only official-post evidence in subscriber email', async () => {
     let message: { subject: string; html: string } | null = null;
+    let idempotencyKey: string | null = null;
     const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith('/subscriptions?select=email&is_active=eq.true')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
       if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth')) return new Response(JSON.stringify([]));
       if (url === 'https://api.resend.com/emails') {
         message = JSON.parse(String(init?.body)) as { subject: string; html: string };
+        idempotencyKey = new Headers(init?.headers).get('idempotency-key');
         return new Response(JSON.stringify({ id: 'email-evidence' }), { status: 200 });
       }
       throw new Error(`unexpected request: ${url}`);
@@ -621,6 +623,7 @@ describe('pipeline read endpoints', () => {
       expect(message?.html).toContain('https://x.com/thsottiaux/status/123456789');
       expect(message?.html).toContain('Asia/Shanghai (UTC+8)');
       expect(message?.html).toContain('UTC ');
+      expect(idempotencyKey).toMatch(/^reset\/banked-reset\/email\/[a-f0-9]{64}$/);
 
       await notifyAll(emailEnv(), {
         id: 'direct-reset-with-unsafe-link',
