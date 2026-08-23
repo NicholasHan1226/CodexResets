@@ -554,11 +554,25 @@ async function verifyTurnstile(env: Env, token: string, clientIp: string): Promi
       signal: AbortSignal.timeout(EXTERNAL_VERIFICATION_TIMEOUT_MS),
     });
     if (!response.ok) return false;
-    const result = await readResponseJsonWithin<{ success?: unknown; action?: unknown }>(response, TURNSTILE_RESPONSE_MAX_BYTES);
+    const result = await readResponseJsonWithin<{ success?: unknown; action?: unknown; hostname?: unknown }>(response, TURNSTILE_RESPONSE_MAX_BYTES);
     if (!result) return false;
-    return result.success === true && result.action === 'subscribe_email';
+    return result.success === true
+      && result.action === 'subscribe_email'
+      // The action prevents accidental reuse by another flow; the hostname
+      // binds the public widget token to this dashboard even if its Cloudflare
+      // site-key configuration is broadened by mistake.
+      && result.hostname === turnstileHostname(env.SITE_URL);
   } catch {
     return false;
+  }
+}
+
+function turnstileHostname(siteUrl: string): string | null {
+  try {
+    const url = new URL(siteUrl);
+    return url.protocol === 'https:' ? url.hostname.toLowerCase() : null;
+  } catch {
+    return null;
   }
 }
 

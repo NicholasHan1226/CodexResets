@@ -933,7 +933,7 @@ describe('pipeline read endpoints', () => {
     const cache: Record<string, string | null> = {};
     const fetchMock = vi.fn(async (input: string) => {
       if (input === 'https://challenges.cloudflare.com/turnstile/v0/siteverify') {
-        return new Response(JSON.stringify({ success: true, action: 'subscribe_email' }), { status: 200 });
+        return new Response(JSON.stringify({ success: true, action: 'subscribe_email', hostname: 'codexresets.cc' }), { status: 200 });
       }
       return new Response(JSON.stringify({ id: 'email_1' }), { status: 200 });
     });
@@ -990,11 +990,35 @@ describe('pipeline read endpoints', () => {
     }
   });
 
+  it('rejects a Turnstile token issued for another hostname', async () => {
+    const cache: Record<string, string | null> = {};
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      success: true,
+      action: 'subscribe_email',
+      hostname: 'attacker.example.test',
+    }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const response = await handleSubscribeEmail(new Request('https://api.example.test/api/subscribe/email', {
+        method: 'POST',
+        headers: { 'cf-connecting-ip': '203.0.113.181' },
+        body: JSON.stringify({ email: 'reader@example.test', turnstileToken: 'cross-site-response' }),
+      }), emailEnv(cache));
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toEqual({ error: 'subscription verification failed' });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(Object.keys(cache).some((key) => key.startsWith('subscribe:confirm:'))).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('limits repeated email intake attempts from the same network address', async () => {
     const cache: Record<string, string | null> = {};
     const fetchMock = vi.fn(async (input: string) => {
       if (input === 'https://challenges.cloudflare.com/turnstile/v0/siteverify') {
-        return new Response(JSON.stringify({ success: true, action: 'subscribe_email' }), { status: 200 });
+        return new Response(JSON.stringify({ success: true, action: 'subscribe_email', hostname: 'codexresets.cc' }), { status: 200 });
       }
       return new Response(JSON.stringify({ id: 'email_1' }), { status: 200 });
     });
