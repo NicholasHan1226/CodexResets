@@ -30,7 +30,7 @@ export function usePrediction() {
     setSignalsLoading(true);
     
     try {
-      const { signals, hasRealData, records: snapshotRecords } = await getDashboardInputs(generatePrediction().signals, force);
+      const { signals, hasRealData, generatedAt, records: snapshotRecords } = await getDashboardInputs(generatePrediction().signals, force);
       // The Worker supplies real verified history with a fresh snapshot. If
       // it is unavailable, use the local baseline immediately rather than
       // opening a second cross-origin database request on the visitor path.
@@ -41,7 +41,10 @@ export function usePrediction() {
 
       // Signals remain informational; probabilities are derived from the
       // forward-looking reset history only.
-      setPrediction(generatePrediction(records, signals));
+      const nextPrediction = generatePrediction(records, signals);
+      // The header reports when the inputs were produced, not when this
+      // browser happened to recompute the derived probability.
+      setPrediction({ ...nextPrediction, generatedAt: generatedAt ?? Date.now() });
     } catch (error) {
       console.warn('Error refreshing prediction:', error);
       if (refreshId !== latestRefreshId.current) return;

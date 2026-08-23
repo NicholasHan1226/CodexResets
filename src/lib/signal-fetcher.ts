@@ -29,6 +29,8 @@ interface PipelineHistoryRow {
 export interface DashboardInputs {
   signals: ResetSignal[];
   hasRealData: boolean;
+  /** Server snapshot creation time; null when the browser used a local fallback. */
+  generatedAt: number | null;
   /** null means the caller should use its bundled local baseline. */
   records: ResetRecord[] | null;
 }
@@ -359,6 +361,7 @@ export async function getDashboardInputs(simulatedSignals: ResetSignal[], force 
     return {
       signals: pipeline.signals,
       hasRealData: true,
+      generatedAt: pipeline.generatedAt,
       records: parsePipelineHistory(pipeline.history),
     };
   }
@@ -366,14 +369,14 @@ export async function getDashboardInputs(simulatedSignals: ResetSignal[], force 
   // In production, falling through to several third-party proxy/status hosts
   // makes a Worker outage slower and less reliable on constrained networks.
   // The local model is the honest, immediately usable fallback instead.
-  if (PIPELINE_API_URL) return { signals: simulatedSignals, hasRealData: false, records: null };
+  if (PIPELINE_API_URL) return { signals: simulatedSignals, hasRealData: false, generatedAt: null, records: null };
 
   // Tier 2: direct browser fetch
   const realSignals = await fetchRealSignals();
   
   if (realSignals.length === 0) {
     // Fall back to simulated data if real fetch fails
-    return { signals: simulatedSignals, hasRealData: false, records: null };
+    return { signals: simulatedSignals, hasRealData: false, generatedAt: null, records: null };
   }
 
   // Merge: use real data where available, simulated for missing sources
@@ -383,6 +386,7 @@ export async function getDashboardInputs(simulatedSignals: ResetSignal[], force 
   return {
     signals: [...realSignals, ...missingSignals], 
     hasRealData: true,
+    generatedAt: Date.now(),
     records: null,
   };
 }
