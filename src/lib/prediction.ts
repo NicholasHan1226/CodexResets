@@ -53,11 +53,12 @@ function findResetWindow(curve: ProbabilityPoint[]): { start: string; end: strin
       bestStart = index;
     }
   }
-  const start = curve[bestStart] || { date: new Date().toISOString().slice(0, 10), hour: 0 };
-  // Curve buckets retain their exact three-hour boundary. Reconstructing this
-  // from date/hour silently rounds the boundary down to the previous whole
-  // hour whenever a visitor refreshes at (for example) 12:37.
-  const startDate = new Date(start.timestamp);
+  const start = curve[bestStart] || { timestamp: Date.now() + 3 * HOUR_MS };
+  // Each point holds probability mass for the three hours ending at its
+  // timestamp. A two-point peak therefore begins at the start of the first
+  // bucket, not its end; otherwise the advertised six-hour window is shifted
+  // three hours later than the curve the visitor is reading.
+  const startDate = new Date(start.timestamp - 3 * HOUR_MS);
   const endDate = new Date(startDate.getTime() + 6 * HOUR_MS);
   return {
     start: startDate.toISOString(),

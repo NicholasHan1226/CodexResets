@@ -108,7 +108,8 @@ describe('reset episode forecasting', () => {
     expect(prediction.generatedAt).toBe(now);
     expect(prediction.curve[0].timestamp).toBe(now + 3 * 60 * 60 * 1000);
     expect(prediction.curve[1].timestamp).toBe(now + 6 * 60 * 60 * 1000);
-    expect(Date.parse(prediction.windowStart)).toBeGreaterThanOrEqual(prediction.curve[0].timestamp);
+    expect(prediction.curve.some((point) => point.timestamp - 3 * 60 * 60 * 1000 === Date.parse(prediction.windowStart))).toBe(true);
+    expect(Date.parse(prediction.windowEnd) - Date.parse(prediction.windowStart)).toBe(6 * 60 * 60 * 1000);
   });
 
   it('records a history-only production forecast snapshot', async () => {
