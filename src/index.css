@@ -85,7 +85,9 @@
       scroll-behavior: auto;
     }
     .live-dot,
-    .blink {
+    .blink,
+    .micro-fade-up,
+    .micro-refresh-pulse {
       animation: none;
     }
     *,
@@ -103,6 +105,13 @@
   .live-dot {
     animation: liveDot 2s ease-in-out infinite;
   }
+  /* A compact, CSS-only version of Amicro's fade-up rhythm. */
+  .micro-fade-up {
+    animation: microFadeUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .micro-refresh-pulse {
+    animation: microRefreshPulse 0.9s steps(2, end) infinite;
+  }
   /* Skip rendering work for below-fold sections until scrolled near */
   .cv-auto {
     content-visibility: auto;
@@ -117,4 +126,19 @@
 @keyframes liveDot {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
+}
+
+@keyframes microFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes microRefreshPulse {
+  50% { opacity: 0.45; }
 }

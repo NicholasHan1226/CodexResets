@@ -172,8 +172,10 @@ export async function fetchTiboTweets(): Promise<ResetSignal | null> {
     }
 
     const signal: ResetSignal = {
-      source: 'tibo',
-      label: "Tibo's Posts",
+      // Keep the browser fallback on the same canonical source IDs as the
+      // Worker snapshot, so the merge never shows one source twice.
+      source: 'tibopost',
+      label: 'Tibo Posting',
       status,
       value,
       description: descriptionKey,
@@ -243,7 +245,8 @@ export async function fetchOpenAIStatus(): Promise<ResetSignal | null> {
     }
 
     const signal: ResetSignal = {
-      source: 'openai_status',
+      // Match the Worker and offline model's canonical source ID.
+      source: 'status_page',
       label: 'OpenAI Status',
       status,
       value,

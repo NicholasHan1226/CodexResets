@@ -6,11 +6,12 @@ import { useState, useEffect } from 'react';
 interface StatusHeaderProps {
   prediction: ResetPrediction;
   isLive: boolean;
+  isRefreshing: boolean;
   onRefresh: () => void;
   onShare?: () => void;
 }
 
-export function StatusHeader({ prediction, isLive, onRefresh, onShare }: StatusHeaderProps) {
+export function StatusHeader({ prediction, isLive, isRefreshing, onRefresh, onShare }: StatusHeaderProps) {
   const { locale, setLocale, t } = useI18n();
   const [utcTime, setUtcTime] = useState('');
   const [now, setNow] = useState(() => Date.now());
@@ -92,9 +93,13 @@ export function StatusHeader({ prediction, isLive, onRefresh, onShare }: StatusH
 
           <button
             onClick={onRefresh}
-            className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors"
+            disabled={isRefreshing}
+            aria-busy={isRefreshing}
+            className="font-mono text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-wait disabled:opacity-70"
           >
-            [refresh]
+            <span className={isRefreshing ? 'micro-refresh-pulse' : undefined}>
+              {isRefreshing ? '[refresh…]' : '[refresh]'}
+            </span>
           </button>
         </div>
       </div>

@@ -38,18 +38,21 @@ export default function Home() {
         <StatusHeader
           prediction={prediction}
           isLive={isLive}
+          isRefreshing={signalsLoading}
           onRefresh={() => { void refresh(); }}
           onShare={handleShare}
         />
 
         <main className="mx-auto max-w-3xl px-4 md:px-6 py-10" role="main" aria-label="Codex Reset Prediction Dashboard">
           {/* The probability + quick nav */}
-          <HeroSection
-            prediction={prediction}
-            timeframe={timeframe}
-            onTimeframeChange={setTimeframe}
-          />
-          <AnchorNav />
+          <div className="micro-fade-up">
+            <HeroSection
+              prediction={prediction}
+              timeframe={timeframe}
+              onTimeframeChange={setTimeframe}
+            />
+            <AnchorNav />
+          </div>
 
           <hr className="my-10 border-border/30" />
 
