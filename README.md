@@ -14,18 +14,20 @@ that collects signals and produces a KV-backed snapshot.
 
 ## Search entry pages
 
-Three static, directly crawlable English guides live under `/guides/`. They
-answer the narrow questions that lead visitors to the dashboard without adding
-explanatory clutter to the product UI:
+Three English guides under `/guides/` and two Chinese guides under `/zh/` are
+static and directly crawlable. They answer narrow, high-intent questions
+without adding explanatory clutter to the product UI:
 
 - `/guides/codex-usage-limits/` — personal usage windows versus global events
 - `/guides/codex-reset-prediction/` — forecast scope and uncertainty
 - `/guides/codex-reset-history/` — verified history versus public noise
+- `/zh/codex-usage-limits/` — personal usage windows versus observed global events
+- `/zh/codex-reset-prediction/` — what a 24/48-hour probability means
 
-They are intentionally independent HTML files in `public/guides/`, so crawlers
-and link previews can read them without executing the dashboard. Keep their
-claims conservative and update `public/sitemap.xml` whenever a guide is added
-or removed.
+They are intentionally independent HTML files in `public/guides/` and
+`public/zh/`, so crawlers and link previews can read them without executing the
+dashboard. Keep their claims conservative and update `public/sitemap.xml`
+whenever a guide is added or removed.
 
 The Worker runs every 30 minutes. Its public read endpoints are:
 

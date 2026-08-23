@@ -140,10 +140,10 @@ src/
 └── index.css          # Global styles + theme tokens
 ```
 
-`public/guides/` contains directly crawlable, static search-entry guides. They
-are deliberately separate from the React dashboard: do not introduce browser
-data access, visitor tracking, or live prediction claims into those pages.
-Keep their links and `public/sitemap.xml` synchronized.
+`public/guides/` and `public/zh/` contain directly crawlable, static
+search-entry guides. They are deliberately separate from the React dashboard:
+do not introduce browser data access, visitor tracking, or live prediction
+claims into those pages. Keep their links and `public/sitemap.xml` synchronized.
 
 ## Code Style
 - Use `@/` path alias for all imports

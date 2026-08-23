@@ -76,7 +76,7 @@ export function StatusHeader({ prediction, isLive, isRefreshing, onRefresh, onSh
           </Link>
 
           <a
-            href="/guides/codex-reset-prediction/"
+            href={locale === 'zh' ? '/zh/codex-reset-prediction/' : '/guides/codex-reset-prediction/'}
             className="hidden font-mono text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline"
           >
             [{t('header.guide')}]
