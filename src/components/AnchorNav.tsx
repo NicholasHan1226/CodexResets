@@ -11,13 +11,18 @@ const baseSections = [
 
 interface AnchorNavProps {
   showCalendar: boolean;
+  /** Historical time-of-day patterns are not useful beside an official target. */
+  showRhythm?: boolean;
 }
 
-export function AnchorNav({ showCalendar }: AnchorNavProps) {
+export function AnchorNav({ showCalendar, showRhythm = true }: AnchorNavProps) {
   const { t } = useI18n();
-  const sections = useMemo(() => showCalendar
-    ? [...baseSections.slice(0, 4), { id: 'calendar', key: 'nav.calendar' }, ...baseSections.slice(4)]
-    : baseSections, [showCalendar]);
+  const sections = useMemo(() => {
+    const withoutRhythm = showRhythm ? baseSections : baseSections.filter(({ id }) => id !== 'rhythm');
+    return showCalendar
+      ? [...withoutRhythm.slice(0, -1), { id: 'calendar', key: 'nav.calendar' }, withoutRhythm.at(-1)!]
+      : withoutRhythm;
+  }, [showCalendar, showRhythm]);
   const [activeId, setActiveId] = useState(() => {
     const hashId = window.location.hash.slice(1);
     return hashId && sections.some(({ id }) => id === hashId) ? hashId : 'curve';

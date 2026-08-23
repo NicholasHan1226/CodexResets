@@ -38,6 +38,7 @@ export default function Home() {
         window: primaryForecast.window,
       }
     : undefined;
+  const showHistoricalTiming = !officialSchedule;
 
   const handleShare = async () => {
     const pct = Math.round((timeframe === 24 ? prediction.prob24h : prediction.prob48h) * 100);
@@ -70,7 +71,7 @@ export default function Home() {
               onTimeframeChange={setTimeframe}
               primaryForecast={primaryForecast}
             />
-            <AnchorNav showCalendar={showCalendar} />
+            <AnchorNav showCalendar={showCalendar} showRhythm={showHistoricalTiming} />
           </div>
 
           <hr className="my-10 border-border/30" />
@@ -85,11 +86,13 @@ export default function Home() {
             <SignalPanel prediction={prediction} loading={signalsLoading} />
           </div>
 
-          <hr className="my-10 border-border/30" />
+          {showHistoricalTiming && <>
+            <hr className="my-10 border-border/30" />
 
-          <div id="rhythm" className="scroll-mt-16 cv-auto">
-            <TimeDistribution />
-          </div>
+            <div id="rhythm" className="scroll-mt-16 cv-auto">
+              <TimeDistribution />
+            </div>
+          </>}
 
           <hr className="my-10 border-border/30" />
 
