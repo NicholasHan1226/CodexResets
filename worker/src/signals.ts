@@ -1,6 +1,6 @@
 import type { Env, PublicResetHistory, ScrapeResult, SignalSnapshot, SignalsPayload } from './types';
 import { readJsonWithin } from './util';
-import { RESET_RE, CONTEXT_RE, isResetAnnouncement, isScheduledResetAnnouncement } from './scrape';
+import { RESET_RE, CONTEXT_RE, isResetAnnouncement, isScheduledResetAnnouncement, parseScheduledResetAt } from './scrape';
 
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
@@ -125,6 +125,7 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
   const hoursSinceResetMention = ageInHours(latestResetTweet);
   const scheduledResetTweet = scrape.tweets.find((t) => isScheduledResetAnnouncement(t.text));
   const hoursSinceScheduledReset = ageInHours(scheduledResetTweet);
+  const scheduledAt = scheduledResetTweet ? parseScheduledResetAt(scheduledResetTweet.text, scheduledResetTweet.ts) : undefined;
 
   if (
     hoursSinceResetMention !== null &&
@@ -148,6 +149,7 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
       value: 0.8,
       description: 'signals.resetScheduled',
       updatedAt: observedAt(scheduledResetTweet),
+      scheduledAt,
     };
   }
   if (hoursSinceResetMention !== null && hoursSinceResetMention < 24 * 7) {

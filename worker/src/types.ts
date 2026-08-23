@@ -71,6 +71,8 @@ export interface SignalSnapshot {
   descriptionParams?: Record<string, string | number>;
   /** Source observation time; `SignalsPayload.generatedAt` is the snapshot refresh time. */
   updatedAt: number;
+  /** Parsed target time from a direct official future-tense announcement. */
+  scheduledAt?: number;
   sourceUrl?: string;
 }
 

@@ -12,7 +12,19 @@ export function buildShareSummary(state: {
   hours: 24 | 48;
   daysSince: number;
   medianDays: number;
+  officialSchedule?: { targetLabel: string | null; window: 'within' | 'after' | 'pending' };
 }, locale: 'en' | 'zh' = 'en'): string {
+  if (state.officialSchedule) {
+    const target = state.officialSchedule.targetLabel;
+    const relation = state.officialSchedule.window === 'within'
+      ? (locale === 'zh' ? `在未来 ${state.hours} 小时内` : `within ${state.hours}h`)
+      : state.officialSchedule.window === 'after'
+        ? (locale === 'zh' ? `在未来 ${state.hours} 小时之后` : `after ${state.hours}h`)
+        : (locale === 'zh' ? '时间待确认' : 'time pending confirmation');
+    return locale === 'zh'
+      ? `Codex 重置预判 ❯ 官方已预告${target ? `：${target}` : ''}（${relation}）`
+      : `codex resets ❯ official schedule${target ? `: ${target}` : ''} (${relation})`;
+  }
   const filled = Math.max(0, Math.min(10, Math.round((state.pct / 100) * 10)));
   const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
   if (locale === 'zh') {

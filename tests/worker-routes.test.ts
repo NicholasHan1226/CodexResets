@@ -8,7 +8,7 @@ import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/fo
 import { refreshOfficialCodexDiscovery } from '../worker/src/discovery';
 import { getSubscriptionQuality, getXWebhookQuality } from '../worker/src/operational-metrics';
 import type { Env, RunReport } from '../worker/src/types';
-import { detectResetEvents, detectResetRetractions, isRetractionForCandidate, isScheduledResetAnnouncement, isTimelyAutomatedCandidate, scrapeTweets } from '../worker/src/scrape';
+import { detectResetEvents, detectResetRetractions, isRetractionForCandidate, isScheduledResetAnnouncement, isTimelyAutomatedCandidate, parseScheduledResetAt, scrapeTweets } from '../worker/src/scrape';
 import { RESET_HISTORY } from '../src/lib/reset-data';
 import { intervalDays, median, mergeResetEpisodes } from '../src/lib/reset-episodes';
 
@@ -244,7 +244,7 @@ describe('pipeline read endpoints', () => {
   });
 
   it('treats a direct official future reset schedule as a planning signal, not a reset event', async () => {
-    const now = Date.now();
+    const now = Date.parse('2026-08-23T15:00:00.000Z');
     const scheduled = {
       text: 'Reset will land around 14pm PST tomorrow.',
       link: 'https://x.com/thsottiaux/status/2091412393368945027',
@@ -266,7 +266,9 @@ describe('pipeline read endpoints', () => {
       value: 0.8,
       description: 'signals.resetScheduled',
       updatedAt: scheduled.ts,
+      scheduledAt: Date.parse('2026-08-24T22:00:00.000Z'),
     });
+    expect(parseScheduledResetAt(scheduled.text, scheduled.ts)).toBe(Date.parse('2026-08-24T22:00:00.000Z'));
     expect(detectResetEvents([scheduled])).toEqual({ strong: [], weak: [] });
 
     const expiredSnapshot = await buildSignalsSnapshot(

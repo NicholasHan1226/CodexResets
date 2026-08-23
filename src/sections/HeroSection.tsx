@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
 import { ProbabilityDisplay } from '@/sections/ProbabilityDisplay';
+import { getPrimaryForecast } from '@/lib/forecast-display';
 import {
   buildShareSummary,
   shareUrl,
@@ -26,13 +27,16 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
   const lastResetDate = prediction.lastReset ? new Date(prediction.lastReset) : null;
   const daysSince = prediction.daysSinceLastReset;
   const officialSignal = prediction.signals.find((signal) => signal.source === 'tibopost');
-  const hasScheduledReset = officialSignal?.description === 'signals.resetScheduled';
+  const primaryForecast = getPrimaryForecast(prediction.signals, timeframe, prediction.generatedAt);
+  const hasScheduledReset = primaryForecast.kind === 'official-schedule';
   // The wording tracks probability bands: a middle range should not read as
   // either a dismissal or a guarantee. A direct official schedule is more
   // actionable than an independent history-only model estimate, so it owns
   // the visitor-facing conclusion without changing calibration inputs.
   const verdictKey = hasScheduledReset
-    ? 'hero.answerScheduled'
+    ? primaryForecast.window === 'after'
+      ? 'hero.answerScheduledAfter'
+      : 'hero.answerScheduled'
     : pct >= 60
     ? 'hero.answerYes'
     : pct >= 30
@@ -70,6 +74,13 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
         hour12: false,
       })
     : null;
+  const scheduledTargetStr = hasScheduledReset && primaryForecast.scheduledAt
+    ? new Date(primaryForecast.scheduledAt).toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
+        month: 'short', day: 'numeric',
+      }) + ' ' + new Date(primaryForecast.scheduledAt).toLocaleTimeString(locale === 'zh' ? 'zh-CN' : 'en-US', {
+        hour: '2-digit', minute: '2-digit', hour12: false,
+      })
+    : null;
 
   const handleShare = async () => {
     const summary = buildShareSummary({
@@ -77,6 +88,9 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
       hours: timeframe,
       daysSince: prediction.daysSinceLastReset,
       medianDays: prediction.medianIntervalDays,
+      officialSchedule: hasScheduledReset
+        ? { targetLabel: scheduledTargetStr, window: primaryForecast.window }
+        : undefined,
     }, locale);
     // Mobile: native share sheet. Desktop: copy summary + link.
     if (canNativeShare()) {
@@ -106,7 +120,12 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
 
       {/* The probability — the single protagonist */}
       <div className="mt-10">
-        <ProbabilityDisplay pct={pct} timeframe={timeframe} onTimeframeChange={onTimeframeChange} historicalModel={hasScheduledReset} />
+        <ProbabilityDisplay
+          pct={pct}
+          timeframe={timeframe}
+          onTimeframeChange={onTimeframeChange}
+          officialSchedule={hasScheduledReset ? { window: primaryForecast.window, targetLabel: scheduledTargetStr } : undefined}
+        />
       </div>
 
       {/* Meta — one quiet line */}

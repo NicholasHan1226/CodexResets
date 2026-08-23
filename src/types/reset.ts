@@ -28,6 +28,8 @@ export interface ResetSignal {
   status: "active" | "weak" | "idle";
   /** Time of the source observation; snapshot generation is carried separately. */
   updatedAt: number;
+  /** Parsed target time from a direct official reset schedule, when unambiguous. */
+  scheduledAt?: number;
   /** Optional link to source */
   sourceUrl?: string;
 }

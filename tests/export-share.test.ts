@@ -13,4 +13,11 @@ describe('share summary', () => {
       'Codex 重置预判 ❯ 未来 24 小时 22%\n██░░░░░░░░ 22% · 已等待 1.6 天 · 中位间隔 2.6 天',
     );
   });
+
+  it('shares an official schedule instead of a stale history-only percentage', () => {
+    expect(buildShareSummary({
+      ...state,
+      officialSchedule: { targetLabel: 'Aug 25 06:00', window: 'after' },
+    })).toBe('codex resets ❯ official schedule: Aug 25 06:00 (after 24h)');
+  });
 });
