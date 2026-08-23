@@ -132,10 +132,14 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
                 </div>
               </div>
 
-              {/* Signal strength — ASCII bar + number */}
-              <span className="shrink-0 pt-0.5 font-mono text-xs whitespace-nowrap">
+              {/* The bar shows relative signal weight, not reset probability.
+                  Keep the numeric value available to assistive technology
+                  without presenting it as a misleading percentage-like score. */}
+              <span
+                className="shrink-0 pt-0.5 font-mono text-xs whitespace-nowrap"
+                aria-label={`${t('signals.composite')} ${pct}/100`}
+              >
                 <AsciiBar value={signal.value} length={8} className={tag.bar} />
-                <span className="ml-2 text-foreground/70">{pct}/100</span>
               </span>
             </div>
           );
