@@ -65,6 +65,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'header.hoursAgo': '{n}h ago',
     'header.refresh': 'Refresh',
     'header.share': 'Share',
+    'header.guide': 'guide',
     'header.export': 'Export',
     'header.language': 'Language',
 
@@ -330,6 +331,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'header.hoursAgo': '{n}小时前',
     'header.refresh': '刷新',
     'header.share': '分享',
+    'header.guide': '指南',
     'header.export': '导出',
     'header.language': '语言',
 

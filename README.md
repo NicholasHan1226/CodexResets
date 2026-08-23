@@ -12,6 +12,21 @@ that collects signals and produces a KV-backed snapshot.
 | `https://codexresets.cc/api/*` | Worker API for signal snapshots and operational health. |
 | `codex-resets.pages.dev` | Cloudflare Pages technical hostname; do not promote it as a product URL. |
 
+## Search entry pages
+
+Three static, directly crawlable English guides live under `/guides/`. They
+answer the narrow questions that lead visitors to the dashboard without adding
+explanatory clutter to the product UI:
+
+- `/guides/codex-usage-limits/` — personal usage windows versus global events
+- `/guides/codex-reset-prediction/` — forecast scope and uncertainty
+- `/guides/codex-reset-history/` — verified history versus public noise
+
+They are intentionally independent HTML files in `public/guides/`, so crawlers
+and link previews can read them without executing the dashboard. Keep their
+claims conservative and update `public/sitemap.xml` whenever a guide is added
+or removed.
+
 The Worker runs every 30 minutes. Its public read endpoints are:
 
 - `GET /api/signals` — latest four-signal browser snapshot and a bounded,

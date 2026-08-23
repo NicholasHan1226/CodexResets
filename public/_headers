@@ -31,6 +31,10 @@
 /*.html
   Cache-Control: public, max-age=0, must-revalidate
 
+# Search-entry pages are HTML at nested URLs, not hashed build assets.
+/guides/*
+  Cache-Control: public, max-age=0, must-revalidate
+
 # JSON files - cache for 1 hour
 /*.json
   Cache-Control: public, max-age=3600

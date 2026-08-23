@@ -75,6 +75,13 @@ export function StatusHeader({ prediction, isLive, isRefreshing, onRefresh, onSh
             [docs]
           </Link>
 
+          <a
+            href="/guides/codex-reset-prediction/"
+            className="hidden font-mono text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline"
+          >
+            [{t('header.guide')}]
+          </a>
+
           <button
             onClick={() => setLocale(locale === 'en' ? 'zh' : 'en')}
             className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors"
