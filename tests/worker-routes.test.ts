@@ -765,6 +765,7 @@ describe('pipeline read endpoints', () => {
       });
       expect(result).toMatchObject({ ok: true, instance: 'x-api', sourceKind: 'direct' });
       expect(result.tweets[0]).toMatchObject({ link: 'https://x.com/thsottiaux/status/post-1' });
+      expect(String(fetchMock.mock.calls[1]?.[0])).toContain('exclude=retweets');
       expect(fetchMock).toHaveBeenCalledTimes(2);
     } finally {
       vi.unstubAllGlobals();

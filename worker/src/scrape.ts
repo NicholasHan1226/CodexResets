@@ -134,7 +134,10 @@ async function scrapeOfficialXTimeline(env: Env): Promise<XApiResult> {
     }
 
     const timeline = await fetch(
-      `https://api.x.com/2/users/${encodeURIComponent(userId)}/tweets?max_results=${MAX_TWEETS}&tweet.fields=created_at`,
+      // A repost can repeat reset wording from an unrelated account. It is not
+      // an announcement authored by the target, so exclude it before the
+      // automatic confirmation and delivery path sees the timeline.
+      `https://api.x.com/2/users/${encodeURIComponent(userId)}/tweets?max_results=${MAX_TWEETS}&exclude=retweets&tweet.fields=created_at`,
       { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
     );
     if (!timeline.ok) return { tweets: [], error: `x-api timeline: HTTP ${timeline.status}` };
