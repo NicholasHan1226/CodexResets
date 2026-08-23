@@ -32,3 +32,13 @@ export function getPrimaryForecast(
     window: scheduledAt <= now + timeframe * HOUR_MS ? 'within' : 'after',
   };
 }
+
+/** Formats an official target in the visitor's local timezone. */
+export function formatOfficialScheduleTarget(scheduledAt: number | null, locale: 'en' | 'zh'): string | null {
+  if (typeof scheduledAt !== 'number' || !Number.isFinite(scheduledAt)) return null;
+  const date = new Date(scheduledAt);
+  const language = locale === 'zh' ? 'zh-CN' : 'en-US';
+  return `${date.toLocaleDateString(language, { month: 'short', day: 'numeric' })} ${date.toLocaleTimeString(language, {
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  })}`;
+}

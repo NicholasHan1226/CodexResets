@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePrediction } from "@/hooks/usePrediction";
 import { StatusHeader } from "@/sections/StatusHeader";
 import { HeroSection } from "@/sections/HeroSection";
@@ -13,17 +13,31 @@ import { buildShareSummary, shareUrl, copyToClipboard } from "@/lib/export-share
 import { useI18n } from "@/contexts/I18nContext";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { shouldShowResetCalendar } from "@/lib/reset-data";
+import { formatOfficialScheduleTarget, getPrimaryForecast } from "@/lib/forecast-display";
 
 export default function Home() {
   const { prediction, isLive, signalsLoading, refresh } = usePrediction();
   const { t, locale } = useI18n();
   const [timeframe, setTimeframe] = useState<24 | 48>(24);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   if (!prediction) {
     return <DashboardSkeleton />;
   }
 
   const showCalendar = shouldShowResetCalendar();
+  const primaryForecast = getPrimaryForecast(prediction.signals, timeframe, now);
+  const officialSchedule = primaryForecast.kind === 'official-schedule'
+    ? {
+        targetLabel: formatOfficialScheduleTarget(primaryForecast.scheduledAt, locale),
+        window: primaryForecast.window,
+      }
+    : undefined;
 
   const handleShare = async () => {
     const pct = Math.round((timeframe === 24 ? prediction.prob24h : prediction.prob48h) * 100);
@@ -32,6 +46,7 @@ export default function Home() {
       hours: timeframe,
       daysSince: prediction.daysSinceLastReset,
       medianDays: prediction.medianIntervalDays,
+      officialSchedule,
     }, locale);
     await copyToClipboard(`${text}\n${shareUrl()}`);
   };
@@ -53,6 +68,7 @@ export default function Home() {
               prediction={prediction}
               timeframe={timeframe}
               onTimeframeChange={setTimeframe}
+              primaryForecast={primaryForecast}
             />
             <AnchorNav showCalendar={showCalendar} />
           </div>
@@ -60,7 +76,7 @@ export default function Home() {
           <hr className="my-10 border-border/30" />
 
           <div id="curve" className="scroll-mt-16">
-            <ProbabilityCurve curve={prediction.curve} hours={timeframe} />
+            <ProbabilityCurve curve={prediction.curve} hours={timeframe} officialSchedule={officialSchedule} />
           </div>
 
           <hr className="my-10 border-border/30" />

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
 import { ProbabilityDisplay } from '@/sections/ProbabilityDisplay';
-import { getPrimaryForecast } from '@/lib/forecast-display';
+import { formatOfficialScheduleTarget, type PrimaryForecast } from '@/lib/forecast-display';
 import {
   buildShareSummary,
   shareUrl,
@@ -15,9 +15,10 @@ interface HeroSectionProps {
   prediction: ResetPrediction;
   timeframe: 24 | 48;
   onTimeframeChange: (tf: 24 | 48) => void;
+  primaryForecast: PrimaryForecast;
 }
 
-export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSectionProps) {
+export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryForecast }: HeroSectionProps) {
   const { t, locale } = useI18n();
   const [copied, setCopied] = useState(false);
   const pct24 = Math.round(prediction.prob24h * 100);
@@ -27,7 +28,6 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
   const lastResetDate = prediction.lastReset ? new Date(prediction.lastReset) : null;
   const daysSince = prediction.daysSinceLastReset;
   const officialSignal = prediction.signals.find((signal) => signal.source === 'tibopost');
-  const primaryForecast = getPrimaryForecast(prediction.signals, timeframe, prediction.generatedAt);
   const hasScheduledReset = primaryForecast.kind === 'official-schedule';
   // The wording tracks probability bands: a middle range should not read as
   // either a dismissal or a guarantee. A direct official schedule is more
@@ -36,7 +36,9 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
   const verdictKey = hasScheduledReset
     ? primaryForecast.window === 'after'
       ? 'hero.answerScheduledAfter'
-      : 'hero.answerScheduled'
+      : primaryForecast.window === 'pending'
+        ? 'hero.answerScheduledPending'
+        : 'hero.answerScheduled'
     : pct >= 60
     ? 'hero.answerYes'
     : pct >= 30
@@ -74,12 +76,8 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
         hour12: false,
       })
     : null;
-  const scheduledTargetStr = hasScheduledReset && primaryForecast.scheduledAt
-    ? new Date(primaryForecast.scheduledAt).toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
-        month: 'short', day: 'numeric',
-      }) + ' ' + new Date(primaryForecast.scheduledAt).toLocaleTimeString(locale === 'zh' ? 'zh-CN' : 'en-US', {
-        hour: '2-digit', minute: '2-digit', hour12: false,
-      })
+  const scheduledTargetStr = hasScheduledReset
+    ? formatOfficialScheduleTarget(primaryForecast.scheduledAt, locale)
     : null;
 
   const handleShare = async () => {
@@ -140,7 +138,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
           {t('hero.medianGap')}{' '}
           <span className="text-foreground">{prediction.medianIntervalDays.toFixed(1)}d</span>
         </span>
-        {windowStr && (
+        {!hasScheduledReset && windowStr && (
           <span className="inline-block whitespace-nowrap">
             <span className="mr-2 text-border">·</span>
             {t('hero.windowShort')}{' '}
@@ -152,7 +150,9 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
       {/* Advice */}
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
         <span className="text-foreground font-medium">{t('hero.adviceLabel')}</span>{' '}
-        {t(hasScheduledReset ? 'advice.scheduled' : `advice.${prediction.advice[timeframe].level}`)}
+        {t(hasScheduledReset
+          ? primaryForecast.window === 'pending' ? 'advice.scheduledPending' : 'advice.scheduled'
+          : `advice.${prediction.advice[timeframe].level}`)}
       </p>
 
       {/* Low-friction actions — subscription remains the page's only solid CTA. */}

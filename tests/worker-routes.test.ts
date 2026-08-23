@@ -283,8 +283,16 @@ describe('pipeline read endpoints', () => {
   });
 
   it('returns a fresh signal snapshot with browser CORS and security headers enabled', async () => {
+    const scheduledAt = Date.now() + 6 * 60 * 60 * 1000;
+    const fresh = freshSignalSnapshot();
+    fresh.signals[0] = {
+      ...fresh.signals[0],
+      status: 'active',
+      description: 'signals.resetScheduled',
+      scheduledAt,
+    };
     const snapshot = JSON.stringify({
-      ...freshSignalSnapshot(),
+      ...fresh,
       history: [{ id: 'verified-reset', reset_date: '2026-08-22T00:00:00.000Z', verified: true, source_url: 'private' }],
     });
     const response = await handleSignals(envWith({ 'signals:latest': snapshot }));
@@ -297,6 +305,8 @@ describe('pipeline read endpoints', () => {
       signals: expect.arrayContaining([expect.objectContaining({ source: 'tibopost' })]),
       history: [{ id: 'verified-reset', reset_date: '2026-08-22T00:00:00.000Z', verified: true }],
     }));
+    const body = await handleSignals(envWith({ 'signals:latest': snapshot })).then((res) => res.json()) as { signals: Array<{ scheduledAt?: number }> };
+    expect(body.signals[0].scheduledAt).toBe(scheduledAt);
   });
 
   it('rejects a malformed fresh snapshot and reports the pipeline unhealthy', async () => {

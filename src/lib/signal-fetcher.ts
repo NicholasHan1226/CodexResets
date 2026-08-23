@@ -77,8 +77,12 @@ async function fetchPipelineSnapshot(force = false): Promise<PipelineSnapshot | 
   if (cached) return cached;
 
   try {
-    const res = await fetch(`${PIPELINE_API_URL}/api/signals`, {
+    const endpoint = force
+      ? `${PIPELINE_API_URL}/api/signals?refresh=${Date.now()}`
+      : `${PIPELINE_API_URL}/api/signals`;
+    const res = await fetch(endpoint, {
       signal: AbortSignal.timeout(PIPELINE_TIMEOUT_MS),
+      cache: force ? 'no-store' : 'default',
     });
     if (!res.ok) return null;
     const data = (await res.json()) as PipelineSnapshot;

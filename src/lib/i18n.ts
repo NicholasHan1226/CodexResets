@@ -20,6 +20,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.answerYes': 'Likely.',
     'hero.answerScheduled': 'An official reset is scheduled.',
     'hero.answerScheduledAfter': 'An official reset is scheduled after this window.',
+    'hero.answerScheduledPending': 'An official reset is scheduled; its time is not yet precise.',
     'hero.lastResetWas': 'The last verified global reset was',
     'hero.lastResetLabel': 'last verified reset',
     'hero.daysAgo': 'days ago',
@@ -58,6 +59,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'advice.use_freely': 'No strong near-term signal — use normally.',
     'advice.approaching': 'The interval is approaching its usual range.',
     'advice.scheduled': 'An official schedule takes priority; wait for the confirmed reset alert.',
+    'advice.scheduledPending': 'An official schedule exists, but its timing is not yet precise. Keep the confirmation alert on.',
 
     // Error boundary
     'error.title': 'Something went wrong',
@@ -113,6 +115,11 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Probability Curve
     'curve.title': 'PROBABILITY PULSE',
+    'curve.scheduleTitle': 'OFFICIAL TIMING',
+    'curve.scheduleTarget': 'Official target: {time}',
+    'curve.scheduleWithin': 'within the next {n}h',
+    'curve.scheduleAfter': 'after the next {n}h',
+    'curve.schedulePending': 'Official target time pending confirmation',
     'curve.subtitle': '7-day reset probability curve',
     'curve.mostLikelyWindow': 'Most likely window',
     'curve.peak': 'Peak',
@@ -310,6 +317,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.answerYes': '很可能。',
     'hero.answerScheduled': '官方已预告即将重置。',
     'hero.answerScheduledAfter': '官方已预告将在本窗口之后重置。',
+    'hero.answerScheduledPending': '官方已预告重置，但具体时间尚未明确。',
     'hero.lastResetWas': '上次已验证的全局重置发生在',
     'hero.lastResetLabel': '上次已验证重置',
     'hero.daysAgo': '天前',
@@ -348,6 +356,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'advice.use_freely': '近期没有强信号，可按正常节奏使用。',
     'advice.approaching': '间隔正接近常见范围，可留意后续变化。',
     'advice.scheduled': '官方预告优先；等待重置实际确认后再接收提醒。',
+    'advice.scheduledPending': '已发现官方预告，但具体时间尚未明确；请保持确认提醒开启。',
 
     // Error boundary
     'error.title': '页面出现问题',
@@ -403,6 +412,11 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Probability Curve
     'curve.title': '概率脉搏',
+    'curve.scheduleTitle': '官方时间',
+    'curve.scheduleTarget': '官方预告时间：{time}',
+    'curve.scheduleWithin': '在未来 {n} 小时内',
+    'curve.scheduleAfter': '在未来 {n} 小时之后',
+    'curve.schedulePending': '官方预告时间待确认',
     'curve.subtitle': '7天重置概率曲线',
     'curve.mostLikelyWindow': '最可能窗口',
     'curve.peak': '峰值',

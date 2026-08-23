@@ -135,7 +135,7 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
               {/* Signal strength — ASCII bar + number */}
               <span className="shrink-0 pt-0.5 font-mono text-xs whitespace-nowrap">
                 <AsciiBar value={signal.value} length={8} className={tag.bar} />
-                <span className="ml-2 text-foreground/70">{pct}%</span>
+                <span className="ml-2 text-foreground/70">{pct}/100</span>
               </span>
             </div>
           );

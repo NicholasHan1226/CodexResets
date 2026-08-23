@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getPrimaryForecast } from '@/lib/forecast-display';
+import { formatOfficialScheduleTarget, getPrimaryForecast } from '@/lib/forecast-display';
 import type { ResetSignal } from '@/types/reset';
 
 const now = Date.parse('2026-08-24T00:00:00.000Z');
@@ -24,5 +24,15 @@ describe('primary forecast display', () => {
 
   it('falls back to the calibrated model only without an active official schedule', () => {
     expect(getPrimaryForecast([], 24, now)).toEqual({ kind: 'model' });
+  });
+
+  it('does not claim that an official schedule belongs to a window when its time is unknown', () => {
+    expect(getPrimaryForecast([{ ...scheduledSignal, scheduledAt: undefined }], 24, now)).toEqual({
+      kind: 'official-schedule', scheduledAt: null, window: 'pending',
+    });
+  });
+
+  it('formats an official target in the visitor timezone without exposing a source URL', () => {
+    expect(formatOfficialScheduleTarget(Date.parse('2026-08-23T22:00:00.000Z'), 'zh')).toMatch(/\d{2}:\d{2}/);
   });
 });

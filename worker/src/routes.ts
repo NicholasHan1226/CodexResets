@@ -38,6 +38,7 @@ type PublicSignalSnapshot = {
   value?: unknown;
   description?: unknown;
   updatedAt?: unknown;
+  scheduledAt?: unknown;
   sourceUrl?: unknown;
 };
 
@@ -63,6 +64,9 @@ export async function handleSignals(env: Env): Promise<Response> {
     signals: snapshot.signals.map((signal) => {
       const publicSignal = { ...signal };
       delete publicSignal.sourceUrl;
+      if (typeof publicSignal.scheduledAt !== 'number' || !Number.isFinite(publicSignal.scheduledAt)) {
+        delete publicSignal.scheduledAt;
+      }
       return publicSignal;
     }),
     // Keep the browser prediction path self-contained without exposing
@@ -147,6 +151,9 @@ function signalSnapshotCheck(snapshot: StoredSignalSnapshot, now: number): Healt
       || (signal.status !== 'active' && signal.status !== 'weak' && signal.status !== 'idle')
       || typeof signal.value !== 'number' || !Number.isFinite(signal.value) || signal.value < 0 || signal.value > 1
       || typeof signal.updatedAt !== 'number' || !Number.isFinite(signal.updatedAt) || signal.updatedAt > now + 5 * 60 * 1000) {
+      return 'failed';
+    }
+    if (signal.scheduledAt !== undefined && (typeof signal.scheduledAt !== 'number' || !Number.isFinite(signal.scheduledAt))) {
       return 'failed';
     }
     seen.add(signal.source);

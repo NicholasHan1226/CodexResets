@@ -6,6 +6,11 @@ interface ProbabilityCurveProps {
   curve: ProbabilityPoint[];
   /** When set, only show points within the next N hours from now */
   hours?: number;
+  /** Direct official timing replaces the history-only curve as the public answer. */
+  officialSchedule?: {
+    targetLabel: string | null;
+    window: 'within' | 'after' | 'pending';
+  };
 }
 
 const HOUR = 3600 * 1000;
@@ -66,7 +71,7 @@ function smoothLine(pts: Pt[]): string {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
-export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
+export function ProbabilityCurve({ curve, hours, officialSchedule }: ProbabilityCurveProps) {
   const { t } = useI18n();
   const [containerRef, { width, height }] = useElementSize<HTMLDivElement>();
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -77,6 +82,31 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
     const id = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(id);
   }, []);
+  if (officialSchedule) {
+    const relation = officialSchedule.window === 'within'
+      ? 'curve.scheduleWithin'
+      : officialSchedule.window === 'after'
+        ? 'curve.scheduleAfter'
+        : 'curve.schedulePending';
+    return (
+      <section aria-label="Official reset timing" className="max-w-4xl">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 className="text-lg font-semibold text-foreground">
+            <span className="mr-2 font-mono font-normal text-primary">❯</span>
+            {t('curve.scheduleTitle')}
+          </h2>
+          <span className="font-mono text-xs text-muted-foreground">
+            {t(relation, { n: hours ?? 24 })}
+          </span>
+        </div>
+        <p className="mt-4 border-y border-primary/20 py-5 font-mono text-xl font-semibold text-primary sm:text-2xl">
+          {officialSchedule.targetLabel
+            ? t('curve.scheduleTarget', { time: officialSchedule.targetLabel })
+            : t('curve.schedulePending')}
+        </p>
+      </section>
+    );
+  }
   const nowTimestamp = now.getTime();
   // Local time, like codex-reset.com — users plan in their own timezone
   const nowLocalLabel = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
