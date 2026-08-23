@@ -62,10 +62,10 @@ function findResetWindow(curve: ProbabilityPoint[]): { start: string; end: strin
   };
 }
 
-function generateAdvice(prob24h: number, prob48h: number, daysSince: number, medianDays: number): PlanningAdvice {
+function generateAdvice(probability: number, daysSince: number, medianDays: number): PlanningAdvice {
   const ratio = daysSince / Math.max(medianDays, 0.25);
-  if (prob24h >= 0.5 || ratio >= 1.5) return { level: 'wait' };
-  if (prob48h >= 0.4 || ratio >= 1.0) return { level: 'cautious' };
+  if (probability >= 0.5 || ratio >= 1.5) return { level: 'wait' };
+  if (probability >= 0.4 || ratio >= 1.0) return { level: 'cautious' };
   if (ratio < 0.5) return { level: 'use_freely' };
   return { level: 'approaching' };
 }
@@ -124,7 +124,10 @@ export function generatePrediction(records?: ResetRecord[], liveSignals?: ResetS
     lastReset: new Date(lastReset).toISOString(),
     daysSinceLastReset: Math.round(daysSince * 10) / 10,
     medianIntervalDays: Math.round(stats.medianDays * 10) / 10,
-    advice: generateAdvice(prob24h, prob48h, daysSince, stats.medianDays),
+    advice: {
+      24: generateAdvice(prob24h, daysSince, stats.medianDays),
+      48: generateAdvice(prob48h, daysSince, stats.medianDays),
+    },
     modelVersion: `v4-episode-${selection.model}`,
     generatedAt: now.getTime(),
   };

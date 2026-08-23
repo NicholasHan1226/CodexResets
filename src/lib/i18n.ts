@@ -11,6 +11,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Hero Section
     'hero.signalNo': 'no official reset signal',
+    'hero.signalWatch': 'related activity to watch',
     'hero.signalYes': 'reset signal detected',
     'hero.question': 'will Codex reset within {n}h?',
     'hero.answerNo': 'Not likely.',
@@ -40,10 +41,10 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.prob48hHint': 'Most likely window entering 48h range',
 
     // Planning advice (model emits only a level; copy lives here)
-    'advice.wait': 'High reset probability — consider waiting for heavy tasks.',
-    'advice.cautious': 'Moderate probability — use sparingly on critical tasks.',
-    'advice.use_freely': 'Low near-term probability — normal building conditions.',
-    'advice.approaching': 'Approaching median interval — plan accordingly.',
+    'advice.wait': 'Preserve heavy tasks until the signal is clearer.',
+    'advice.cautious': 'Keep some capacity for critical tasks.',
+    'advice.use_freely': 'No strong near-term signal — use normally.',
+    'advice.approaching': 'The interval is approaching its usual range.',
 
     // Header
     'app.title': 'Codex Resets',
@@ -213,7 +214,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'model.signalBased': 'Signal-based',
     'model.signalBasedDesc': 'The model combines reset intervals with current product conditions and recalculates as fresh evidence arrives.',
     'model.historicalData': 'Historical intervals',
-    'model.historicalDataDesc': 'Every verified goodwill reset since September 2025 is recorded. The gap distribution between consecutive resets drives the baseline probability curve.',
+    'model.historicalDataDesc': 'Reviewed public reset episodes form the baseline. Production-confirmed records extend it as they accumulate.',
     'model.weibullModel': 'Time-decay estimate',
     'model.weibullModelDesc': 'A survival model over the historical gap distribution yields the 24h / 48h probabilities. Waiting longer does not raise the odds during a quiet stretch — the model avoids the "due for a reset" fallacy.',
     'model.disclaimerDesc': 'This is a probability estimate, not a guarantee. Resets are manually triggered by OpenAI and cannot be precisely predicted. Use at your own discretion.',
@@ -238,7 +239,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'about.sourceTibo': 'reset announcements from the Codex lead',
     'about.sourceStatus': 'official OpenAI service health',
     'about.sourceHistory': 'Verified reset history',
-    'about.sourceHistoryDesc': 'every confirmed goodwill reset since Sep 2025',
+    'about.sourceHistoryDesc': 'reviewed public reset episodes and production-confirmed records',
     'about.privacyTitle': 'Email and privacy',
     'about.privacyDesc': 'An email address is stored only after its recipient confirms the subscription. It is used to send reset alerts and to process unsubscribe requests; this site does not ask for an OpenAI account or personal usage data.',
     'about.privacyRetention': 'Unconfirmed email addresses expire after 24 hours. A confirmed address is deleted when you unsubscribe, or when its mail provider reports a permanent delivery failure or spam complaint.',
@@ -277,6 +278,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Hero Section
     'hero.signalNo': '暂无官方重置信号',
+    'hero.signalWatch': '存在待观察的相关动态',
     'hero.signalYes': '检测到重置信号',
     'hero.question': '未来 {n} 小时会重置吗？',
     'hero.answerNo': '暂不太可能。',
@@ -306,10 +308,10 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.prob48hHint': '最可能窗口进入 48h 射程',
 
     // Planning advice
-    'advice.wait': '重置概率高，重任务建议等重置后再跑。',
-    'advice.cautious': '概率中等，关键任务节省使用。',
-    'advice.use_freely': '近期概率低，正常使用即可。',
-    'advice.approaching': '接近历史间隔中位数，提前规划用量。',
+    'advice.wait': '重任务可先保留，等待更清晰的信号。',
+    'advice.cautious': '关键任务建议保留一些用量余量。',
+    'advice.use_freely': '近期没有强信号，可按正常节奏使用。',
+    'advice.approaching': '间隔正接近常见范围，可留意后续变化。',
 
     // Header
     'app.title': 'Codex 重置预判',
@@ -479,7 +481,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'model.signalBased': '信号驱动',
     'model.signalBasedDesc': '模型结合重置间隔与当前产品状态，并在获得新证据时重新计算。',
     'model.historicalData': '历史间隔',
-    'model.historicalDataDesc': '记录了自 2025 年 9 月以来每一次已验证的全局重置。相邻重置之间的间隔分布驱动基线概率曲线。',
+    'model.historicalDataDesc': '经复核的公开重置事件构成基线，生产环境确认的记录会随积累纳入计算。',
     'model.weibullModel': '时间衰减估计',
     'model.weibullModelDesc': '基于历史间隔分布的生存模型给出 24h / 48h 概率。在平静期内等待不会提高概率——模型避免"该重置了"的谬误。',
     'model.disclaimerDesc': '这是概率估计，不是保证。重置由 OpenAI 手动触发，无法精确预测。请自行判断使用。',
@@ -504,7 +506,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'about.sourceTibo': 'Codex 负责人的重置公告',
     'about.sourceStatus': 'OpenAI 官方服务状态',
     'about.sourceHistory': '已验证的重置历史',
-    'about.sourceHistoryDesc': '自 2025 年 9 月以来每次确认的善意重置',
+    'about.sourceHistoryDesc': '经复核的公开重置事件与生产确认记录',
     'about.privacyTitle': '邮箱与隐私',
     'about.privacyDesc': '只有收件人完成确认后，邮箱才会写入订阅名单。邮箱仅用于发送重置提醒和处理退订；本站不会索取 OpenAI 账户或个人用量数据。',
     'about.privacyRetention': '未确认的邮箱会在 24 小时后过期。已确认的邮箱会在退订后删除；若邮箱服务商报告永久投递失败或垃圾邮件投诉，也会删除。',

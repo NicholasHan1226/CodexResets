@@ -27,6 +27,12 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
   const daysSince = prediction.daysSinceLastReset;
   // Keep the verdict aligned with the horizon the visitor selected.
   const isLikely = pct >= 50;
+  const officialSignal = prediction.signals.find((signal) => signal.source === 'tibopost');
+  const signalCopy = officialSignal?.status === 'active'
+    ? 'hero.signalYes'
+    : officialSignal?.status === 'weak'
+      ? 'hero.signalWatch'
+      : 'hero.signalNo';
 
   const lastResetStr = lastResetDate
     ? lastResetDate.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
@@ -82,7 +88,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
           {isLikely ? t('hero.answerYes') : t('hero.answerNo')}
         </span>{' '}
         <span className="text-muted-foreground/50">
-          ({isLikely ? t('hero.signalYes') : t('hero.signalNo')})
+          ({t(signalCopy)})
         </span>
       </p>
 
@@ -115,7 +121,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
       {/* Advice */}
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
         <span className="text-foreground font-medium">{t('hero.adviceLabel')}</span>{' '}
-        {t(`advice.${prediction.advice.level}`)}
+        {t(`advice.${prediction.advice[timeframe].level}`)}
       </p>
 
       {/* Share — one button */}

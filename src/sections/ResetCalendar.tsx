@@ -75,14 +75,14 @@ export function ResetCalendar() {
   }, [calendarData, history]);
 
   return (
-    <section aria-label="Reset calendar" className="max-w-4xl">
+    <section aria-label="Reset calendar" className="max-w-4xl min-w-0 overflow-x-clip">
       <h2 className="text-lg font-semibold text-foreground">
         <span className="mr-2 font-mono font-normal text-primary">❯</span>
         {t('calendar.title')}
       </h2>
 
       <div
-        className="mt-4 w-full max-w-full overflow-x-auto"
+        className="mt-4 w-full max-w-full overflow-x-auto overscroll-x-contain"
         role="img"
         aria-label={`${t('calendar.title')}: ${stats.totalResets} ${t('calendar.totalResets').toLowerCase()}, ${stats.daysWithResets} ${t('calendar.daysWithResets').toLowerCase()}`}
       >

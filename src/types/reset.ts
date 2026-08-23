@@ -62,8 +62,8 @@ export interface ResetPrediction {
   daysSinceLastReset: number;
   /** Median interval in days */
   medianIntervalDays: number;
-  /** Planning advice based on current probability */
-  advice: PlanningAdvice;
+  /** Planning advice keyed by the selected forecast horizon. */
+  advice: Record<24 | 48, PlanningAdvice>;
   /** Model version */
   modelVersion: string;
   /** Generated at timestamp */
