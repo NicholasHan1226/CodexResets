@@ -56,6 +56,33 @@ describe('reset episode forecasting', () => {
     expect(probabilityWithin(history, 'logistic', now + 30 * DAY_MS, 48)).toBeLessThanOrEqual(0.9);
   });
 
+  it('keeps model probabilities finite, bounded, and horizon-monotonic across irregular histories', () => {
+    const origin = Date.parse('2026-01-01T00:00:00Z');
+    const histories = [
+      regularHistory(),
+      [1, 2, 7, 3, 11, 4, 6, 2].map((gap, index, gaps) => record(
+        `irregular-${index}`,
+        origin + gaps.slice(0, index + 1).reduce((sum, days) => sum + days, 0) * DAY_MS,
+      )).reverse(),
+    ];
+
+    for (const history of histories) {
+      const latest = Math.max(...history.map((event) => event.timestamp));
+      for (const model of ['logistic', 'weibull'] as const) {
+        for (const elapsedDays of [0, 0.25, 1, 4, 20, 90]) {
+          const within24 = probabilityWithin(history, model, latest + elapsedDays * DAY_MS, 24);
+          const within48 = probabilityWithin(history, model, latest + elapsedDays * DAY_MS, 48);
+          expect(within24).toBeGreaterThanOrEqual(0);
+          expect(within24).toBeLessThanOrEqual(0.9);
+          expect(within48).toBeGreaterThanOrEqual(within24);
+          expect(within48).toBeLessThanOrEqual(0.9);
+          expect(Number.isFinite(within24)).toBe(true);
+          expect(Number.isFinite(within48)).toBe(true);
+        }
+      }
+    }
+  });
+
   it('keeps the displayed 24h and 48h totals consistent with the probability curve', () => {
     const prediction = generatePrediction(regularHistory());
     const probabilityIn = (hours: number) => prediction.curve
