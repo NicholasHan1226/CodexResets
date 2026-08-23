@@ -18,6 +18,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.answerNo': 'Not likely.',
     'hero.answerWatch': 'Possible — keep watching.',
     'hero.answerYes': 'Likely.',
+    'hero.answerScheduled': 'An official reset is scheduled.',
     'hero.lastResetWas': 'The last verified global reset was',
     'hero.lastResetLabel': 'last verified reset',
     'hero.daysAgo': 'days ago',
@@ -25,7 +26,9 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.medianGap': 'median gap',
     'hero.adviceLabel': 'Advice:',
     'hero.probLabel': 'reset probability',
+    'hero.modelProbLabel': 'history model probability',
     'hero.withinHours': 'within next {n}h',
+    'hero.modelWithinHours': 'history-model estimate · next {n}h',
     'hero.windowShort': 'likely window',
     'hero.shareText': 'Codex reset probability: {n}% in next {h}h — live forecast:',
     'hero.shareLink': '[share]',
@@ -48,6 +51,13 @@ const translations: Record<Locale, Record<string, string>> = {
     'advice.cautious': 'Keep some capacity for critical tasks.',
     'advice.use_freely': 'No strong near-term signal — use normally.',
     'advice.approaching': 'The interval is approaching its usual range.',
+    'advice.scheduled': 'An official schedule takes priority; wait for the confirmed reset alert.',
+
+    // Error boundary
+    'error.title': 'Something went wrong',
+    'error.message': 'An unexpected error occurred. Please try refreshing the page.',
+    'error.retry': 'Try Again',
+    'error.reload': 'Reload Page',
 
     // Header
     'app.title': 'Codex Resets',
@@ -292,6 +302,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.answerNo': '暂不太可能。',
     'hero.answerWatch': '有一定可能，继续观察。',
     'hero.answerYes': '很可能。',
+    'hero.answerScheduled': '官方已预告即将重置。',
     'hero.lastResetWas': '上次已验证的全局重置发生在',
     'hero.lastResetLabel': '上次已验证重置',
     'hero.daysAgo': '天前',
@@ -299,7 +310,9 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.medianGap': '中位间隔',
     'hero.adviceLabel': '建议：',
     'hero.probLabel': '重置概率',
+    'hero.modelProbLabel': '历史模型概率',
     'hero.withinHours': '未来 {n} 小时内',
+    'hero.modelWithinHours': '历史模型估计 · 未来 {n} 小时',
     'hero.windowShort': '最可能窗口',
     'hero.shareText': 'Codex 重置概率：未来 {h} 小时内 {n}% — 实时预测：',
     'hero.shareLink': '[分享]',
@@ -322,6 +335,13 @@ const translations: Record<Locale, Record<string, string>> = {
     'advice.cautious': '关键任务建议保留一些用量余量。',
     'advice.use_freely': '近期没有强信号，可按正常节奏使用。',
     'advice.approaching': '间隔正接近常见范围，可留意后续变化。',
+    'advice.scheduled': '官方预告优先；等待重置实际确认后再接收提醒。',
+
+    // Error boundary
+    'error.title': '页面出现问题',
+    'error.message': '发生意外错误，请尝试刷新页面。',
+    'error.retry': '重试',
+    'error.reload': '重新加载',
 
     // Header
     'app.title': 'Codex 重置预判',

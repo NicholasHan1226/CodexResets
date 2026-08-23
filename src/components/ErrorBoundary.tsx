@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import { detectLocale, t as translate } from '@/lib/i18n';
 
 interface Props {
   children: ReactNode;
@@ -43,6 +44,8 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback;
       }
 
+      const locale = detectLocale();
+      const t = (key: string) => translate(locale, key);
       return (
         <div className="min-h-screen bg-background flex items-center justify-center p-4">
           <Card className="w-full max-w-md bg-card border-border/50">
@@ -51,12 +54,12 @@ export class ErrorBoundary extends Component<Props, State> {
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10">
                   <AlertTriangle className="h-5 w-5 text-destructive" />
                 </div>
-                <CardTitle className="text-lg">Something went wrong</CardTitle>
+                <CardTitle className="text-lg">{t('error.title')}</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                An unexpected error occurred. Please try refreshing the page.
+                {t('error.message')}
               </p>
               <div className="flex gap-2">
                 <Button
@@ -65,13 +68,13 @@ export class ErrorBoundary extends Component<Props, State> {
                   className="flex-1"
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
-                  Try Again
+                  {t('error.retry')}
                 </Button>
                 <Button
                   onClick={this.handleReload}
                   className="flex-1"
                 >
-                  Reload Page
+                  {t('error.reload')}
                 </Button>
               </div>
             </CardContent>

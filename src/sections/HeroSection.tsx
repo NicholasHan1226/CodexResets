@@ -25,17 +25,20 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
 
   const lastResetDate = prediction.lastReset ? new Date(prediction.lastReset) : null;
   const daysSince = prediction.daysSinceLastReset;
+  const officialSignal = prediction.signals.find((signal) => signal.source === 'tibopost');
+  const hasScheduledReset = officialSignal?.description === 'signals.resetScheduled';
   // The wording tracks probability bands: a middle range should not read as
-  // either a dismissal or a guarantee.
-  const verdictKey = pct >= 60
+  // either a dismissal or a guarantee. A direct official schedule is more
+  // actionable than an independent history-only model estimate, so it owns
+  // the visitor-facing conclusion without changing calibration inputs.
+  const verdictKey = hasScheduledReset
+    ? 'hero.answerScheduled'
+    : pct >= 60
     ? 'hero.answerYes'
     : pct >= 30
       ? 'hero.answerWatch'
       : 'hero.answerNo';
-  const officialSignal = prediction.signals.find((signal) => signal.source === 'tibopost');
-  const signalCopy = officialSignal?.description === 'signals.resetScheduled'
-    ? 'hero.signalScheduled'
-    : officialSignal?.status === 'active'
+  const signalCopy = officialSignal?.status === 'active'
     ? 'hero.signalYes'
     : officialSignal?.status === 'weak'
       ? 'hero.signalWatch'
@@ -94,14 +97,16 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
         <span className="text-foreground font-semibold">
           {t(verdictKey)}
         </span>{' '}
-        <span className="text-muted-foreground/50">
-          ({t(signalCopy)})
-        </span>
+        {!hasScheduledReset && (
+          <span className="text-muted-foreground/50">
+            ({t(signalCopy)})
+          </span>
+        )}
       </p>
 
       {/* The probability — the single protagonist */}
       <div className="mt-10">
-        <ProbabilityDisplay pct={pct} timeframe={timeframe} onTimeframeChange={onTimeframeChange} />
+        <ProbabilityDisplay pct={pct} timeframe={timeframe} onTimeframeChange={onTimeframeChange} historicalModel={hasScheduledReset} />
       </div>
 
       {/* Meta — one quiet line */}
@@ -128,7 +133,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
       {/* Advice */}
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
         <span className="text-foreground font-medium">{t('hero.adviceLabel')}</span>{' '}
-        {t(`advice.${prediction.advice[timeframe].level}`)}
+        {t(hasScheduledReset ? 'advice.scheduled' : `advice.${prediction.advice[timeframe].level}`)}
       </p>
 
       {/* Low-friction actions — subscription remains the page's only solid CTA. */}

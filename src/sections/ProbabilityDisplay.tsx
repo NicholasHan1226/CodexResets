@@ -6,6 +6,8 @@ interface ProbabilityDisplayProps {
   pct: number;
   timeframe: 24 | 48;
   onTimeframeChange: (tf: 24 | 48) => void;
+  /** A direct official schedule is stronger than this history-only model read. */
+  historicalModel?: boolean;
 }
 
 const BAR_WIDTH = 30;
@@ -14,7 +16,7 @@ const BAR_WIDTH = 30;
  * The single protagonist of the page: giant probability number
  * + ASCII bar + 24h/48h toggle.
  */
-export function ProbabilityDisplay({ pct, timeframe, onTimeframeChange }: ProbabilityDisplayProps) {
+export function ProbabilityDisplay({ pct, timeframe, onTimeframeChange, historicalModel = false }: ProbabilityDisplayProps) {
   const { t } = useI18n();
   const tabRefs = useRef<Partial<Record<24 | 48, HTMLButtonElement>>>({});
 
@@ -34,7 +36,7 @@ export function ProbabilityDisplay({ pct, timeframe, onTimeframeChange }: Probab
     <div>
       <div className="flex items-center justify-between">
         <span className="text-[11px] text-muted-foreground/70 uppercase tracking-widest">
-          {t('hero.probLabel')}
+          {t(historicalModel ? 'hero.modelProbLabel' : 'hero.probLabel')}
         </span>
         {/* Timeframe toggle */}
         <div className="flex items-center rounded-sm border border-border/50 bg-background/50 p-0.5 font-mono text-sm" role="tablist" aria-label="Timeframe">
@@ -75,7 +77,7 @@ export function ProbabilityDisplay({ pct, timeframe, onTimeframeChange }: Probab
           <span className="text-muted-foreground/15">{barEmpty}</span>
         </p>
         <p className="mt-3 text-sm text-muted-foreground">
-          {t('hero.withinHours', { n: timeframe })}
+          {t(historicalModel ? 'hero.modelWithinHours' : 'hero.withinHours', { n: timeframe })}
         </p>
       </div>
     </div>

@@ -13,15 +13,16 @@ interface StatusHeaderProps {
 
 export function StatusHeader({ prediction, isLive, isRefreshing, onRefresh, onShare }: StatusHeaderProps) {
   const { locale, setLocale, t } = useI18n();
-  const [utcTime, setUtcTime] = useState('');
+  const [localTime, setLocalTime] = useState('');
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const tick = () => {
       const d = new Date();
-      const hh = String(d.getUTCHours()).padStart(2, '0');
-      const mm = String(d.getUTCMinutes()).padStart(2, '0');
-      setUtcTime(`${hh}:${mm} UTC`);
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      setLocalTime(`${hh}:${mm} ${zone}`);
       setNow(d.getTime());
     };
     tick();
@@ -59,7 +60,7 @@ export function StatusHeader({ prediction, isLive, isRefreshing, onRefresh, onSh
         {/* Right: Time + actions */}
         <div className="flex shrink-0 items-center gap-2">
           <span className="hidden sm:inline font-mono text-xs text-muted-foreground/60">
-            {utcTime}
+            {localTime}
           </span>
           <span className="hidden md:inline font-mono text-[10px] text-muted-foreground/40">
             {formatTimeAgo(prediction.generatedAt)}
