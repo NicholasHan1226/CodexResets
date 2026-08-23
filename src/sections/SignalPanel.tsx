@@ -19,6 +19,15 @@ const statusTagMap: Record<string, { label: string; badge: string; bar: string }
 
 const statusWeight: Record<string, number> = { active: 0, weak: 1, idle: 2 };
 
+// Worker labels are stable source identifiers in English. Keep them as a
+// fallback, but resolve known sources in the visitor's selected language.
+const signalLabelKeys: Record<string, string> = {
+  tibopost: 'signals.tibo',
+  status_page: 'signals.status',
+  cooldown: 'signals.cooldown',
+  launch_noise: 'signals.launch',
+};
+
 function signalStrength(composite: number): 'low' | 'medium' | 'high' {
   if (composite >= 0.6) return 'high';
   if (composite >= 0.3) return 'medium';
@@ -97,6 +106,7 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
         {sortedSignals.map((signal, i) => {
           const tag = statusTagMap[signal.status] || statusTagMap.idle;
           const pct = Math.round(signal.value * 100);
+          const labelKey = signalLabelKeys[signal.source];
 
           return (
             <div
@@ -117,7 +127,7 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
                     {tag.label}
                   </span>
                   <span className="text-sm font-medium text-foreground">
-                    {signal.label}
+                    {labelKey ? t(labelKey) : signal.label}
                   </span>
                 </div>
               </div>
