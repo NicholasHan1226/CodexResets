@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
 import { ProbabilityDisplay } from '@/sections/ProbabilityDisplay';
-import { formatOfficialScheduleTarget, type PrimaryForecast } from '@/lib/forecast-display';
+import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, type PrimaryForecast } from '@/lib/forecast-display';
 import {
   buildShareSummary,
   shareUrl,
@@ -16,9 +16,10 @@ interface HeroSectionProps {
   timeframe: 24 | 48;
   onTimeframeChange: (tf: 24 | 48) => void;
   primaryForecast: PrimaryForecast;
+  currentTime: number;
 }
 
-export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryForecast }: HeroSectionProps) {
+export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryForecast, currentTime }: HeroSectionProps) {
   const { t, locale } = useI18n();
   const [copied, setCopied] = useState(false);
   const pct24 = Math.round(prediction.prob24h * 100);
@@ -81,6 +82,9 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
   const scheduledTargetStr = hasScheduledReset
     ? formatOfficialScheduleTarget(primaryForecast.scheduledAt, locale)
     : null;
+  const scheduledCountdownStr = hasScheduledReset
+    ? formatOfficialScheduleCountdown(primaryForecast.scheduledAt, currentTime, locale)
+    : null;
 
   const handleShare = async () => {
     const summary = buildShareSummary({
@@ -124,7 +128,9 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
           pct={pct}
           timeframe={timeframe}
           onTimeframeChange={onTimeframeChange}
-          officialSchedule={hasScheduledReset ? { window: primaryForecast.window, targetLabel: scheduledTargetStr } : undefined}
+          officialSchedule={hasScheduledReset
+            ? { window: primaryForecast.window, targetLabel: scheduledTargetStr, countdownLabel: scheduledCountdownStr }
+            : undefined}
         />
       </div>
 

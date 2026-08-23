@@ -44,3 +44,22 @@ export function formatOfficialScheduleTarget(scheduledAt: number | null, locale:
     hour: '2-digit', minute: '2-digit', hour12: false,
   })}`;
 }
+
+/** A compact current-time anchor for the official-schedule view. */
+export function formatOfficialScheduleCountdown(
+  scheduledAt: number | null,
+  now: number,
+  locale: 'en' | 'zh',
+): string | null {
+  if (typeof scheduledAt !== 'number' || !Number.isFinite(scheduledAt) || scheduledAt <= now) return null;
+  const totalMinutes = Math.ceil((scheduledAt - now) / 60_000);
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+  if (locale === 'zh') {
+    const parts = [days > 0 ? `${days}天` : '', hours > 0 ? `${hours}小时` : '', minutes > 0 ? `${minutes}分钟` : ''].filter(Boolean);
+    return `距现在约 ${parts.join('') || '0分钟'}`;
+  }
+  const parts = [days > 0 ? `${days}d` : '', hours > 0 ? `${hours}h` : '', minutes > 0 ? `${minutes}m` : ''].filter(Boolean);
+  return `~${parts.join(' ') || '0m'} from now`;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatOfficialScheduleTarget, getPrimaryForecast } from '@/lib/forecast-display';
+import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPrimaryForecast } from '@/lib/forecast-display';
 import type { ResetSignal } from '@/types/reset';
 
 const now = Date.parse('2026-08-24T00:00:00.000Z');
@@ -40,5 +40,11 @@ describe('primary forecast display', () => {
 
   it('formats an official target in the visitor timezone without exposing a source URL', () => {
     expect(formatOfficialScheduleTarget(Date.parse('2026-08-23T22:00:00.000Z'), 'zh')).toMatch(/\d{2}:\d{2}/);
+  });
+
+  it('anchors a future official target to the current visitor time', () => {
+    expect(formatOfficialScheduleCountdown(now + 4 * 60 * 60 * 1000 + 20 * 60 * 1000, now, 'zh')).toBe('距现在约 4小时20分钟');
+    expect(formatOfficialScheduleCountdown(now + 4 * 60 * 60 * 1000 + 20 * 60 * 1000, now, 'en')).toBe('~4h 20m from now');
+    expect(formatOfficialScheduleCountdown(now - 1, now, 'zh')).toBeNull();
   });
 });

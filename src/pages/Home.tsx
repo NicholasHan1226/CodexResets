@@ -13,7 +13,7 @@ import { buildShareSummary, shareUrl, copyToClipboard } from "@/lib/export-share
 import { useI18n } from "@/contexts/I18nContext";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { shouldShowResetCalendar } from "@/lib/reset-data";
-import { formatOfficialScheduleTarget, getPrimaryForecast } from "@/lib/forecast-display";
+import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPrimaryForecast } from "@/lib/forecast-display";
 
 export default function Home() {
   const { prediction, isLive, signalsLoading, refresh } = usePrediction();
@@ -35,6 +35,7 @@ export default function Home() {
   const officialSchedule = primaryForecast.kind === 'official-schedule'
     ? {
         targetLabel: formatOfficialScheduleTarget(primaryForecast.scheduledAt, locale),
+        countdownLabel: formatOfficialScheduleCountdown(primaryForecast.scheduledAt, now, locale),
         window: primaryForecast.window,
       }
     : undefined;
@@ -70,6 +71,7 @@ export default function Home() {
               timeframe={timeframe}
               onTimeframeChange={setTimeframe}
               primaryForecast={primaryForecast}
+              currentTime={now}
             />
             <AnchorNav showCalendar={showCalendar} showRhythm={showHistoricalTiming} />
           </div>

@@ -134,7 +134,8 @@ contained one are excluded from calibration and formal release scoring.
 When a direct official post schedules a future reset, the dashboard replaces
 the visitor-facing probability number and curve with the official timing. It
 states whether that target is inside the selected 24/48-hour window (or says
-that the time remains unconfirmed). If a stated target passes before a separate
+that the time remains unconfirmed) and shows the remaining time from the
+visitor's current clock. If a stated target passes before a separate
 reset confirmation, the dashboard says exactly that and waits for confirmation;
 it never continues to present the past time as upcoming. The history-only model
 stays in calibration only, so an announced schedule never contradicts visitor

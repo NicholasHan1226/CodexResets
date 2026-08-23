@@ -9,6 +9,7 @@ interface ProbabilityDisplayProps {
   officialSchedule?: {
     window: 'within' | 'after' | 'pending' | 'elapsed';
     targetLabel: string | null;
+    countdownLabel: string | null;
   };
 }
 
@@ -75,7 +76,9 @@ export function ProbabilityDisplay({ pct, timeframe, onTimeframeChange, official
               {officialSchedule.targetLabel
                 ? t('hero.scheduleAt', { time: officialSchedule.targetLabel })
                 : t('hero.schedulePending')}
-              {officialSchedule.window !== 'pending' && (
+              {officialSchedule.countdownLabel ? (
+                <span className="text-muted-foreground/60"> · {officialSchedule.countdownLabel}</span>
+              ) : officialSchedule.window !== 'pending' && (
                 <span className="text-muted-foreground/60"> · {t(
                   officialSchedule.window === 'within'
                     ? 'hero.scheduleWithin'
