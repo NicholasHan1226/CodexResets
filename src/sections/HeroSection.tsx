@@ -33,7 +33,9 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
       ? 'hero.answerWatch'
       : 'hero.answerNo';
   const officialSignal = prediction.signals.find((signal) => signal.source === 'tibopost');
-  const signalCopy = officialSignal?.status === 'active'
+  const signalCopy = officialSignal?.description === 'signals.resetScheduled'
+    ? 'hero.signalScheduled'
+    : officialSignal?.status === 'active'
     ? 'hero.signalYes'
     : officialSignal?.status === 'weak'
       ? 'hero.signalWatch'

@@ -50,6 +50,7 @@
 - 区块头部有聚合读数行：`composite ████░░ 47% · 2/4 active`，mono 小字
 - 排序：状态严重度优先（ACTIVE>WARM>IDLE），同档按时间倒序
 - ACTIVE 行允许 `bg-primary/5` 极浅底色（-mx-2 px-2 呼吸），其余行无底色
+- 官方预告即将重置可标为 ACTIVE，但文案必须明确为“预告”，不能伪装成已发生重置或提前触发提醒
 
 ### 订阅 CTA（ResetAlertsPanel）
 - 主按钮用**实心反色块**：`bg-primary text-background` + mono uppercase 追踪加宽——全站唯一的主行动点，允许最响

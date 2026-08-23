@@ -235,6 +235,10 @@ export const CONTEXT_RE = /(?:\bcodex\b|usage\s+limits?|rate\s+limits?|quota|cre
 // whereas a false inserted reset distorts the model for several days.
 export const ANNOUNCE_RE = /(?:\b(?:usage\s+limits?|rate\s+limits?|quota|credits?)\s+(?:are|is|were|was|have|has|just)?\s*reset(?:ting)?\b|\b(?:banked\s+)?reset\s+(?:has|have|just)?\s*(?:landed|arrived|rolled(?:\s+out)?|gone\s+live|went\s+live|is\s+live|are\s+live)\b|\b(?:all|everyone)\s+(?:paid\s+)?users?\s+(?:should|have|has|can)\s+(?:now\s+)?(?:see|use|access|have)\b)/i;
 const QUESTION_RE = /(?:\?|^\s*(?:when|will|would|can|does|do|how)\b)/i;
+// A future-tense official post is useful public planning evidence, but is
+// deliberately distinct from ANNOUNCE_RE: it must never create a reset
+// record or delivery candidate before the reset has actually landed.
+const SCHEDULED_RESET_RE = /\breset\s+(?:will|shall|is\s+(?:going\s+to|scheduled\s+to|expected\s+to))\s+(?:land|arrive|roll(?:\s+out)?|go\s+live)\b/i;
 const RETRACTION_RE = /(?:\b(?:correction|incorrect|mistake|false\s+alarm)\b.{0,80}\b(?:reset|rollout|quota|limit)|\b(?:reset|rollout|quota|limit).{0,80}\b(?:was\s+not|wasn't|has\s+not|hasn't|did\s+not|didn't|delayed|postponed|rolled\s+back|reverted|cancelled)\b)/i;
 const BANKED_RESET_RE = /\bbanked\s+reset\b/i;
 const LIMIT_RESET_RE = /(?:usage|rate)\s+limits?/i;
@@ -243,6 +247,11 @@ const CREDIT_RESET_RE = /\bcredits?\b/i;
 
 export function isResetAnnouncement(text: string): boolean {
   return ANNOUNCE_RE.test(text) && !QUESTION_RE.test(text);
+}
+
+/** A future-tense reset schedule is a signal only, never an event candidate. */
+export function isScheduledResetAnnouncement(text: string): boolean {
+  return SCHEDULED_RESET_RE.test(text) && !QUESTION_RE.test(text);
 }
 
 /** A later direct-source correction prevents pending automated delivery. */

@@ -66,7 +66,9 @@ recipient, and never reads subscribers or runs the pipeline.
 
 When configured, the authenticated official X API is the only direct-account
 source permitted to create, confirm, or deliver an automated alert or raise an
-active public reset signal. RSS/Nitter and news feeds remain discovery-only
+active public reset signal. A direct official post scheduling a future reset is
+shown as an active planning signal only: it never enters reset history or sends
+an alert until a separate post confirms the reset has landed. RSS/Nitter and news feeds remain discovery-only
 operational context. Strong notices from
 the configured target account are automatically recorded, held for one
 scheduled interval, and then confirmed and delivered. A later direct-source

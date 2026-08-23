@@ -1,6 +1,6 @@
 import type { Env, PublicResetHistory, ScrapeResult, SignalSnapshot, SignalsPayload } from './types';
 import { readJsonWithin } from './util';
-import { RESET_RE, CONTEXT_RE, isResetAnnouncement } from './scrape';
+import { RESET_RE, CONTEXT_RE, isResetAnnouncement, isScheduledResetAnnouncement } from './scrape';
 
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
@@ -106,10 +106,13 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
   }
 
   const latest = scrape.tweets[0];
-  // Same filters as the event detector: a reset mention needs the usage-limit
-  // context word; the ACTIVE tier additionally needs announcement phrasing.
+  // Confirmed reset notices retain the strict detector context. A separate
+  // future-tense official schedule can lift the public planning signal, but
+  // is never passed to the event detector or notification pipeline.
   const latestResetTweet = scrape.tweets.find((t) => RESET_RE.test(t.text) && CONTEXT_RE.test(t.text));
   const hoursSinceResetMention = latestResetTweet ? Math.floor((now - latestResetTweet.ts) / HOUR) : null;
+  const scheduledResetTweet = scrape.tweets.find((t) => isScheduledResetAnnouncement(t.text));
+  const hoursSinceScheduledReset = scheduledResetTweet ? Math.floor((now - scheduledResetTweet.ts) / HOUR) : null;
 
   if (
     hoursSinceResetMention !== null &&
@@ -123,6 +126,14 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
       value: 0.9,
       description: 'signals.resetAnnounced',
       descriptionParams: { n: hoursSinceResetMention },
+    };
+  }
+  if (hoursSinceScheduledReset !== null && hoursSinceScheduledReset < 24 * 7) {
+    return {
+      ...base,
+      status: 'active',
+      value: 0.8,
+      description: 'signals.resetScheduled',
     };
   }
   if (hoursSinceResetMention !== null && hoursSinceResetMention < 24 * 7) {
