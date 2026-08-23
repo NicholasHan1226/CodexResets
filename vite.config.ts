@@ -23,10 +23,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          // Eager vendor chunks only. recharts and @supabase/supabase-js are
-          // intentionally NOT listed: they are referenced exclusively from
-          // lazily-imported modules, so Rollup splits them into async chunks
-          // automatically and they stay off the first-paint critical path.
+          // Eager vendor chunks only. Data access stays behind the Worker, so
+          // no database client is shipped on the first-paint critical path.
           'vendor-react': ['react', 'react-dom', 'react-router'],
           'vendor-ui': ['@radix-ui/react-slot', 'class-variance-authority', 'clsx', 'tailwind-merge'],
         },

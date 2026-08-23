@@ -132,7 +132,7 @@ pnpm run build
 ```
 
 `pnpm run build` includes a production-bundle check. It fails when the public
-Worker API, Supabase endpoint, or VAPID public key were not embedded in the
+Worker API or VAPID public key were not embedded in the
 bundle, preventing a release that silently falls back to browser-only data.
 
 ## Public browser configuration
@@ -141,8 +141,6 @@ bundle, preventing a release that silently falls back to browser-only data.
 and become part of the downloaded browser bundle:
 
 - `VITE_PIPELINE_API_URL`
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
 - `VITE_VAPID_PUBLIC_KEY`
 - `VITE_TURNSTILE_SITE_KEY`
 
@@ -167,8 +165,8 @@ subscription attempts per ten minutes.
 ## Database and email delivery
 
 The managed database is Supabase project `wwhypilqiognyxkpqkss`. The browser
-normally receives verified reset history through the Worker snapshot and uses
-the public Supabase read only as a bounded compatibility fallback; all
+receives verified reset history through the Worker snapshot and falls back to
+its bundled baseline when that snapshot is unavailable; all
 subscription, push, and pipeline writes require the Worker-only
 `SUPABASE_SERVICE_ROLE_KEY` secret in Cloudflare. Anonymous reads are limited
 to `id`, `reset_date`, and `verified` for verified reset history; source URLs,

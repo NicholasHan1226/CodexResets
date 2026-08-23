@@ -41,8 +41,8 @@ as a general data-ingestion or notification interface.
 
 ## Data boundary
 
-The browser normally receives confirmed reset history from the same fresh
-Worker snapshot as its signals; a bounded direct Supabase read remains only as
-a rollout/outage compatibility fallback. Source URLs, original announcement
-text, subscriptions, Push endpoints, pending lifecycle rows, email delivery,
-and all write operations are Worker service-role operations.
+The browser receives confirmed reset history from the same fresh Worker
+snapshot as its signals and falls back to its bundled baseline if that snapshot
+is unavailable. Source URLs, original announcement text, subscriptions, Push
+endpoints, pending lifecycle rows, email delivery, and all write operations
+are Worker service-role operations.

@@ -9,20 +9,9 @@ const statusMessageKey: Record<SubscribeStatus, string> = {
   invalid: 'subscribe.invalidEmail',
 };
 
-const ALERT_THRESHOLD = 70;
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 
-function asciiBar(pct: number, width = 10): string {
-  const filled = Math.max(0, Math.min(width, Math.round((pct / 100) * width)));
-  return '█'.repeat(filled) + '░'.repeat(width - filled);
-}
-
-interface ResetAlertsPanelProps {
-  /** 24h reset probability, 0–1 */
-  prob24h: number;
-}
-
-export function ResetAlertsPanel({ prob24h }: ResetAlertsPanelProps) {
+export function ResetAlertsPanel() {
   const { t } = useI18n();
 
   const [email, setEmail] = useState('');
@@ -110,8 +99,6 @@ export function ResetAlertsPanel({ prob24h }: ResetAlertsPanelProps) {
   };
 
   const armed = emailDone || pushSubscribed;
-  const pct = Math.round(prob24h * 100);
-
   return (
     <section aria-label="Reset alerts" className="max-w-4xl">
       <div className="flex items-center justify-between">
@@ -133,18 +120,12 @@ export function ResetAlertsPanel({ prob24h }: ResetAlertsPanelProps) {
         {t('subscribe.description')}
       </p>
 
-      {/* Watch well — command echo + live readout + input */}
+      {/* Alerts are sent after a reset is confirmed, never at a forecast threshold. */}
       <div className="mt-4 max-w-xl border border-border/40 bg-muted/20 transition-colors focus-within:border-primary/50">
-        {/* Command echo + live gauge */}
+        {/* Command echo */}
         <div className="border-b border-border/30 px-3 py-2 font-mono text-[11px] leading-relaxed">
           <p className="text-muted-foreground">
             <span className="text-primary">❯</span> {t('subscribe.command')}
-          </p>
-          <p aria-label={`${t('subscribe.nowLabel')} ${pct}%`}>
-            <span className="text-muted-foreground">{t('subscribe.nowLabel')}</span>{' '}
-            <span className="text-primary">{asciiBar(pct)}</span>{' '}
-            <span className="text-foreground">{pct}%</span>{' '}
-            <span className="text-muted-foreground/60">→ {t('subscribe.alertAt', { n: ALERT_THRESHOLD })}</span>
           </p>
         </div>
 

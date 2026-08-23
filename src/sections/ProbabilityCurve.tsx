@@ -225,7 +225,7 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
         </h2>
         <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">
           {t("curve.peakWindow")}: {Math.round(peak.probability * 100)}%
-          <span className="ml-2 text-muted-foreground/50">{tzLabel}</span>
+          <span className="text-muted-foreground/50"> · {tzLabel}</span>
         </span>
       </div>
       <div className="mt-4">

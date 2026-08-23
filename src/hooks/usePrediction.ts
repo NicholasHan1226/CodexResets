@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { generatePrediction } from "@/lib/prediction";
 import { getDashboardInputs } from "@/lib/signal-fetcher";
-import { fetchResetRecords } from "@/lib/reset-records";
 import type { ResetPrediction, ResetRecord } from "@/types/reset";
 
 /**
@@ -25,14 +24,11 @@ export function usePrediction() {
     setSignalsLoading(true);
     
     try {
-      // Start the compatibility read at the same time. A fresh Worker
-      // snapshot normally supplies its own compact verified history, so this
-      // request is not on the visible critical path after rollout.
-      const recordsPromise = fetchResetRecords();
-      const dashboardPromise = getDashboardInputs(generatePrediction().signals);
-
-      const { signals, hasRealData, records: snapshotRecords } = await dashboardPromise;
-      const records = snapshotRecords ?? await recordsPromise;
+      const { signals, hasRealData, records: snapshotRecords } = await getDashboardInputs(generatePrediction().signals);
+      // The Worker supplies real verified history with a fresh snapshot. If
+      // it is unavailable, use the local baseline immediately rather than
+      // opening a second cross-origin database request on the visitor path.
+      const records = snapshotRecords ?? [];
       setResetRecords(records);
       setUsingRealData(hasRealData);
 

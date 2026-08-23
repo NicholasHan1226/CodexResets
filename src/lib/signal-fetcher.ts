@@ -2,8 +2,8 @@
  * Real signal fetcher — three-tier strategy:
  * 1. Pipeline snapshot (Cloudflare Worker scrapes server-side every 30min,
  *    far more reliable than browser-side attempts)
- * 2. Direct browser fetch (RSS proxy + OpenAI status API)
- * 3. Simulated fallback handled by the caller
+ * 2. Immediate local fallback in production; direct browser reads are kept
+ *    only for local development without a configured pipeline URL.
  */
 
 import type { ResetRecord, ResetSignal } from '@/types/reset';
@@ -27,7 +27,7 @@ interface PipelineHistoryRow {
 export interface DashboardInputs {
   signals: ResetSignal[];
   hasRealData: boolean;
-  /** null means an older Worker response needs the direct Supabase fallback. */
+  /** null means the caller should use its bundled local baseline. */
   records: ResetRecord[] | null;
 }
 
@@ -319,7 +319,7 @@ export async function fetchRealSignals(): Promise<ResetSignal[]> {
   return signals;
 }
 
-// Check if we have real signal data or should fall back to simulated
+// Return the Worker snapshot when available, otherwise the local fallback.
 export async function getDashboardInputs(simulatedSignals: ResetSignal[]): Promise<DashboardInputs> {
   // Tier 1: server-side pipeline snapshot (most reliable)
   const pipeline = await fetchPipelineSnapshot();

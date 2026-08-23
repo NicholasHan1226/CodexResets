@@ -148,12 +148,14 @@ src/
 - Monospace font (IBM Plex Mono) for all data/numbers
 
 ## Key Patterns
-- `usePrediction` starts with the dashboard skeleton, then resolves records +
-  signals in parallel and refreshes every 5 minutes. This avoids a stale local
-  estimate flashing before current data is available.
-- Signals: `getSignalsWithFallback` is three-tier — pipeline snapshot
-  (`VITE_PIPELINE_API_URL/api/signals`) → direct browser fetch → simulated.
-  Worker snapshot descriptions are i18n keys (`signals.*`) rendered via `t()`.
+- `usePrediction` starts with the dashboard skeleton, then resolves the fresh
+  Worker snapshot (signals plus verified history) and refreshes every 5
+  minutes. When the Worker is unavailable, it uses the bundled baseline rather
+  than opening a visitor-side Supabase request.
+- Signals: production uses the pipeline snapshot
+  (`VITE_PIPELINE_API_URL/api/signals`) and falls back locally when it is
+  unavailable; direct browser fetches remain local-development-only. Worker
+  snapshot descriptions are i18n keys (`signals.*`) rendered via `t()`.
   A snapshot older than 90 minutes (or implausibly future-dated) is unavailable,
   never `LIVE`.
 - Simulated-fallback honesty: when network sources fail, signals must say
@@ -180,8 +182,8 @@ src/
 ## Performance (do not regress)
 - Charts are hand-rolled SVG (ProbabilityCurve) — recharts was removed from
   the bundle; do not re-add a charting library without lazy-loading it
-- Supabase client is created lazily via `getSupabase()` dynamic import in
-  `lib/supabase.ts` — never use a top-level `createClient`
+- The browser never imports a Supabase client; verified history arrives from
+  the Worker snapshot so public database configuration stays out of the bundle
 - vite.config `manualChunks` lists ONLY eager vendors (react/ui); adding
   other deps there would force them onto the critical path
 - About page is route-level code-split in App.tsx

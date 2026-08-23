@@ -51,7 +51,7 @@
 
 ### 订阅 CTA（ResetAlertsPanel）
 - 主按钮用**实心反色块**：`bg-primary text-background` + mono uppercase 追踪加宽——全站唯一的主行动点，允许最响
-- 整体是一个**终端监视井**：单层描边容器（`border-border/40 bg-muted/20`，无圆角），头部是命令回显行（`❯ watch resets --threshold 70%`）+ 实时读数行（`now ███░░░ 24% → alert at 70%`，ASCII 条词汇与 Hero/SignalPanel 一致），`focus-within` 时整井边框染绿——像一条正在运行的 watch 命令
+- 整体是一个**终端监视井**：单层描边容器（`border-border/40 bg-muted/20`，无圆角），头部是命令回显行（`❯ watch confirmed-resets --channel email`）。提醒只在重置确认后投递，不显示不存在的预测阈值；`focus-within` 时整井边框染绿——像一条正在运行的 watch 命令
 - 标题右侧挂**布防状态标签**：已订阅或推送开启=反色块 `ARMED`（主色底深字），否则暗文字 `STANDBY`——状态词汇与信号雷达的反色标签同一语法
 - 输入行是井内命令行：`❯` 提示符 + 无边框透明输入（井本身已是容器，不再嵌套井）
 - 次级动作（推送开关）用**描边块**而非实心：`border-border/40` hover 提边色——层级次于主 CTA

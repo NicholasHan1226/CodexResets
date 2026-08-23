@@ -2,12 +2,13 @@ import { buildPushPayload, type PushMessage, type PushSubscription, type VapidKe
 import type { DeliveryLedger, Env, ResetEvent, RunReport } from './types';
 import type { ForecastCalibration } from './forecast';
 import { hasPrivilegedAccess, privListEmails, privListPush, privDeletePush, type PushSubRow } from './privileged';
-import { signToken, escapeHtml } from './util';
+import { signToken, escapeHtml, readTextWithin } from './util';
 
 const UNSUBSCRIBE_TTL_SECONDS = 30 * 24 * 60 * 60;
 const OUTBOUND_TIMEOUT_MS = 8_000;
 const DELIVERY_CONCURRENCY = 10;
 const MAX_DELIVERIES_PER_CHANNEL_RUN = 50;
+const PROVIDER_ERROR_MAX_BYTES = 8 * 1024;
 
 interface SubscriptionRow {
   email: string;
@@ -148,7 +149,10 @@ async function pendingRecipients<T>(
 // --- Email (Resend HTTPS API) ----------------------------------------------
 
 async function sendEmail(env: Env, email: string, event: ResetEvent): Promise<boolean> {
-  if (!env.RESEND_API_KEY) return false;
+  // A missing mail credential is a delivery failure, not a successful no-op:
+  // leaving the reset unmarked lets the next automated run recover after the
+  // credential is restored.
+  if (!env.RESEND_API_KEY) throw new Error('Resend email delivery is not configured');
   const expiresAt = Math.floor(Date.now() / 1000) + UNSUBSCRIBE_TTL_SECONDS;
   const token = env.UNSUBSCRIBE_SECRET ? await signToken(`${email.toLowerCase()}.${expiresAt}`, env.UNSUBSCRIBE_SECRET) : '';
   const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&x=${expiresAt}&t=${token}`;
@@ -169,7 +173,7 @@ async function sendEmail(env: Env, email: string, event: ResetEvent): Promise<bo
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
-  if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
   return true;
 }
 
@@ -188,7 +192,7 @@ export async function sendSubscriptionConfirmation(env: Env, email: string, toke
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
-  if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
 }
 
 /** Admin-only delivery exercise; it never reads subscribers or runs the pipeline. */
@@ -205,7 +209,7 @@ export async function sendTestEmail(env: Env, email: string): Promise<void> {
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
-  if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
 }
 
 /** Send an operations alert; callers are responsible for rate limiting. */
@@ -222,7 +226,7 @@ export async function sendHealthAlert(env: Env, report: RunReport): Promise<void
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
-  if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
 }
 
 /** A sparse operational review notice; model selection itself stays deterministic and automatic. */
@@ -239,7 +243,7 @@ export async function sendCalibrationAlert(env: Env, calibration: ForecastCalibr
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
-  if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
 }
 
 function emailHtml(env: Env, resetLocal: string, unsubUrl: string): string {
@@ -317,7 +321,9 @@ function calibrationAlertHtml(env: Env, calibration: ForecastCalibration): strin
 // --- Web Push (VAPID + aes128gcm via Web Crypto) ----------------------------
 
 async function sendPush(env: Env, row: PushSubRow, event: ResetEvent): Promise<'sent' | 'gone' | 'skipped'> {
-  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return 'skipped';
+  // As with email, do not mark an alert complete when configured Push
+  // subscribers could not receive it.
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) throw new Error('VAPID Push delivery is not configured');
 
   const vapid: VapidKeys = {
     subject: env.VAPID_SUBJECT,
@@ -350,4 +356,8 @@ async function sendPush(env: Env, row: PushSubRow, event: ResetEvent): Promise<'
 function workerBase(env: Env): string {
   // PUBLIC_URL is set after the first deploy (workers.dev subdomain)
   return (env as Env & { PUBLIC_URL?: string }).PUBLIC_URL || env.SITE_URL;
+}
+
+async function resendError(response: Response): Promise<string> {
+  return await readTextWithin(response, PROVIDER_ERROR_MAX_BYTES) ?? 'response body too large';
 }

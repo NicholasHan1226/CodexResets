@@ -494,6 +494,42 @@ describe('pipeline read endpoints', () => {
     }
   });
 
+  it('leaves a reset eligible for retry when email or Push delivery is not configured', async () => {
+    const emailFetch = vi.fn(async (input: string) => {
+      const url = String(input);
+      if (url.endsWith('/subscriptions?select=email&is_active=eq.true')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
+      if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth')) return new Response(JSON.stringify([]));
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', emailFetch);
+    try {
+      const emailResult = await notifyAll({ ...emailEnv(), RESEND_API_KEY: undefined }, {
+        id: 'reset-missing-email-config', ts: Date.now(), text: 'confirmed reset', link: '',
+      });
+      expect(emailResult).toMatchObject({ emails: 0, pending: false, errors: [expect.stringContaining('Resend email delivery is not configured')] });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    const pushFetch = vi.fn(async (input: string) => {
+      const url = String(input);
+      if (url.endsWith('/subscriptions?select=email&is_active=eq.true')) return new Response(JSON.stringify([]));
+      if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth')) {
+        return new Response(JSON.stringify([{ endpoint: 'https://fcm.googleapis.com/fcm/send/device', p256dh: 'a'.repeat(88), auth: 'b'.repeat(24) }]));
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', pushFetch);
+    try {
+      const pushResult = await notifyAll(emailEnv(), {
+        id: 'reset-missing-push-config', ts: Date.now(), text: 'confirmed reset', link: '',
+      });
+      expect(pushResult).toMatchObject({ pushes: 0, pending: false, errors: [expect.stringContaining('VAPID Push delivery is not configured')] });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('skips an immediate Push test only when VAPID is intentionally unavailable', async () => {
     await expect(sendPushSubscriptionTest(envWith({}), {
       endpoint: 'https://push.example.test/subscription',
@@ -1004,6 +1040,26 @@ describe('pipeline read endpoints', () => {
         to: ['ops@example.test'],
         subject: '[Action required] Codex Resets Worker health failed / 运行异常',
       });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('bounds an unexpected Resend error body before surfacing it', async () => {
+    const fetchMock = vi.fn(async () => new Response('x'.repeat(9 * 1024), { status: 503 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await expect(sendHealthAlert(emailEnv(), {
+        startedAt: '2026-08-22T13:30:00.000Z',
+        trigger: 'cron',
+        scrape: 'failed',
+        tweetsSeen: 0,
+        candidates: 0,
+        inserted: 0,
+        notifiedEmails: 0,
+        notifiedPush: 0,
+        errors: ['scrape: all sources unavailable'],
+      })).rejects.toThrow('response body too large');
     } finally {
       vi.unstubAllGlobals();
     }

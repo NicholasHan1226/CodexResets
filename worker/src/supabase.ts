@@ -1,4 +1,7 @@
 import type { Env } from './types';
+import { readTextWithin } from './util';
+
+const SUPABASE_ERROR_MAX_BYTES = 8 * 1024;
 
 /**
  * Minimal PostgREST client.
@@ -21,7 +24,10 @@ export function sb(env: Env, path: string, init: RequestInit = {}, useService = 
 
 export async function sbSelect<T>(env: Env, path: string, useService = false): Promise<T[]> {
   const res = await sb(env, path, {}, useService);
-  if (!res.ok) throw new Error(`select ${path} failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) {
+    const detail = await readTextWithin(res, SUPABASE_ERROR_MAX_BYTES) ?? 'response body too large';
+    throw new Error(`select ${path} failed: ${res.status} ${detail}`);
+  }
   return (await res.json()) as T[];
 }
 
