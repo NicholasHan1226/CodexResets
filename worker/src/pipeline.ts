@@ -209,7 +209,13 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
 
   // 5. Deliver only resets confirmed by this Worker. Historical/manual rows
   // remain model evidence but can never be replayed to all subscribers.
-  const records = allRecords.filter((record) => record.verified);
+  const recordNow = Date.now();
+  // Treat a future-dated database row as invalid input. Direct collection
+  // already rejects future posts, but this also protects the model and
+  // delivery loop from a malformed manual/database write.
+  const records = allRecords.filter((record) => (
+    record.verified && Number.isFinite(Date.parse(record.reset_date)) && Date.parse(record.reset_date) <= recordNow
+  ));
   try {
     await recordForecastSnapshot(env, records, Date.now());
     const calibration = await getForecastCalibration(env);
@@ -297,11 +303,13 @@ export function isDuplicateResetNotice(
 }
 
 /** Prevent a missed migration or an operator-added historical row from replaying alerts. */
-export function isAutomaticallyDeliverable(record: ResetRecordRow): boolean {
+export function isAutomaticallyDeliverable(record: ResetRecordRow, now = Date.now()): boolean {
   return record.verified
     && record.automated === true
     && record.auto_state === 'confirmed'
-    && !record.notified_at;
+    && !record.notified_at
+    && Number.isFinite(Date.parse(record.reset_date))
+    && Date.parse(record.reset_date) <= now;
 }
 
 /**
@@ -379,7 +387,7 @@ async function updateDeliveryMetrics(env: Env, report: RunReport): Promise<void>
  * forecast ledger. A sparse live table must not make the public cooldown
  * signal fall back to a different median from the prediction it accompanies.
  */
-export function computeSignalBaseline(records: ResetRecordRow[], cachedLatestResetTs = 0): {
+export function computeSignalBaseline(records: ResetRecordRow[], cachedLatestResetTs = 0, now = Date.now()): {
   latestResetTs: number;
   medianGapDays: number;
 } {
@@ -387,7 +395,7 @@ export function computeSignalBaseline(records: ResetRecordRow[], cachedLatestRes
     .filter((record) => record.verified && record.auto_state !== 'retracted')
     .flatMap((record) => {
       const timestamp = Date.parse(record.reset_date);
-      if (!Number.isFinite(timestamp)) return [];
+      if (!Number.isFinite(timestamp) || timestamp > now) return [];
       return [{
         id: record.id,
         date: new Date(timestamp).toISOString().slice(0, 10),
@@ -397,7 +405,10 @@ export function computeSignalBaseline(records: ResetRecordRow[], cachedLatestRes
       }];
     });
   const history = mergeResetEpisodes([...observed, ...RESET_HISTORY]);
-  const latestResetTs = Math.max(history[0]?.timestamp || 0, cachedLatestResetTs, SEED_RESET_TS);
+  const safeCachedLatestResetTs = Number.isFinite(cachedLatestResetTs) && cachedLatestResetTs <= now
+    ? cachedLatestResetTs
+    : 0;
+  const latestResetTs = Math.max(history[0]?.timestamp || 0, safeCachedLatestResetTs, SEED_RESET_TS);
   return {
     latestResetTs,
     medianGapDays: median(intervalDays(history), FALLBACK_MEDIAN_DAYS),

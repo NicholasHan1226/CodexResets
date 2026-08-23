@@ -49,6 +49,11 @@ describe('browser signal fallbacks', () => {
     expect(isCompletePipelineSnapshot({ generatedAt: now, signals }, now)).toBe(true);
     expect(isCompletePipelineSnapshot({ generatedAt: now, signals: signals.slice(0, 3) }, now)).toBe(false);
     expect(isCompletePipelineSnapshot({ generatedAt: now, signals: [...signals.slice(0, 3), { ...signals[3], source: 'cooldown', value: 2 }] }, now)).toBe(false);
+    expect(isCompletePipelineSnapshot({
+      generatedAt: now,
+      signals,
+      history: [{ id: 'future-reset', reset_date: new Date(now + 6 * 60 * 1000).toISOString(), verified: true }],
+    }, now)).toBe(false);
   });
 
   it('accepts an explicit force flag for a manual pipeline refresh', async () => {

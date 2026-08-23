@@ -49,7 +49,8 @@ export function isFreshPipelineSnapshot(generatedAt: unknown, now = Date.now()):
  * display value is safe to render.
  */
 export function isCompletePipelineSnapshot(snapshot: Partial<PipelineSnapshot>, now = Date.now()): snapshot is PipelineSnapshot {
-  if (!isFreshPipelineSnapshot(snapshot.generatedAt, now)
+  const generatedAt = snapshot.generatedAt;
+  if (!isFreshPipelineSnapshot(generatedAt, now)
     || !Array.isArray(snapshot.signals)
     || snapshot.signals.length !== PIPELINE_SIGNAL_SOURCES.length) return false;
 
@@ -65,6 +66,11 @@ export function isCompletePipelineSnapshot(snapshot: Partial<PipelineSnapshot>, 
       || signal.updatedAt > now + 5 * 60 * 1000) return false;
     seen.add(signal.source);
   }
+  if (snapshot.history !== undefined && (!Array.isArray(snapshot.history) || snapshot.history.some((row) => {
+    const timestamp = row && typeof row.reset_date === 'string' ? Date.parse(row.reset_date) : Number.NaN;
+    return !row || typeof row.id !== 'string' || row.verified !== true || !Number.isFinite(timestamp)
+      || timestamp > generatedAt + 5 * 60 * 1000;
+  }))) return false;
   return seen.size === PIPELINE_SIGNAL_SOURCES.length;
 }
 
@@ -362,7 +368,7 @@ export async function getDashboardInputs(simulatedSignals: ResetSignal[], force 
       signals: pipeline.signals,
       hasRealData: true,
       generatedAt: pipeline.generatedAt,
-      records: parsePipelineHistory(pipeline.history),
+      records: parsePipelineHistory(pipeline.history, pipeline.generatedAt),
     };
   }
 
@@ -397,13 +403,13 @@ export async function getSignalsWithFallback(simulatedSignals: ResetSignal[]): P
   return { signals, hasRealData };
 }
 
-function parsePipelineHistory(history: PipelineHistoryRow[] | undefined): ResetRecord[] | null {
+function parsePipelineHistory(history: PipelineHistoryRow[] | undefined, generatedAt: number): ResetRecord[] | null {
   if (!history) return null;
   const records: ResetRecord[] = [];
   for (const row of history) {
     if (!row || typeof row.id !== 'string' || typeof row.reset_date !== 'string' || row.verified !== true) continue;
     const timestamp = Date.parse(row.reset_date);
-    if (!Number.isFinite(timestamp)) continue;
+    if (!Number.isFinite(timestamp) || timestamp > generatedAt + 5 * 60 * 1000) continue;
     records.push({
       id: row.id,
       date: new Date(timestamp).toISOString().slice(0, 10),

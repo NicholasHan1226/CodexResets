@@ -153,6 +153,30 @@ describe('reset episode forecasting', () => {
     expect(snapshot.strongDirectSignal).toBeUndefined();
   });
 
+  it('excludes future-dated rows from a production forecast snapshot', async () => {
+    const now = Date.parse('2026-08-20T00:00:00Z');
+    const rows: ResetRecordRow[] = Array.from({ length: 6 }, (_, index) => ({
+      id: `past-${index}`,
+      reset_date: new Date(now - (index + 1) * 4 * DAY_MS).toISOString(),
+      source_url: null,
+      description: 'verified reset',
+      verified: true,
+      auto_state: 'confirmed',
+    }));
+    const createEnv = () => {
+      const cache: Record<string, string> = {};
+      return { cache, env: { CACHE: { get: async (key: string) => cache[key] ?? null, put: async (key: string, value: string) => { cache[key] = value; } } } as unknown as Env };
+    };
+    const clean = createEnv();
+    const malformed = createEnv();
+    await recordForecastSnapshot(clean.env, rows, now);
+    await recordForecastSnapshot(malformed.env, [{
+      id: 'future-row', reset_date: new Date(now + 30 * DAY_MS).toISOString(), source_url: null, description: 'invalid future reset', verified: true, auto_state: 'confirmed',
+    }, ...rows], now);
+
+    expect(JSON.parse(malformed.cache['forecast:latest'] || '{}')).toMatchObject(JSON.parse(clean.cache['forecast:latest'] || '{}'));
+  });
+
   it('starts future-only production scoring with a sparse live database', async () => {
     const cache: Record<string, string> = {};
     const env = {

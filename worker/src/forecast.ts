@@ -72,12 +72,15 @@ export interface ForecastDecisionAccuracy {
   status: 'collecting' | 'passed' | 'below_target';
 }
 
-function toForecastRecords(records: ResetRecordRow[]): ResetRecord[] {
+function toForecastRecords(records: ResetRecordRow[], now: number): ResetRecord[] {
   return records
     .filter((record) => record.verified && record.auto_state !== 'retracted')
     .flatMap((record) => {
       const timestamp = Date.parse(record.reset_date);
-      if (!Number.isFinite(timestamp)) return [];
+      // Forecasts are forward-looking. A malformed or manually entered
+      // future row must never become information the model had "already"
+      // seen when this snapshot was made.
+      if (!Number.isFinite(timestamp) || timestamp > now) return [];
       return [{
         id: record.id,
         date: new Date(timestamp).toISOString().slice(0, 10),
@@ -186,7 +189,7 @@ export async function recordForecastSnapshotInStore(
   rows: ResetRecordRow[],
   now = Date.now(),
 ): Promise<void> {
-  const observedRecords = toForecastRecords(rows);
+  const observedRecords = toForecastRecords(rows, now);
   const records = recordsForModel(observedRecords, now);
   if (records.length < 4) return;
 

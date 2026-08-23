@@ -124,6 +124,17 @@ describe('pipeline read endpoints', () => {
     expect(baseline.medianGapDays).toBe(expected);
   });
 
+  it('keeps future-dated database rows out of the public signal baseline', () => {
+    const now = Date.parse('2026-08-23T00:00:00Z');
+    const liveReset = now - 2 * 24 * 60 * 60 * 1000;
+    const baseline = computeSignalBaseline([
+      { id: 'live-reset', reset_date: new Date(liveReset).toISOString(), source_url: null, description: null, verified: true, auto_state: 'confirmed' },
+      { id: 'future-reset', reset_date: new Date(now + 24 * 60 * 60 * 1000).toISOString(), source_url: null, description: null, verified: true, auto_state: 'confirmed' },
+    ], now + 2 * 24 * 60 * 60 * 1000, now);
+
+    expect(baseline.latestResetTs).toBe(liveReset);
+  });
+
   it('exposes only the binary forecast release gate to automation', async () => {
     const collecting = await handleReleaseStatus(envWith({}));
     await expect(collecting.json()).resolves.toEqual({ ready: false });
@@ -837,6 +848,7 @@ describe('pipeline read endpoints', () => {
     expect(isAutomaticallyDeliverable({ ...base, automated: true, auto_state: 'confirmed' })).toBe(true);
     expect(isAutomaticallyDeliverable({ ...base, auto_state: 'confirmed' })).toBe(false);
     expect(isAutomaticallyDeliverable({ ...base, automated: true, auto_state: 'confirmed', notified_at: '2026-08-22T00:01:00.000Z' })).toBe(false);
+    expect(isAutomaticallyDeliverable({ ...base, automated: true, auto_state: 'confirmed', reset_date: '2026-08-23T00:00:00.000Z' }, Date.parse('2026-08-22T00:00:00.000Z'))).toBe(false);
   });
 
   it('uses Google News as a healthy degraded source when every social mirror is unavailable', async () => {
