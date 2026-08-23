@@ -88,13 +88,24 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
     return { ...point, timestamp: pointDate.getTime() };
   });
 
-  // Filter to the selected window. History must be >= the 3h point spacing,
-  // otherwise NOW falls off the left edge for ~1h out of every 3h.
+  // Forecast samples begin three hours in the future. Add the exact current
+  // moment as a zero-length forecast so the user always has a truthful visual
+  // position: the NOW marker is the left edge of the forward-looking window.
+  const nowAnchor = {
+    date: now.toISOString().slice(0, 10),
+    hour: now.getUTCHours(),
+    probability: 0,
+    timestamp: nowTimestamp,
+  };
+  const chartPoints = [nowAnchor, ...allData];
+
+  // Filter to the selected forward-looking window while retaining the exact
+  // now anchor. This avoids losing the current-time marker between 3h samples.
   const chartData = hours
-    ? allData.filter(
+    ? chartPoints.filter(
         (p) => p.timestamp >= nowTimestamp - 4 * HOUR && p.timestamp <= nowTimestamp + hours * HOUR
       )
-    : allData;
+    : chartPoints;
 
   if (chartData.length === 0) return null;
 
