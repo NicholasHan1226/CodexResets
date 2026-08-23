@@ -85,6 +85,7 @@ export function ProbabilityCurve({ curve, hours, officialSchedule }: Probability
     return () => clearInterval(id);
   }, []);
   if (officialSchedule) {
+    const nowLocalLabel = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
     const relation = officialSchedule.window === 'within'
       ? 'curve.scheduleWithin'
       : officialSchedule.window === 'after'
@@ -109,11 +110,12 @@ export function ProbabilityCurve({ curve, hours, officialSchedule }: Probability
               ? t('curve.scheduleTarget', { time: officialSchedule.targetLabel })
               : t('curve.schedulePending')}
           </p>
-          {officialSchedule.countdownLabel && (
-            <p className="mt-2 font-mono text-xs text-muted-foreground">
-              {officialSchedule.countdownLabel}
-            </p>
-          )}
+          <p className="mt-2 font-mono text-xs text-muted-foreground">
+            {t('curve.scheduleNow', { time: nowLocalLabel })}
+            {officialSchedule.countdownLabel && (
+              <span className="text-muted-foreground/60"> · {officialSchedule.countdownLabel}</span>
+            )}
+          </p>
         </div>
       </section>
     );
