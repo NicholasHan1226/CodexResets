@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { generatePrediction } from "@/lib/prediction";
 import { getDashboardInputs } from "@/lib/signal-fetcher";
 import type { ResetPrediction, ResetRecord } from "@/types/reset";
@@ -19,10 +19,14 @@ export function usePrediction() {
   const [resetRecords, setResetRecords] = useState<ResetRecord[]>([]);
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [usingRealData, setUsingRealData] = useState(false);
+  // A manual refresh may overlap the initial/periodic refresh. Only the most
+  // recently started request is allowed to update the dashboard state.
+  const latestRefreshId = useRef(0);
   // Honest badge: LIVE only when a fresh Worker signal snapshot was received.
   const isLive = usingRealData;
 
   const refresh = useCallback(async (force = false) => {
+    const refreshId = ++latestRefreshId.current;
     setSignalsLoading(true);
     
     try {
@@ -31,6 +35,7 @@ export function usePrediction() {
       // it is unavailable, use the local baseline immediately rather than
       // opening a second cross-origin database request on the visitor path.
       const records = snapshotRecords ?? [];
+      if (refreshId !== latestRefreshId.current) return;
       setResetRecords(records);
       setUsingRealData(hasRealData);
 
@@ -39,13 +44,14 @@ export function usePrediction() {
       setPrediction(generatePrediction(records, signals));
     } catch (error) {
       console.warn('Error refreshing prediction:', error);
+      if (refreshId !== latestRefreshId.current) return;
       // Fall back to simulated data — timestamp it honestly so the header's
       // "updated Xm ago" reflects this refresh, not a stale generation time.
       const data = generatePrediction();
       setPrediction({ ...data, generatedAt: Date.now() });
       setUsingRealData(false);
     } finally {
-      setSignalsLoading(false);
+      if (refreshId === latestRefreshId.current) setSignalsLoading(false);
     }
   }, []);
 
