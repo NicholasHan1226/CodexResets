@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible problem with the dashboard or pipeline.
+title: "bug: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include API keys, tokens, email addresses, Push endpoints, or private logs.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Dashboard
+        - Subscription or notification flow
+        - Public API
+        - Pipeline
+        - Documentation
+    validations:
+      required: true
+  - type: input
+    id: location
+    attributes:
+      label: Page or endpoint
+      placeholder: https://codexresets.cc/ or /api/health
+    validations:
+      required: true
+  - type: input
+    id: observed_at
+    attributes:
+      label: Observed time and timezone
+      placeholder: 2026-08-23 14:30 Asia/Shanghai
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Select …
+        3. Observe …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true

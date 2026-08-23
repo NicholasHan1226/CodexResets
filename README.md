@@ -278,3 +278,8 @@ states for diagnosis.
 
 [MIT](LICENSE) — reuse, modification, and commercial distribution are allowed
 when the copyright and license notice are retained.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the project scope, local quality
+gate, and safe bug-reporting guidance.
