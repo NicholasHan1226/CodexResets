@@ -289,6 +289,9 @@ export function isDuplicateResetNotice(
   candidate: ResetEvent,
 ): boolean {
   if (existing.link && existing.link === candidate.link) return true;
+  // Legacy/manual records without the announcement text have no reliable
+  // type. Do not invent one and accidentally suppress a new official notice.
+  if (!existing.text.trim()) return false;
   if (!Number.isFinite(existing.ts) || Math.abs(existing.ts - candidate.ts) >= 6 * HOUR) return false;
   return classifyResetNotification(existing.text) === classifyResetNotification(candidate.text);
 }

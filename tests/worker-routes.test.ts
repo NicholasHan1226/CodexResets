@@ -750,6 +750,7 @@ describe('pipeline read endpoints', () => {
     expect(isDuplicateResetNotice(banked, repeatedBanked)).toBe(true);
     expect(isDuplicateResetNotice(banked, direct)).toBe(false);
     expect(isDuplicateResetNotice(banked, { ...direct, link: banked.link })).toBe(true);
+    expect(isDuplicateResetNotice({ ts: now, link: '', text: '' }, direct)).toBe(false);
   });
 
   it('uses Google News as a healthy degraded source when every social mirror is unavailable', async () => {
