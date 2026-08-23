@@ -119,7 +119,7 @@
   .hero-stage::before {
     position: absolute;
     z-index: -1;
-    inset: -1.25rem -1.5rem;
+    inset: -1.25rem 0;
     content: '';
     pointer-events: none;
     background: radial-gradient(ellipse 58% 74% at 14% 42%, hsl(var(--primary) / 0.09), transparent 72%);
