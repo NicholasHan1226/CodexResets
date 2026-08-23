@@ -20,7 +20,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.daysAgo': 'days ago',
     'hero.flatNote': 'Waiting longer does not raise the odds — the 24h number stays flat while the quiet stretch runs.',
     'hero.medianGap': 'median gap',
-    'hero.adviceLabel': 'Advice —',
+    'hero.adviceLabel': 'Advice:',
     'hero.probLabel': 'reset probability',
     'hero.withinHours': 'within next {n}h',
     'hero.windowShort': 'likely window',
@@ -285,7 +285,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.daysAgo': '天前',
     'hero.flatNote': '等待不会提高概率——在平静期内，24 小时数值保持不变。',
     'hero.medianGap': '中位间隔',
-    'hero.adviceLabel': '建议 —',
+    'hero.adviceLabel': '建议：',
     'hero.probLabel': '重置概率',
     'hero.withinHours': '未来 {n} 小时内',
     'hero.windowShort': '最可能窗口',
@@ -305,10 +305,10 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.prob48hHint': '最可能窗口进入 48h 射程',
 
     // Planning advice
-    'advice.wait': '重置概率高——重任务建议等重置后再跑。',
-    'advice.cautious': '概率中等——关键任务节省使用。',
-    'advice.use_freely': '近期概率低——正常使用即可。',
-    'advice.approaching': '接近历史间隔中位数——提前规划用量。',
+    'advice.wait': '重置概率高，重任务建议等重置后再跑。',
+    'advice.cautious': '概率中等，关键任务节省使用。',
+    'advice.use_freely': '近期概率低，正常使用即可。',
+    'advice.approaching': '接近历史间隔中位数，提前规划用量。',
 
     // Header
     'app.title': 'Codex 重置预判',
