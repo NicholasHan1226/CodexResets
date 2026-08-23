@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { probabilityWithin, scoreForecastModels, scoreHighConfidenceDecisions, selectForecastModel } from '../src/lib/forecast-model';
 import { mergeResetEpisodes } from '../src/lib/reset-episodes';
 import { MIN_CALENDAR_RECORDS, RESET_HISTORY, shouldShowResetCalendar } from '../src/lib/reset-data';
+import { generatePrediction } from '../src/lib/prediction';
 import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
 import { ForecastLedger } from '../worker/src/forecast-ledger';
 import type { Env, ResetRecordRow } from '../worker/src/types';
@@ -53,6 +54,18 @@ describe('reset episode forecasting', () => {
     const now = history[0].timestamp + 3 * DAY_MS;
     expect(probabilityWithin(history, 'logistic', now, 24)).toBeGreaterThan(0);
     expect(probabilityWithin(history, 'logistic', now + 30 * DAY_MS, 48)).toBeLessThanOrEqual(0.9);
+  });
+
+  it('keeps the displayed 24h and 48h totals consistent with the probability curve', () => {
+    const prediction = generatePrediction(regularHistory());
+    const probabilityIn = (hours: number) => prediction.curve
+      .slice(0, hours / 3)
+      .reduce((sum, point) => sum + point.probability, 0);
+
+    // Curve points are rounded to 0.1 percentage points, so permit only the
+    // tiny aggregate rounding error that can appear across 16 buckets.
+    expect(Math.abs(probabilityIn(24) - prediction.prob24h)).toBeLessThanOrEqual(0.01);
+    expect(Math.abs(probabilityIn(48) - prediction.prob48h)).toBeLessThanOrEqual(0.02);
   });
 
   it('records a history-only production forecast snapshot', async () => {
