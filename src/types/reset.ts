@@ -26,7 +26,7 @@ export interface ResetSignal {
   value: number;
   /** Signal status */
   status: "active" | "weak" | "idle";
-  /** Last updated timestamp */
+  /** Time of the source observation; snapshot generation is carried separately. */
   updatedAt: number;
   /** Optional link to source */
   sourceUrl?: string;

@@ -46,7 +46,10 @@ export function StatusHeader({ prediction, isLive, isRefreshing, onRefresh, onSh
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <h1 className="shrink-0 whitespace-nowrap font-mono text-[11px] font-semibold text-foreground sm:text-sm">{t('app.title')}</h1>
           {!isRefreshing && (
-            <span className="flex shrink-0 items-center gap-1.5" aria-label={isLive ? 'Live data' : 'Simulated data'}>
+            <span
+              className="flex shrink-0 items-center gap-1.5"
+              aria-label={isLive ? t('signals.liveData') : t('signals.fallbackData')}
+            >
               <span className={`w-1.5 h-1.5 rounded-full ${
                 isLive ? 'bg-primary live-dot' : 'bg-muted-foreground/40'
               }`} />

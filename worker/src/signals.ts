@@ -107,13 +107,24 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
   }
 
   const latest = scrape.tweets[0];
+  // `generatedAt` tells the browser when this snapshot was refreshed. The
+  // radar's relative time must instead tell visitors when the source post was
+  // written; otherwise an old official notice looks newly published on every
+  // cron tick. Reject future/invalid source timestamps rather than turning
+  // them into an active signal.
+  const ageInHours = (tweet: typeof latest | undefined): number | null => {
+    if (!tweet || !Number.isFinite(tweet.ts) || tweet.ts > now) return null;
+    return Math.floor((now - tweet.ts) / HOUR);
+  };
+  const observedAt = (tweet: typeof latest | undefined): number =>
+    ageInHours(tweet) === null ? now : tweet!.ts;
   // Confirmed reset notices retain the strict detector context. A separate
   // future-tense official schedule can lift the public planning signal, but
   // is never passed to the event detector or notification pipeline.
   const latestResetTweet = scrape.tweets.find((t) => RESET_RE.test(t.text) && CONTEXT_RE.test(t.text));
-  const hoursSinceResetMention = latestResetTweet ? Math.floor((now - latestResetTweet.ts) / HOUR) : null;
+  const hoursSinceResetMention = ageInHours(latestResetTweet);
   const scheduledResetTweet = scrape.tweets.find((t) => isScheduledResetAnnouncement(t.text));
-  const hoursSinceScheduledReset = scheduledResetTweet ? Math.floor((now - scheduledResetTweet.ts) / HOUR) : null;
+  const hoursSinceScheduledReset = ageInHours(scheduledResetTweet);
 
   if (
     hoursSinceResetMention !== null &&
@@ -127,6 +138,7 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
       value: 0.9,
       description: 'signals.resetAnnounced',
       descriptionParams: { n: hoursSinceResetMention },
+      updatedAt: observedAt(latestResetTweet),
     };
   }
   if (hoursSinceScheduledReset !== null && hoursSinceScheduledReset < SCHEDULED_RESET_SIGNAL_TTL_HOURS) {
@@ -135,6 +147,7 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
       status: 'active',
       value: 0.8,
       description: 'signals.resetScheduled',
+      updatedAt: observedAt(scheduledResetTweet),
     };
   }
   if (hoursSinceResetMention !== null && hoursSinceResetMention < 24 * 7) {
@@ -144,19 +157,21 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
       value: 0.4,
       description: 'signals.resetMentionedDays',
       descriptionParams: { n: Math.floor(hoursSinceResetMention / 24) },
+      updatedAt: observedAt(latestResetTweet),
     };
   }
 
-  const hoursSincePost = Math.floor((now - latest.ts) / HOUR);
-  if (hoursSincePost < 24) {
-    return { ...base, status: 'weak', value: 0.2, description: 'signals.activeToday' };
+  const hoursSincePost = ageInHours(latest);
+  if (hoursSincePost !== null && hoursSincePost < 24) {
+    return { ...base, status: 'weak', value: 0.2, description: 'signals.activeToday', updatedAt: observedAt(latest) };
   }
   return {
     ...base,
     status: 'idle',
     value: 0.08,
     description: 'signals.lastPostDays',
-    descriptionParams: { n: Math.floor(hoursSincePost / 24) },
+    descriptionParams: { n: hoursSincePost === null ? 0 : Math.floor(hoursSincePost / 24) },
+    updatedAt: observedAt(latest),
   };
 }
 

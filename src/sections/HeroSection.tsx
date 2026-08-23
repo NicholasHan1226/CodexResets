@@ -77,7 +77,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
       hours: timeframe,
       daysSince: prediction.daysSinceLastReset,
       medianDays: prediction.medianIntervalDays,
-    });
+    }, locale);
     // Mobile: native share sheet. Desktop: copy summary + link.
     if (canNativeShare()) {
       const ok = await shareViaWebAPI(t('app.title'), summary, shareUrl());

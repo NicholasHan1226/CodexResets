@@ -16,7 +16,7 @@ import { shouldShowResetCalendar } from "@/lib/reset-data";
 
 export default function Home() {
   const { prediction, isLive, signalsLoading, refresh } = usePrediction();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [timeframe, setTimeframe] = useState<24 | 48>(24);
 
   if (!prediction) {
@@ -32,7 +32,7 @@ export default function Home() {
       hours: timeframe,
       daysSince: prediction.daysSinceLastReset,
       medianDays: prediction.medianIntervalDays,
-    });
+    }, locale);
     await copyToClipboard(`${text}\n${shareUrl()}`);
   };
 

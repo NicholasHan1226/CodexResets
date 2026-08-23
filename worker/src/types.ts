@@ -69,6 +69,7 @@ export interface SignalSnapshot {
   value: number;
   description: string;
   descriptionParams?: Record<string, string | number>;
+  /** Source observation time; `SignalsPayload.generatedAt` is the snapshot refresh time. */
   updatedAt: number;
   sourceUrl?: string;
 }

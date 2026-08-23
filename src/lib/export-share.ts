@@ -12,9 +12,15 @@ export function buildShareSummary(state: {
   hours: 24 | 48;
   daysSince: number;
   medianDays: number;
-}): string {
+}, locale: 'en' | 'zh' = 'en'): string {
   const filled = Math.max(0, Math.min(10, Math.round((state.pct / 100) * 10)));
   const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
+  if (locale === 'zh') {
+    return [
+      `Codex 重置预判 ❯ 未来 ${state.hours} 小时 ${state.pct}%`,
+      `${bar} ${state.pct}% · 已等待 ${state.daysSince.toFixed(1)} 天 · 中位间隔 ${state.medianDays.toFixed(1)} 天`,
+    ].join('\n');
+  }
   return [
     `codex resets ❯ ${state.pct}% in ${state.hours}h`,
     `${bar} ${state.pct}% · waited ${state.daysSince.toFixed(1)}d · median ${state.medianDays.toFixed(1)}d`,

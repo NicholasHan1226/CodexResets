@@ -253,6 +253,7 @@ describe('pipeline read endpoints', () => {
       status: 'active',
       value: 0.8,
       description: 'signals.resetScheduled',
+      updatedAt: scheduled.ts,
     });
     expect(detectResetEvents([scheduled])).toEqual({ strong: [], weak: [] });
 
