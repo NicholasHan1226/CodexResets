@@ -92,18 +92,22 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
 
       {/* Meta — one quiet line */}
       <p className="mt-8 font-mono text-xs text-muted-foreground/80">
-        {t('hero.lastResetLabel')}{' '}
-        <span className="text-foreground">{daysSince.toFixed(1)}d</span>
-        {lastResetStr && <span className="text-muted-foreground/50"> ({lastResetStr})</span>}
-        <span className="mx-2 text-border">·</span>
-        {t('hero.medianGap')}{' '}
-        <span className="text-foreground">{prediction.medianIntervalDays.toFixed(1)}d</span>
+        <span className="mr-2 inline-block whitespace-nowrap">
+          {t('hero.lastResetLabel')}{' '}
+          <span className="text-foreground">{daysSince.toFixed(1)}d</span>
+          {lastResetStr && <span className="text-muted-foreground/50"> ({lastResetStr})</span>}
+        </span>
+        <span className="mr-2 inline-block whitespace-nowrap">
+          <span className="mr-2 text-border">·</span>
+          {t('hero.medianGap')}{' '}
+          <span className="text-foreground">{prediction.medianIntervalDays.toFixed(1)}d</span>
+        </span>
         {windowStr && (
-          <>
-            <span className="mx-2 text-border">·</span>
+          <span className="inline-block whitespace-nowrap">
+            <span className="mr-2 text-border">·</span>
             {t('hero.windowShort')}{' '}
             <span className="text-foreground">{windowStr}</span>
-          </>
+          </span>
         )}
       </p>
 

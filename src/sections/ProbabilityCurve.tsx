@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ProbabilityPoint } from "@/types/reset";
 import { useI18n } from "@/contexts/I18nContext";
 
@@ -158,9 +158,9 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
   const pillX = clamp(nowX, pillW / 2, Math.max(pillW / 2, width - pillW / 2));
 
   // --- Hover -----------------------------------------------------------------
-  const handleMove = (e: ReactMouseEvent<SVGSVGElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const ts = minTs + ((e.clientX - rect.left - PAD.left) / plotW) * range;
+  const closestPointIndex = (clientX: number, element: SVGSVGElement) => {
+    const rect = element.getBoundingClientRect();
+    const ts = minTs + ((clientX - rect.left - PAD.left) / plotW) * range;
     let best = 0;
     let bestDist = Infinity;
     chartData.forEach((p, i) => {
@@ -170,7 +170,30 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
         best = i;
       }
     });
-    setHoverIdx(best);
+    return best;
+  };
+
+  const nearestNowIndex = chartData.reduce(
+    (best, point, index) => Math.abs(point.timestamp - nowTimestamp) < Math.abs(chartData[best].timestamp - nowTimestamp) ? index : best,
+    0
+  );
+
+  const handlePointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (e.clientX < rect.left || e.clientX > rect.right) return;
+    setHoverIdx(closestPointIndex(e.clientX, e.currentTarget));
+  };
+
+  const handleKeyDown = (e: ReactKeyboardEvent<SVGSVGElement>) => {
+    const current = hoverIdx ?? nearestNowIndex;
+    let next: number | null = null;
+    if (e.key === 'ArrowLeft') next = Math.max(0, current - 1);
+    if (e.key === 'ArrowRight') next = Math.min(chartData.length - 1, current + 1);
+    if (e.key === 'Home') next = 0;
+    if (e.key === 'End') next = chartData.length - 1;
+    if (next === null) return;
+    e.preventDefault();
+    setHoverIdx(next);
   };
 
   const hoverPoint = hoverIdx !== null ? chartData[hoverIdx] : null;
@@ -199,11 +222,19 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
             <svg
               width={width}
               height={height}
-              className="block cursor-crosshair"
-              onMouseMove={handleMove}
-              onMouseLeave={() => setHoverIdx(null)}
-              role="img"
+              className="block cursor-crosshair touch-pan-y"
+              onPointerMove={handlePointerMove}
+              onPointerDown={handlePointerMove}
+              onPointerLeave={(e) => {
+                if (e.pointerType === 'mouse') setHoverIdx(null);
+              }}
+              onFocus={() => setHoverIdx((current) => current ?? nearestNowIndex)}
+              onBlur={() => setHoverIdx(null)}
+              onKeyDown={handleKeyDown}
+              tabIndex={0}
+              role="group"
               aria-label={t("curve.subtitle")}
+              aria-describedby="curve-explorer-status"
             >
               <defs>
                 <linearGradient id="probGradient" x1="0" y1="0" x2="0" y2="1">
@@ -364,6 +395,11 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
               </p>
             </div>
           )}
+          <p id="curve-explorer-status" className="sr-only" aria-live="polite">
+            {hoverPoint && hoverLocal
+              ? `${hoverLocal.getFullYear()}-${String(hoverLocal.getMonth() + 1).padStart(2, "0")}-${String(hoverLocal.getDate()).padStart(2, "0")} ${String(hoverLocal.getHours()).padStart(2, "0")}:00, ${Math.round(hoverPoint.probability * 100)}%`
+              : ''}
+          </p>
         </div>
 
         {/* Inline readout — answers "where am I on this curve" even at a glance */}

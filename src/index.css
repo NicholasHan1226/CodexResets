@@ -138,6 +138,22 @@
   .command-action:active {
     transform: translateY(1px);
   }
+  .nav-command-link {
+    display: inline-flex;
+    padding: 0.125rem 0.2rem;
+    color: hsl(var(--muted-foreground));
+    transition: color 180ms cubic-bezier(0.16, 1, 0.3, 1), background-color 180ms cubic-bezier(0.16, 1, 0.3, 1), transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .nav-command-link:hover,
+  .nav-command-link.is-active {
+    color: hsl(var(--primary));
+  }
+  .nav-command-link.is-active {
+    background: hsl(var(--primary) / 0.09);
+  }
+  .nav-command-link:active {
+    transform: translateY(1px);
+  }
   /* Skip rendering work for below-fold sections until scrolled near */
   .cv-auto {
     content-visibility: auto;
