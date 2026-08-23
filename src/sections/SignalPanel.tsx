@@ -88,7 +88,7 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
         <AsciiBar value={composite} length={16} className="text-primary" />
         <span className="text-sm font-semibold text-foreground">{t(`signals.strength.${strength}`)}</span>
         <span className="text-muted-foreground/60">
-          · {t('signals.activeCount', { a: activeCount, n: total })}
+          · {t('signals.strongCount', { a: activeCount, n: total })}
         </span>
       </div>
 

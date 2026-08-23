@@ -25,8 +25,13 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
 
   const lastResetDate = prediction.lastReset ? new Date(prediction.lastReset) : null;
   const daysSince = prediction.daysSinceLastReset;
-  // Keep the verdict aligned with the horizon the visitor selected.
-  const isLikely = pct >= 50;
+  // The wording tracks probability bands: a middle range should not read as
+  // either a dismissal or a guarantee.
+  const verdictKey = pct >= 60
+    ? 'hero.answerYes'
+    : pct >= 30
+      ? 'hero.answerWatch'
+      : 'hero.answerNo';
   const officialSignal = prediction.signals.find((signal) => signal.source === 'tibopost');
   const signalCopy = officialSignal?.status === 'active'
     ? 'hero.signalYes'
@@ -85,7 +90,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
       <p className="font-mono text-sm text-muted-foreground">
         <span className="text-primary">❯</span> {t('hero.question', { n: timeframe })} →{' '}
         <span className="text-foreground font-semibold">
-          {isLikely ? t('hero.answerYes') : t('hero.answerNo')}
+          {t(verdictKey)}
         </span>{' '}
         <span className="text-muted-foreground/50">
           ({t(signalCopy)})
@@ -124,14 +129,17 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
         {t(`advice.${prediction.advice[timeframe].level}`)}
       </p>
 
-      {/* Share — one button */}
-      <p className="mt-4 font-mono text-xs">
+      {/* Low-friction actions — subscription remains the page's only solid CTA. */}
+      <p className="mt-4 flex flex-wrap gap-2 font-mono text-xs">
         <button
           onClick={handleShare}
           className="command-action text-primary"
         >
           {copied ? t('hero.copied') : t('hero.shareLink')}
         </button>
+        <a href="#alerts" className="command-action text-muted-foreground hover:text-foreground">
+          {t('hero.alertLink')}
+        </a>
       </p>
     </section>
   );
