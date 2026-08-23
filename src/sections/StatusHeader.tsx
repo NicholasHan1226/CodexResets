@@ -43,7 +43,7 @@ export function StatusHeader({ prediction, isLive, isRefreshing, onRefresh, onSh
       <div className="mx-auto flex min-h-12 max-w-4xl items-center justify-between gap-3 px-3 py-2 sm:px-4 md:px-6">
         {/* Left: Title + status */}
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <span className="shrink-0 whitespace-nowrap font-mono text-[11px] font-semibold text-foreground sm:text-sm">{t('app.title')}</span>
+          <h1 className="shrink-0 whitespace-nowrap font-mono text-[11px] font-semibold text-foreground sm:text-sm">{t('app.title')}</h1>
           {!isRefreshing && (
             <span className="flex shrink-0 items-center gap-1.5" aria-label={isLive ? 'Live data' : 'Simulated data'}>
               <span className={`w-1.5 h-1.5 rounded-full ${
@@ -67,21 +67,21 @@ export function StatusHeader({ prediction, isLive, isRefreshing, onRefresh, onSh
 
           <Link
             to="/about"
-            className="hidden font-mono text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline"
+            className="hidden min-h-11 items-center font-mono text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
           >
             [docs]
           </Link>
 
           <a
             href={locale === 'zh' ? '/zh/codex-reset-prediction/' : '/guides/codex-reset-prediction/'}
-            className="hidden font-mono text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline"
+            className="hidden min-h-11 items-center font-mono text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
           >
             [{t('header.guide')}]
           </a>
 
           <button
             onClick={() => setLocale(locale === 'en' ? 'zh' : 'en')}
-            className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
             aria-label={t('header.language')}
           >
             {locale === 'en' ? '[中文]' : '[EN]'}
@@ -90,7 +90,7 @@ export function StatusHeader({ prediction, isLive, isRefreshing, onRefresh, onSh
           {onShare && (
             <button
               onClick={onShare}
-              className="hidden font-mono text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline"
+              className="hidden min-h-11 items-center font-mono text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
               aria-label={t('header.share')}
             >
               [share]
@@ -101,7 +101,7 @@ export function StatusHeader({ prediction, isLive, isRefreshing, onRefresh, onSh
             onClick={onRefresh}
             disabled={isRefreshing}
             aria-busy={isRefreshing}
-            className="font-mono text-xs text-muted-foreground transition-[color,transform] hover:text-foreground active:translate-y-px disabled:cursor-wait disabled:opacity-70"
+            className="inline-flex min-h-11 items-center justify-center font-mono text-xs text-muted-foreground transition-[color,transform] hover:text-foreground active:translate-y-px disabled:cursor-wait disabled:opacity-70"
           >
             <span className={isRefreshing ? 'micro-refresh-pulse' : undefined}>
               {isRefreshing ? '[refresh…]' : '[refresh]'}

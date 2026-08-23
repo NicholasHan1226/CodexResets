@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { probabilityWithin, scoreForecastModels, scoreHighConfidenceDecisions, selectForecastModel } from '../src/lib/forecast-model';
 import { mergeResetEpisodes } from '../src/lib/reset-episodes';
-import { RESET_HISTORY } from '../src/lib/reset-data';
+import { MIN_CALENDAR_RECORDS, RESET_HISTORY, shouldShowResetCalendar } from '../src/lib/reset-data';
 import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
 import { ForecastLedger } from '../worker/src/forecast-ledger';
 import type { Env, ResetRecordRow } from '../worker/src/types';
@@ -19,6 +19,12 @@ function regularHistory(): ResetRecord[] {
 }
 
 describe('reset episode forecasting', () => {
+  it('shows the annual calendar only once there is enough reviewed history to make it useful', () => {
+    expect(shouldShowResetCalendar(RESET_HISTORY)).toBe(false);
+    const enoughHistory = Array.from({ length: MIN_CALENDAR_RECORDS }, (_, index) => record(`calendar-${index}`, Date.now() - index * DAY_MS));
+    expect(shouldShowResetCalendar(enoughHistory)).toBe(true);
+  });
+
   it('merges multiple posts from one reset into one canonical episode', () => {
     const latest = Date.parse('2026-08-11T17:00:00Z');
     const history = [record('latest', latest), record('duplicate', latest - 8 * 60 * 60 * 1000), record('prior', latest - 4 * DAY_MS)];

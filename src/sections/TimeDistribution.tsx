@@ -77,9 +77,9 @@ export function TimeDistribution() {
         </span>
         <span className="mx-2 text-border">·</span>
         <span className="font-mono text-primary">
-          {Math.round((bestCount / history.length) * 100)}%
+          {bestCount}/{history.length}
         </span>{" "}
-        {t('timeDistribution.ofResets')}
+        {t('timeDistribution.resets')}
       </p>
     </section>
   );

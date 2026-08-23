@@ -3,12 +3,14 @@ import { handleConfirmEmail, handleHealth, handleHealthDetails, handleReleaseSta
 import { isExpiredPushEndpoint, notifyAll, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
 import { signToken } from '../worker/src/util';
 import { buildSignalsSnapshot, getStatusEvidence } from '../worker/src/signals';
-import { runPipeline, runPipelineOnce, shouldSendHealthAlert } from '../worker/src/pipeline';
+import { computeSignalBaseline, runPipeline, runPipelineOnce, shouldSendHealthAlert } from '../worker/src/pipeline';
 import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
 import { refreshOfficialCodexDiscovery } from '../worker/src/discovery';
 import { getSubscriptionQuality, getXWebhookQuality } from '../worker/src/operational-metrics';
 import type { Env, RunReport } from '../worker/src/types';
 import { detectResetEvents, detectResetRetractions, isRetractionForCandidate, isTimelyAutomatedCandidate, scrapeTweets } from '../worker/src/scrape';
+import { RESET_HISTORY } from '../src/lib/reset-data';
+import { intervalDays, median, mergeResetEpisodes } from '../src/lib/reset-episodes';
 
 function envWith(cacheEntries: Record<string, string | null>): Env {
   const rateLimiter = {
@@ -85,6 +87,31 @@ async function xWebhookRequest(body: string, secret = 'x-consumer-test-secret'):
 }
 
 describe('pipeline read endpoints', () => {
+  it('uses the same canonical reset history for the cooldown signal as the forecast model', () => {
+    const liveReset = Date.parse('2026-08-22T01:00:00Z');
+    const row = {
+      id: 'live-reset',
+      reset_date: new Date(liveReset).toISOString(),
+      source_url: null,
+      description: null,
+      verified: true,
+      auto_state: 'confirmed' as const,
+    };
+    const baseline = computeSignalBaseline([{
+      ...row,
+    }]);
+    const expected = median(intervalDays(mergeResetEpisodes([{
+      id: row.id,
+      date: row.reset_date.slice(0, 10),
+      timestamp: liveReset,
+      reason: 'verified reset',
+      verified: true,
+    }, ...RESET_HISTORY])), 3.8);
+
+    expect(baseline.latestResetTs).toBe(liveReset);
+    expect(baseline.medianGapDays).toBe(expected);
+  });
+
   it('exposes only the binary forecast release gate to automation', async () => {
     const collecting = await handleReleaseStatus(envWith({}));
     await expect(collecting.json()).resolves.toEqual({ ready: false });

@@ -147,14 +147,14 @@ export function ResetAlertsPanel() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={t('subscribe.placeholder')}
-                    className="w-full min-w-0 bg-transparent py-1.5 font-mono text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+                    className="min-h-11 w-full min-w-0 bg-transparent py-1.5 font-mono text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
                     required
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={emailLoading || !TURNSTILE_SITE_KEY}
-                  className="shrink-0 bg-primary px-4 font-mono text-xs font-semibold uppercase tracking-wider text-background transition-colors hover:bg-primary/85 disabled:opacity-50"
+                  className="min-h-11 shrink-0 bg-primary px-4 font-mono text-xs font-semibold uppercase tracking-wider text-background transition-colors hover:bg-primary/85 disabled:opacity-50"
                 >
                   {emailLoading ? '···' : t('subscribe.button')}
                 </button>
@@ -183,7 +183,7 @@ export function ResetAlertsPanel() {
               <button
                 onClick={handlePushToggle}
                 disabled={pushLoading}
-                className={`border px-3 py-1.5 font-mono text-xs transition-colors disabled:opacity-50 ${
+                className={`min-h-11 border px-3 py-1.5 font-mono text-xs transition-colors disabled:opacity-50 ${
                   pushSubscribed
                     ? 'border-primary/40 text-primary hover:border-primary/60'
                     : 'border-border/40 text-muted-foreground hover:border-primary/40 hover:text-foreground'

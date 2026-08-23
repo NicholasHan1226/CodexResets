@@ -12,6 +12,7 @@ import { AnchorNav } from "@/components/AnchorNav";
 import { buildShareSummary, shareUrl, copyToClipboard } from "@/lib/export-share";
 import { useI18n } from "@/contexts/I18nContext";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
+import { shouldShowResetCalendar } from "@/lib/reset-data";
 
 export default function Home() {
   const { prediction, isLive, signalsLoading, refresh } = usePrediction();
@@ -21,6 +22,8 @@ export default function Home() {
   if (!prediction) {
     return <DashboardSkeleton />;
   }
+
+  const showCalendar = shouldShowResetCalendar();
 
   const handleShare = async () => {
     const pct = Math.round((timeframe === 24 ? prediction.prob24h : prediction.prob48h) * 100);
@@ -51,7 +54,7 @@ export default function Home() {
               timeframe={timeframe}
               onTimeframeChange={setTimeframe}
             />
-            <AnchorNav />
+            <AnchorNav showCalendar={showCalendar} />
           </div>
 
           <hr className="my-10 border-border/30" />
@@ -78,11 +81,13 @@ export default function Home() {
             <HistoryPanel />
           </div>
 
-          <hr className="my-10 border-border/30" />
+          {showCalendar && <>
+            <hr className="my-10 border-border/30" />
 
-          <div id="calendar" className="scroll-mt-16 cv-auto">
-            <ResetCalendar />
-          </div>
+            <div id="calendar" className="scroll-mt-16 cv-auto">
+              <ResetCalendar />
+            </div>
+          </>}
 
           <hr className="my-10 border-border/30" />
 

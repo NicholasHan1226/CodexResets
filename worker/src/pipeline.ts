@@ -21,6 +21,9 @@ import { notifyAll, sendCalibrationAlert, sendHealthAlert } from './notify';
 import { FORECAST_RELEASE_STATUS_KEY, getForecastCalibration, recordForecastSnapshot, type ForecastCalibration } from './forecast';
 import { refreshOfficialCodexDiscovery } from './discovery';
 import { recordSubscriptionMetric } from './operational-metrics';
+import { RESET_HISTORY } from '../../src/lib/reset-data';
+import { intervalDays, median, mergeResetEpisodes } from '../../src/lib/reset-episodes';
+import type { ResetRecord } from '../../src/types/reset';
 
 const HOUR = 3600 * 1000;
 // Seed with the newest bundled reset so the snapshot works before the DB
@@ -238,13 +241,10 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
   }
 
   // 6. Signals snapshot → KV (the browser reads this instead of scraping)
-  let latestResetTs = records.length > 0 ? new Date(records[0].reset_date).getTime() : 0;
-  if (latestResetTs > 0) {
-    await env.CACHE.put('latest_reset_ts', String(latestResetTs));
-  } else {
-    latestResetTs = Number(await env.CACHE.get('latest_reset_ts')) || SEED_RESET_TS;
-  }
-  const medianGapDays = computeMedianGapDays(records) ?? FALLBACK_MEDIAN_DAYS;
+  const cachedLatestResetTs = Number(await env.CACHE.get('latest_reset_ts')) || 0;
+  const signalBaseline = computeSignalBaseline(records, cachedLatestResetTs);
+  const { latestResetTs, medianGapDays } = signalBaseline;
+  if (latestResetTs > 0) await env.CACHE.put('latest_reset_ts', String(latestResetTs));
   const history: PublicResetHistory[] = records
     .filter((record) => record.verified && record.auto_state !== 'retracted')
     .slice(0, 100)
@@ -345,15 +345,32 @@ async function updateDeliveryMetrics(env: Env, report: RunReport): Promise<void>
   await env.CACHE.put(key, JSON.stringify(next), { expirationTtl: DELIVERY_METRIC_TTL_SECONDS });
 }
 
-function computeMedianGapDays(records: ResetRecordRow[]): number | null {
-  if (records.length < 3) return null;
-  const ts = records.map((r) => new Date(r.reset_date).getTime()).sort((a, b) => b - a);
-  const gaps: number[] = [];
-  for (let i = 0; i < ts.length - 1; i++) {
-    const gap = (ts[i] - ts[i + 1]) / (24 * HOUR);
-    if (gap > 0 && gap < 100) gaps.push(gap);
-  }
-  if (gaps.length === 0) return null;
-  gaps.sort((a, b) => a - b);
-  return gaps[Math.floor(gaps.length / 2)];
+/**
+ * Builds the exact canonical reset series used by the browser and private
+ * forecast ledger. A sparse live table must not make the public cooldown
+ * signal fall back to a different median from the prediction it accompanies.
+ */
+export function computeSignalBaseline(records: ResetRecordRow[], cachedLatestResetTs = 0): {
+  latestResetTs: number;
+  medianGapDays: number;
+} {
+  const observed: ResetRecord[] = records
+    .filter((record) => record.verified && record.auto_state !== 'retracted')
+    .flatMap((record) => {
+      const timestamp = Date.parse(record.reset_date);
+      if (!Number.isFinite(timestamp)) return [];
+      return [{
+        id: record.id,
+        date: new Date(timestamp).toISOString().slice(0, 10),
+        timestamp,
+        reason: 'verified reset',
+        verified: true,
+      }];
+    });
+  const history = mergeResetEpisodes([...observed, ...RESET_HISTORY]);
+  const latestResetTs = Math.max(history[0]?.timestamp || 0, cachedLatestResetTs, SEED_RESET_TS);
+  return {
+    latestResetTs,
+    medianGapDays: median(intervalDays(history), FALLBACK_MEDIAN_DAYS),
+  };
 }

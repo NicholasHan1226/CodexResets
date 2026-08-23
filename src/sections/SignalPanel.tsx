@@ -19,6 +19,12 @@ const statusTagMap: Record<string, { label: string; badge: string; bar: string }
 
 const statusWeight: Record<string, number> = { active: 0, weak: 1, idle: 2 };
 
+function signalStrength(composite: number): 'low' | 'medium' | 'high' {
+  if (composite >= 0.6) return 'high';
+  if (composite >= 0.3) return 'medium';
+  return 'low';
+}
+
 /** ASCII strength bar — same █░ vocabulary as the hero probability display */
 function AsciiBar({ value, length, className = '' }: { value: number; length: number; className?: string }) {
   const filled = Math.max(0, Math.min(length, Math.round(value * length)));
@@ -59,6 +65,7 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
   const total = prediction.signals.length;
   const activeCount = prediction.signals.filter((s) => s.status === 'active').length;
   const composite = total > 0 ? prediction.signals.reduce((sum, s) => sum + s.value, 0) / total : 0;
+  const strength = signalStrength(composite);
 
   return (
     <section aria-label="Signal radar" className="max-w-4xl">
@@ -79,7 +86,7 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
       <div className="mt-3 flex items-center gap-3 font-mono text-xs text-muted-foreground">
         <span>{t('signals.composite')}</span>
         <AsciiBar value={composite} length={16} className="text-primary" />
-        <span className="text-sm font-semibold text-foreground">{Math.round(composite * 100)}%</span>
+        <span className="text-sm font-semibold text-foreground">{t(`signals.strength.${strength}`)}</span>
         <span className="text-muted-foreground/60">
           · {t('signals.activeCount', { a: activeCount, n: total })}
         </span>

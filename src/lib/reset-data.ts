@@ -25,6 +25,7 @@ export const RESET_HISTORY: ResetRecord[] = [
 // Panels and forecasting use the canonical episode series so multiple posts
 // about one reset do not create artificial short intervals.
 let dynamicResetHistory: ResetRecord[] | null = null;
+export const MIN_CALENDAR_RECORDS = 12;
 
 export function setDynamicResetHistory(records: ResetRecord[] | null): void {
   dynamicResetHistory = records && records.length > 0 ? records : null;
@@ -33,6 +34,11 @@ export function setDynamicResetHistory(records: ResetRecord[] | null): void {
 export function getEffectiveHistory(): ResetRecord[] {
   const verifiedDynamicHistory = (dynamicResetHistory || []).filter((record) => record.verified === true);
   return mergeResetEpisodes([...verifiedDynamicHistory, ...RESET_HISTORY]);
+}
+
+/** A year heatmap is useful only after enough reviewed episodes exist. */
+export function shouldShowResetCalendar(history = getEffectiveHistory()): boolean {
+  return history.length >= MIN_CALENDAR_RECORDS;
 }
 
 /**

@@ -1,21 +1,34 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
 
-const sections = [
+const baseSections = [
   { id: 'curve', key: 'nav.curve' },
   { id: 'signals', key: 'nav.signals' },
   { id: 'rhythm', key: 'nav.rhythm' },
   { id: 'history', key: 'nav.history' },
-  { id: 'calendar', key: 'nav.calendar' },
   { id: 'alerts', key: 'nav.alerts' },
 ];
 
-export function AnchorNav() {
+interface AnchorNavProps {
+  showCalendar: boolean;
+}
+
+export function AnchorNav({ showCalendar }: AnchorNavProps) {
   const { t } = useI18n();
-  const [activeId, setActiveId] = useState(() => window.location.hash.slice(1) || 'curve');
+  const sections = useMemo(() => showCalendar
+    ? [...baseSections.slice(0, 4), { id: 'calendar', key: 'nav.calendar' }, ...baseSections.slice(4)]
+    : baseSections, [showCalendar]);
+  const [activeId, setActiveId] = useState(() => {
+    const hashId = window.location.hash.slice(1);
+    return hashId && sections.some(({ id }) => id === hashId) ? hashId : 'curve';
+  });
 
   useEffect(() => {
-    const updateFromHash = () => setActiveId(window.location.hash.slice(1) || 'curve');
+    const updateFromHash = () => {
+      const hashId = window.location.hash.slice(1);
+      setActiveId(hashId && sections.some(({ id }) => id === hashId) ? hashId : 'curve');
+    };
+    updateFromHash();
     const observer = new IntersectionObserver(
       (entries) => {
         const visible = entries
@@ -36,7 +49,7 @@ export function AnchorNav() {
       observer.disconnect();
       window.removeEventListener('hashchange', updateFromHash);
     };
-  }, []);
+  }, [sections]);
 
   return (
     <nav aria-label="Section navigation" className="mt-8">

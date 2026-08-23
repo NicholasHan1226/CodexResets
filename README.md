@@ -99,6 +99,11 @@ backtests logistic and Weibull interval models against earlier time-ordered
 samples are available. Direct-source reset announcements are used only for the
 Worker's automatic stabilization, correction, and notification rules; they do
 not alter the future-facing probability.
+The browser forecast and the Worker's cooldown signal both use this same
+canonical episode series, including the reviewed baseline while the live table
+is sparse. The annual reset calendar stays hidden until at least 12 reviewed
+episodes exist, so early visitors see the denser reset timeline instead of a
+mostly empty year grid.
 The Worker also retains one non-PII forecast snapshot per UTC day and resolves
 its 24/48-hour outcome after the horizon closes. These private KV samples are
 kept for 120 days and are not shown in the visitor interface.

@@ -49,7 +49,7 @@ export function ProbabilityDisplay({ pct, timeframe, onTimeframeChange }: Probab
               ref={(element) => { tabRefs.current[tf] = element ?? undefined; }}
               onClick={() => onTimeframeChange(tf)}
               onKeyDown={(event) => moveTimeframe(event, tf)}
-              className={`rounded-[3px] px-2 py-0.5 transition-[color,background-color,transform] active:translate-y-px ${
+              className={`inline-flex min-h-11 items-center rounded-[3px] px-2 py-0.5 transition-[color,background-color,transform] active:translate-y-px ${
                 timeframe === tf
                   ? 'bg-primary/10 text-primary font-semibold'
                   : 'text-muted-foreground/40 hover:text-muted-foreground'
