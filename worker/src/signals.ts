@@ -5,6 +5,12 @@ import { RESET_RE, CONTEXT_RE, isResetAnnouncement, isScheduledResetAnnouncement
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
 const SCHEDULED_RESET_SIGNAL_TTL_HOURS = 48;
+// A published target stays useful just long enough for the direct account
+// timeline and the confirmation pipeline to converge. After that, an
+// unconfirmed target is no longer a forward-looking answer and must not keep
+// hiding the ordinary probability view merely because its original post is
+// still inside the collection window.
+const SCHEDULED_RESET_ELAPSED_GRACE_HOURS = 6;
 
 interface StatusIncident {
   status: string;
@@ -142,8 +148,12 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
       updatedAt: observedAt(latestResetTweet),
     };
   }
-  if (hoursSinceScheduledReset !== null && hoursSinceScheduledReset < SCHEDULED_RESET_SIGNAL_TTL_HOURS) {
-    const targetElapsed = typeof scheduledAt === 'number' && scheduledAt <= now;
+  const targetElapsed = typeof scheduledAt === 'number' && scheduledAt <= now;
+  const elapsedWithinGrace = !targetElapsed
+    || now - scheduledAt <= SCHEDULED_RESET_ELAPSED_GRACE_HOURS * HOUR;
+  if (hoursSinceScheduledReset !== null
+    && hoursSinceScheduledReset < SCHEDULED_RESET_SIGNAL_TTL_HOURS
+    && elapsedWithinGrace) {
     return {
       ...base,
       status: 'active',

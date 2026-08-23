@@ -307,6 +307,22 @@ describe('pipeline read endpoints', () => {
         { state: 'clear', incidentCount: 0 },
       );
       expect(elapsedSnapshot.signals[0].description).toBe('signals.resetScheduleElapsed');
+
+      // A missed target cannot suppress the next-looking probability answer
+      // forever just because the original official post remains in the feed.
+      vi.setSystemTime(new Date('2026-08-25T04:01:00.000Z'));
+      const expiredTargetSnapshot = await buildSignalsSnapshot(
+        envWith({}),
+        { ok: true, sourceKind: 'direct', tweets: [scheduled] },
+        now - 4 * 24 * 60 * 60 * 1000,
+        3.8,
+        [],
+        { state: 'clear', incidentCount: 0 },
+      );
+      expect(expiredTargetSnapshot.signals[0]).toMatchObject({
+        status: 'idle',
+        description: 'signals.lastPostDays',
+      });
     } finally {
       vi.useRealTimers();
     }
