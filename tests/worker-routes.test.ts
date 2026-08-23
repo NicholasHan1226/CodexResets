@@ -607,6 +607,8 @@ describe('pipeline read endpoints', () => {
       expect(message).toMatchObject({ subject: expect.stringContaining('Banked reset') });
       expect(message?.html).toContain('积存额度重置');
       expect(message?.html).toContain('https://x.com/thsottiaux/status/123456789');
+      expect(message?.html).toContain('Asia/Shanghai (UTC+8)');
+      expect(message?.html).toContain('UTC ');
 
       await notifyAll(emailEnv(), {
         id: 'direct-reset-with-unsafe-link',

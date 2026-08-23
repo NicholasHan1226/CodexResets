@@ -165,7 +165,7 @@ async function sendEmail(env: Env, email: string, event: ResetEvent): Promise<bo
   const expiresAt = Math.floor(Date.now() / 1000) + UNSUBSCRIBE_TTL_SECONDS;
   const token = env.UNSUBSCRIBE_SECRET ? await signToken(`${email.toLowerCase()}.${expiresAt}`, env.UNSUBSCRIBE_SECRET) : '';
   const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&x=${expiresAt}&t=${token}`;
-  const resetLocal = new Date(event.ts).toUTCString();
+  const resetTime = formatResetTime(event.ts);
   const details = resetNotificationDetails(event);
 
   const res = await fetch('https://api.resend.com/emails', {
@@ -179,7 +179,7 @@ async function sendEmail(env: Env, email: string, event: ResetEvent): Promise<bo
       to: [email],
       subject: `Codex ${details.labelEn} confirmed / 已确认：${details.labelZh}`,
       headers: { 'List-Unsubscribe': `<${unsubUrl}>` },
-      html: emailHtml(env, resetLocal, unsubUrl, details),
+      html: emailHtml(env, resetTime, unsubUrl, details),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
@@ -256,7 +256,7 @@ export async function sendCalibrationAlert(env: Env, calibration: ForecastCalibr
   if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
 }
 
-function emailHtml(env: Env, resetLocal: string, unsubUrl: string, details: ResetNotificationDetails): string {
+function emailHtml(env: Env, resetTime: string, unsubUrl: string, details: ResetNotificationDetails): string {
   const evidence = details.evidenceUrl
     ? `<p style="margin:0 0 16px;font-size:14px;color:#3d4250"><strong>Evidence / 证据</strong><br /><a href="${escapeHtml(details.evidenceUrl)}" style="color:#0b7d62">View official announcement / 查看官方公告</a>${details.evidenceExcerpt ? `<br /><span style="display:inline-block;margin-top:6px;color:#667085">${escapeHtml(details.evidenceExcerpt)}</span>` : ''}</p>`
     : '<p style="margin:0 0 16px;font-size:13px;color:#667085">Official announcement evidence was confirmed by the pipeline. / 管道已确认官方公告证据。</p>';
@@ -267,13 +267,24 @@ function emailHtml(env: Env, resetLocal: string, unsubUrl: string, details: Rese
     <h1 style="margin:0 0 12px;font-size:20px">${escapeHtml(details.labelEn)} confirmed / 已确认：${escapeHtml(details.labelZh)}</h1>
     <p style="margin:0 0 12px;font-size:14px;color:#3d4250">A confirmed Codex reset is available. / 已确认 Codex 使用额度重置。</p>
     <p style="margin:0 0 12px;font-size:14px;color:#3d4250"><strong>Reset type / 重置类型</strong><br />${escapeHtml(details.labelEn)} / ${escapeHtml(details.labelZh)}</p>
-    <p style="margin:0 0 16px;font-family:Menlo,monospace;font-size:12px;color:#7c8494">${escapeHtml(resetLocal)}</p>
+    <p style="margin:0 0 16px;font-family:Menlo,monospace;font-size:12px;color:#7c8494">${escapeHtml(resetTime)}</p>
     ${evidence}
     <a href="${env.SITE_URL}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open dashboard</a>
     <hr style="margin:20px 0 12px;border:none;border-top:1px solid #e4e6ea" />
     <p style="margin:0;font-size:11px;color:#9aa0ac">You subscribed at codexresets.cc · <a href="${unsubUrl}" style="color:#9aa0ac">Unsubscribe / 退订</a></p>
   </div>
 </body></html>`;
+}
+
+/** Bilingual alerts always include China Standard Time as well as UTC. */
+function formatResetTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  const shanghai = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format(date);
+  return `Asia/Shanghai (UTC+8) ${shanghai} · UTC ${date.toUTCString()}`;
 }
 
 function confirmationHtml(confirmUrl: string): string {
