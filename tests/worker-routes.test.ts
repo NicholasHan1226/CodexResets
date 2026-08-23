@@ -3,7 +3,7 @@ import { handleConfirmEmail, handleHealth, handleHealthDetails, handleReleaseSta
 import { isExpiredPushEndpoint, notifyAll, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
 import { signToken } from '../worker/src/util';
 import { buildSignalsSnapshot, getStatusEvidence } from '../worker/src/signals';
-import { computeSignalBaseline, runPipeline, runPipelineOnce, shouldSendHealthAlert } from '../worker/src/pipeline';
+import { computeSignalBaseline, isDuplicateResetNotice, runPipeline, runPipelineOnce, shouldSendHealthAlert } from '../worker/src/pipeline';
 import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
 import { refreshOfficialCodexDiscovery } from '../worker/src/discovery';
 import { getSubscriptionQuality, getXWebhookQuality } from '../worker/src/operational-metrics';
@@ -739,6 +739,17 @@ describe('pipeline read endpoints', () => {
     expect(isRetractionForCandidate(banked, quotaCorrection)).toBe(false);
     expect(isRetractionForCandidate(banked, genericCorrection)).toBe(false);
     expect(isRetractionForCandidate(banked, bankedCorrection)).toBe(true);
+  });
+
+  it('deduplicates repeated notices without suppressing a nearby different reset type', () => {
+    const now = Date.parse('2026-08-22T12:00:00Z');
+    const banked = { ts: now, link: 'https://x.com/thsottiaux/status/banked', text: 'The banked reset has landed for Codex users.' };
+    const repeatedBanked = { ts: now - 30 * 60 * 1000, link: 'https://x.com/thsottiaux/status/banked-repeat', text: 'Codex banked reset is live for everyone.' };
+    const direct = { ts: now - 2 * 60 * 60 * 1000, link: 'https://x.com/thsottiaux/status/direct', text: 'Codex usage limits are reset for paid users.' };
+
+    expect(isDuplicateResetNotice(banked, repeatedBanked)).toBe(true);
+    expect(isDuplicateResetNotice(banked, direct)).toBe(false);
+    expect(isDuplicateResetNotice(banked, { ...direct, link: banked.link })).toBe(true);
   });
 
   it('uses Google News as a healthy degraded source when every social mirror is unavailable', async () => {

@@ -1,4 +1,4 @@
-import type { DeliveryLedger, DeliveryMetrics, Env, PublicResetHistory, ResetRecordRow, RunReport } from './types';
+import type { DeliveryLedger, DeliveryMetrics, Env, PublicResetHistory, ResetEvent, ResetRecordRow, RunReport } from './types';
 import {
   scrapeTweets,
   detectResetEvents,
@@ -6,6 +6,7 @@ import {
   isResetAnnouncement,
   isRetractionForCandidate,
   isTimelyAutomatedCandidate,
+  classifyResetNotification,
 } from './scrape';
 import { sbSelect } from './supabase';
 import {
@@ -107,14 +108,16 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
     ...detection.strong.map((c) => ({ tier: 'strong' as const, ts: new Date(c.ts).toISOString(), link: c.link, text: c.text.slice(0, 160) })),
     ...detection.weak.map((c) => ({ tier: 'weak' as const, ts: new Date(c.ts).toISOString(), link: c.link, text: c.text.slice(0, 160) })),
   ].slice(0, 4);
-  const fresh = candidates.filter(
-    (c) =>
-      !allRecords.some(
-        (r) =>
-          (r.source_url && r.source_url === c.link) ||
-          Math.abs(new Date(r.reset_date).getTime() - c.ts) < 6 * HOUR
-      )
-  );
+  const fresh: ResetEvent[] = [];
+  for (const candidate of candidates) {
+    const duplicateInRecords = allRecords.some((record) => isDuplicateResetNotice({
+      ts: Date.parse(record.reset_date),
+      text: record.description || '',
+      link: record.source_url || '',
+    }, candidate));
+    const duplicateInRun = fresh.some((existing) => isDuplicateResetNotice(existing, candidate));
+    if (!duplicateInRecords && !duplicateInRun) fresh.push(candidate);
+  }
 
   if (fresh.length > 0 && scrape.sourceKind === 'direct') {
     if (!hasPrivilegedAccess(env)) {
@@ -273,6 +276,21 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
   }
   await env.CACHE.put('health:last_run', JSON.stringify(report));
   return report;
+}
+
+/**
+ * A repeated post for the same reset should be collapsed, but two distinct
+ * reset types close together (for example banked then direct) each need their
+ * own record and subscriber notification. The canonical source URL always
+ * wins; the short time window is only a fallback for same-type reposts.
+ */
+export function isDuplicateResetNotice(
+  existing: Pick<ResetEvent, 'ts' | 'text' | 'link'>,
+  candidate: ResetEvent,
+): boolean {
+  if (existing.link && existing.link === candidate.link) return true;
+  if (!Number.isFinite(existing.ts) || Math.abs(existing.ts - candidate.ts) >= 6 * HOUR) return false;
+  return classifyResetNotification(existing.text) === classifyResetNotification(candidate.text);
 }
 
 /**
