@@ -27,19 +27,34 @@ const PUSH_ENDPOINT_HOSTS = new Set([
   'web.push.apple.com',
   'wns.windows.com',
 ]);
+const PIPELINE_SIGNAL_SOURCES = new Set(['tibopost', 'status_page', 'cooldown', 'launch_noise']);
+
+type PublicSignalSnapshot = {
+  source?: unknown;
+  label?: unknown;
+  status?: unknown;
+  value?: unknown;
+  description?: unknown;
+  updatedAt?: unknown;
+  sourceUrl?: unknown;
+};
+
+type StoredSignalSnapshot = {
+  signals?: PublicSignalSnapshot[];
+  generatedAt?: number;
+  history?: Array<{ id?: unknown; reset_date?: unknown; verified?: unknown }>;
+  sources?: unknown;
+};
 
 /** GET /api/signals — the snapshot the browser consumes */
 export async function handleSignals(env: Env): Promise<Response> {
   const raw = await env.CACHE.get('signals:latest');
   if (!raw) return json({ error: 'no snapshot yet' }, 503);
-  const snapshot = parseJson<{
-    signals?: Array<Record<string, unknown>>;
-    generatedAt?: number;
-    history?: Array<{ id?: unknown; reset_date?: unknown; verified?: unknown }>;
-    sources?: unknown;
-  }>(raw);
+  const snapshot = parseJson<StoredSignalSnapshot>(raw);
   if (!snapshot?.signals) return json({ error: 'no snapshot yet' }, 503);
-  if (timestampCheck(snapshot.generatedAt, Date.now()) !== 'ok') return json({ error: 'signal snapshot stale' }, 503);
+  const snapshotCheck = signalSnapshotCheck(snapshot, Date.now());
+  if (snapshotCheck === 'stale') return json({ error: 'signal snapshot stale' }, 503);
+  if (snapshotCheck !== 'ok') return json({ error: 'signal snapshot invalid' }, 503);
   return json({
     generatedAt: snapshot.generatedAt,
     sources: snapshot.sources,
@@ -68,8 +83,8 @@ export async function handleHealth(env: Env): Promise<Response> {
   const lastRun = await env.CACHE.get('health:last_run');
   const signals = await env.CACHE.get('signals:latest');
   const report = parseJson<RunReport>(lastRun);
-  const snapshot = parseJson<{ generatedAt?: number }>(signals);
-  const checks = healthChecks(report, snapshot?.generatedAt);
+  const snapshot = parseJson<StoredSignalSnapshot>(signals);
+  const checks = healthChecks(report, snapshot);
   const ok = checks.lastRun === 'ok' && checks.signals === 'ok';
   return json({
     ok,
@@ -107,12 +122,34 @@ function publicRunReport(report: RunReport | null): Pick<RunReport, 'startedAt' 
 
 const HEALTH_STALE_MS = 90 * 60 * 1000;
 
-function healthChecks(report: RunReport | null, signalsGeneratedAt: number | undefined): HealthChecks {
+function healthChecks(report: RunReport | null, snapshot: StoredSignalSnapshot | null): HealthChecks {
   const now = Date.now();
   return {
     lastRun: reportCheck(report, now),
-    signals: timestampCheck(signalsGeneratedAt, now),
+    signals: snapshot ? signalSnapshotCheck(snapshot, now) : 'missing',
   };
+}
+
+/** Keep public API health aligned with the browser's LIVE acceptance contract. */
+function signalSnapshotCheck(snapshot: StoredSignalSnapshot, now: number): HealthCheck {
+  const freshness = timestampCheck(snapshot.generatedAt, now);
+  if (freshness !== 'ok') return freshness;
+  if (!Array.isArray(snapshot.signals) || snapshot.signals.length !== PIPELINE_SIGNAL_SOURCES.size) return 'failed';
+
+  const seen = new Set<string>();
+  for (const signal of snapshot.signals) {
+    if (!signal
+      || typeof signal.source !== 'string' || !PIPELINE_SIGNAL_SOURCES.has(signal.source) || seen.has(signal.source)
+      || typeof signal.label !== 'string' || signal.label.length === 0
+      || typeof signal.description !== 'string' || signal.description.length === 0
+      || (signal.status !== 'active' && signal.status !== 'weak' && signal.status !== 'idle')
+      || typeof signal.value !== 'number' || !Number.isFinite(signal.value) || signal.value < 0 || signal.value > 1
+      || typeof signal.updatedAt !== 'number' || !Number.isFinite(signal.updatedAt) || signal.updatedAt > now + 5 * 60 * 1000) {
+      return 'failed';
+    }
+    seen.add(signal.source);
+  }
+  return seen.size === PIPELINE_SIGNAL_SOURCES.size ? 'ok' : 'failed';
 }
 
 function reportCheck(report: RunReport | null, now: number): HealthCheck {

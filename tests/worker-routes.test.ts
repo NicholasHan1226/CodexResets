@@ -45,6 +45,18 @@ function envWith(cacheEntries: Record<string, string | null>): Env {
   } as unknown as Env;
 }
 
+function freshSignalSnapshot(generatedAt = Date.now()) {
+  return {
+    generatedAt,
+    signals: [
+      { source: 'tibopost', label: 'Tibo Posting', status: 'idle', value: 0.08, description: 'signals.lastPostDays', updatedAt: generatedAt, sourceUrl: 'https://example.test/source' },
+      { source: 'status_page', label: 'OpenAI Status', status: 'idle', value: 0.08, description: 'signals.statusClear', updatedAt: generatedAt },
+      { source: 'cooldown', label: 'Time Cooldown', status: 'weak', value: 0.7, description: 'signals.cooldownDesc', updatedAt: generatedAt },
+      { source: 'launch_noise', label: 'Launch Noise', status: 'idle', value: 0.08, description: 'signals.launchQuiet', updatedAt: generatedAt },
+    ],
+  };
+}
+
 function emailEnv(cacheEntries: Record<string, string | null> = {}): Env {
   return {
     ...envWith(cacheEntries),
@@ -270,8 +282,7 @@ describe('pipeline read endpoints', () => {
 
   it('returns a fresh signal snapshot with browser CORS and security headers enabled', async () => {
     const snapshot = JSON.stringify({
-      signals: [{ source: 'tibopost', sourceUrl: 'https://example.test/source' }],
-      generatedAt: Date.now(),
+      ...freshSignalSnapshot(),
       history: [{ id: 'verified-reset', reset_date: '2026-08-22T00:00:00.000Z', verified: true, source_url: 'private' }],
     });
     const response = await handleSignals(envWith({ 'signals:latest': snapshot }));
@@ -281,9 +292,24 @@ describe('pipeline read endpoints', () => {
     expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
     expect(response.headers.get('x-frame-options')).toBe('DENY');
     await expect(response.json()).resolves.toEqual(expect.objectContaining({
-      signals: [{ source: 'tibopost' }],
+      signals: expect.arrayContaining([expect.objectContaining({ source: 'tibopost' })]),
       history: [{ id: 'verified-reset', reset_date: '2026-08-22T00:00:00.000Z', verified: true }],
     }));
+  });
+
+  it('rejects a malformed fresh snapshot and reports the pipeline unhealthy', async () => {
+    const now = Date.now();
+    const snapshot = JSON.stringify({ generatedAt: now, signals: [{ source: 'tibopost' }] });
+    const signals = await handleSignals(envWith({ 'signals:latest': snapshot }));
+    expect(signals.status).toBe(503);
+    await expect(signals.json()).resolves.toEqual({ error: 'signal snapshot invalid' });
+
+    const health = await handleHealth(envWith({
+      'health:last_run': JSON.stringify({ startedAt: new Date(now).toISOString(), scrape: 'ok', errors: [] }),
+      'signals:latest': snapshot,
+    }));
+    expect(health.status).toBe(503);
+    await expect(health.json()).resolves.toMatchObject({ ok: false, checks: { signals: 'failed' } });
   });
 
   it('rejects a stale signal snapshot instead of serving it as live data', async () => {
@@ -308,7 +334,7 @@ describe('pipeline read endpoints', () => {
     const now = new Date().toISOString();
     const response = await handleHealth(envWith({
       'health:last_run': JSON.stringify({ startedAt: now, scrape: 'ok', errors: [] }),
-      'signals:latest': JSON.stringify({ generatedAt: Date.now() }),
+      'signals:latest': JSON.stringify(freshSignalSnapshot()),
     }));
     const body = await response.json() as Record<string, unknown>;
 
@@ -328,7 +354,7 @@ describe('pipeline read endpoints', () => {
         scrapeInstance: 'https://mirror.example.test',
         candidateSamples: [{ tier: 'strong', ts: now, link: 'https://x.example.test/post', text: 'private diagnostic' }],
       }),
-      'signals:latest': JSON.stringify({ generatedAt: Date.now() }),
+      'signals:latest': JSON.stringify(freshSignalSnapshot()),
     }));
     const body = await response.json() as { lastRun: Record<string, unknown> };
 
@@ -506,7 +532,7 @@ describe('pipeline read endpoints', () => {
     const date = now.slice(0, 10);
     const response = await handleHealth(envWith({
       'health:last_run': JSON.stringify({ startedAt: now, scrape: 'ok', errors: [] }),
-      'signals:latest': JSON.stringify({ generatedAt: Date.now() }),
+      'signals:latest': JSON.stringify(freshSignalSnapshot()),
       [`metrics:delivery:${date}`]: JSON.stringify({ date, runs: 2, emails: 1, pushes: 0 }),
     }));
     const body = await response.json() as Record<string, unknown>;
