@@ -842,6 +842,7 @@ describe('pipeline read endpoints', () => {
         response: 'turnstile-response',
         remoteip: '203.0.113.17',
       });
+      expect(verifyInit.signal).toBeInstanceOf(AbortSignal);
       const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
       expect(JSON.parse(String(init.body))).toMatchObject({
         to: ['reader@example.test'],

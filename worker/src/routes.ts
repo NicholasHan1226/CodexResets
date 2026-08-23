@@ -1,5 +1,5 @@
 import type { DeliveryMetrics, Env, HealthCheck, HealthChecks, RunReport } from './types';
-import { json, html, escapeHtml, timingSafeEqual, verifyToken } from './util';
+import { json, html, escapeHtml, readJsonWithin as readResponseJsonWithin, timingSafeEqual, verifyToken } from './util';
 import { hasPrivilegedAccess, privUpsertPush, privDeletePush, privDeleteEmail, privActivateEmail } from './privileged';
 import { runPipeline } from './pipeline';
 import { sendPushSubscriptionTest, sendSubscriptionConfirmation, sendTestEmail } from './notify';
@@ -18,6 +18,8 @@ const WEBHOOK_MAX_AGE_MS = 5 * 60 * 1000;
 const X_WEBHOOK_MAX_BYTES = 256 * 1024;
 const RESEND_WEBHOOK_MAX_BYTES = 256 * 1024;
 const SUBSCRIPTION_BODY_MAX_BYTES = 8 * 1024;
+const TURNSTILE_RESPONSE_MAX_BYTES = 8 * 1024;
+const EXTERNAL_VERIFICATION_TIMEOUT_MS = 8_000;
 const X_WEBHOOK_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const UNSUBSCRIBE_MAX_FUTURE_SECONDS = 31 * 24 * 60 * 60;
 const PUSH_ENDPOINT_HOSTS = new Set([
@@ -542,9 +544,11 @@ async function verifyTurnstile(env: Env, token: string, clientIp: string): Promi
         remoteip: clientIp,
         idempotency_key: crypto.randomUUID(),
       }),
+      signal: AbortSignal.timeout(EXTERNAL_VERIFICATION_TIMEOUT_MS),
     });
     if (!response.ok) return false;
-    const result = await response.json() as { success?: boolean; action?: string };
+    const result = await readResponseJsonWithin<{ success?: unknown; action?: unknown }>(response, TURNSTILE_RESPONSE_MAX_BYTES);
+    if (!result) return false;
     return result.success === true && result.action === 'subscribe_email';
   } catch {
     return false;
