@@ -73,6 +73,11 @@ scheduled interval, and then confirmed and delivered. A later direct-source
 correction within the stabilization window automatically retracts the matching
 pending notice. Notices older than 48 hours and all degraded discovery never
 create an email alert.
+Confirmed alert emails and browser Push messages identify the reset type from
+the official announcement wording (banked, direct usage-limit, quota, or
+credits). Emails include the escaped announcement excerpt plus a link only
+when it is a canonical official `x.com/<account>/status/<id>` post; degraded
+feeds and unknown URLs are never forwarded to subscribers.
 After three consecutive direct-source failures, the Worker raises a health alert
 and keeps automated confirmation paused. An active official Codex/rate-limit
 incident also holds confirmation; status-page availability alone never creates

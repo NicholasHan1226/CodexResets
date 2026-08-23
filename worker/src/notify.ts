@@ -3,6 +3,7 @@ import type { DeliveryLedger, Env, ResetEvent, RunReport } from './types';
 import type { ForecastCalibration } from './forecast';
 import { hasPrivilegedAccess, privListEmails, privListPush, privDeletePush, type PushSubRow } from './privileged';
 import { signToken, escapeHtml, readTextWithin } from './util';
+import { classifyResetNotification, type ResetNotificationType } from './scrape';
 
 const UNSUBSCRIBE_TTL_SECONDS = 30 * 24 * 60 * 60;
 const OUTBOUND_TIMEOUT_MS = 8_000;
@@ -21,6 +22,14 @@ export interface NotifyResult {
   errors: string[];
   /** More recipients remain and will continue automatically on the next run. */
   pending: boolean;
+}
+
+interface ResetNotificationDetails {
+  type: ResetNotificationType;
+  labelEn: string;
+  labelZh: string;
+  evidenceUrl: string | null;
+  evidenceExcerpt: string | null;
 }
 
 export function isExpiredPushEndpoint(status: number): boolean {
@@ -157,6 +166,7 @@ async function sendEmail(env: Env, email: string, event: ResetEvent): Promise<bo
   const token = env.UNSUBSCRIBE_SECRET ? await signToken(`${email.toLowerCase()}.${expiresAt}`, env.UNSUBSCRIBE_SECRET) : '';
   const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&x=${expiresAt}&t=${token}`;
   const resetLocal = new Date(event.ts).toUTCString();
+  const details = resetNotificationDetails(event);
 
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -167,9 +177,9 @@ async function sendEmail(env: Env, email: string, event: ResetEvent): Promise<bo
     body: JSON.stringify({
       from: env.RESEND_FROM,
       to: [email],
-      subject: 'Codex usage limits were reset / Codex 使用额度已重置',
+      subject: `Codex ${details.labelEn} confirmed / 已确认：${details.labelZh}`,
       headers: { 'List-Unsubscribe': `<${unsubUrl}>` },
-      html: emailHtml(env, resetLocal, unsubUrl),
+      html: emailHtml(env, resetLocal, unsubUrl, details),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
@@ -246,14 +256,19 @@ export async function sendCalibrationAlert(env: Env, calibration: ForecastCalibr
   if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
 }
 
-function emailHtml(env: Env, resetLocal: string, unsubUrl: string): string {
+function emailHtml(env: Env, resetLocal: string, unsubUrl: string, details: ResetNotificationDetails): string {
+  const evidence = details.evidenceUrl
+    ? `<p style="margin:0 0 16px;font-size:14px;color:#3d4250"><strong>Evidence / 证据</strong><br /><a href="${escapeHtml(details.evidenceUrl)}" style="color:#0b7d62">View official announcement / 查看官方公告</a>${details.evidenceExcerpt ? `<br /><span style="display:inline-block;margin-top:6px;color:#667085">${escapeHtml(details.evidenceExcerpt)}</span>` : ''}</p>`
+    : '<p style="margin:0 0 16px;font-size:13px;color:#667085">Official announcement evidence was confirmed by the pipeline. / 管道已确认官方公告证据。</p>';
   return `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
   <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
     <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#10a37f">❯ codex resets</p>
-    <h1 style="margin:0 0 12px;font-size:20px">Usage limits were reset / 使用额度已重置</h1>
+    <h1 style="margin:0 0 12px;font-size:20px">${escapeHtml(details.labelEn)} confirmed / 已确认：${escapeHtml(details.labelZh)}</h1>
     <p style="margin:0 0 12px;font-size:14px;color:#3d4250">A confirmed Codex reset is available. / 已确认 Codex 使用额度重置。</p>
+    <p style="margin:0 0 12px;font-size:14px;color:#3d4250"><strong>Reset type / 重置类型</strong><br />${escapeHtml(details.labelEn)} / ${escapeHtml(details.labelZh)}</p>
     <p style="margin:0 0 16px;font-family:Menlo,monospace;font-size:12px;color:#7c8494">${escapeHtml(resetLocal)}</p>
+    ${evidence}
     <a href="${env.SITE_URL}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open dashboard</a>
     <hr style="margin:20px 0 12px;border:none;border-top:1px solid #e4e6ea" />
     <p style="margin:0;font-size:11px;color:#9aa0ac">You subscribed at codexresets.cc · <a href="${unsubUrl}" style="color:#9aa0ac">Unsubscribe / 退订</a></p>
@@ -335,13 +350,12 @@ async function sendPush(env: Env, row: PushSubRow, event: ResetEvent): Promise<'
     expirationTime: null,
     keys: { p256dh: row.p256dh, auth: row.auth },
   };
+  const details = resetNotificationDetails(event);
   const message: PushMessage = {
     data: JSON.stringify({
-      title: 'Codex Reset Alert',
-      body: event.text
-        ? `Usage limits were reset — "${event.text.slice(0, 120)}${event.text.length > 120 ? '…' : ''}"`
-        : 'Usage limits were reset — quotas are fresh again.',
-      url: '/',
+      title: 'Codex Reset Alert / Codex 重置提醒',
+      body: `${details.labelEn} confirmed / 已确认：${details.labelZh}`,
+      url: details.evidenceUrl || '/',
     }),
     options: { ttl: 86400 },
   };
@@ -351,6 +365,34 @@ async function sendPush(env: Env, row: PushSubRow, event: ResetEvent): Promise<'
   if (isExpiredPushEndpoint(res.status)) return 'gone';
   if (!res.ok) throw new Error(`push endpoint ${res.status}`);
   return 'sent';
+}
+
+function resetNotificationDetails(event: ResetEvent): ResetNotificationDetails {
+  const type = classifyResetNotification(event.text);
+  const labels: Record<ResetNotificationType, Pick<ResetNotificationDetails, 'labelEn' | 'labelZh'>> = {
+    banked: { labelEn: 'Banked reset', labelZh: '积存额度重置' },
+    direct: { labelEn: 'Direct usage-limit reset', labelZh: '直接额度重置' },
+    quota: { labelEn: 'Quota reset', labelZh: '配额重置' },
+    credits: { labelEn: 'Credit reset', labelZh: '额度重置' },
+  };
+  return {
+    type,
+    ...labels[type],
+    evidenceUrl: officialEvidenceUrl(event.link),
+    evidenceExcerpt: event.text ? event.text.slice(0, 280) : null,
+  };
+}
+
+/** Only the canonical official-post shape is safe to place in subscriber mail. */
+function officialEvidenceUrl(link: string): string | null {
+  try {
+    const url = new URL(link);
+    const officialHost = url.protocol === 'https:' && (url.hostname === 'x.com' || url.hostname === 'www.x.com');
+    const officialPost = /^\/[^/]+\/status\/\d+$/.test(url.pathname);
+    return officialHost && officialPost ? `https://x.com${url.pathname}` : null;
+  } catch {
+    return null;
+  }
 }
 
 function workerBase(env: Env): string {

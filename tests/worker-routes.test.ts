@@ -521,6 +521,43 @@ describe('pipeline read endpoints', () => {
     }
   });
 
+  it('includes a confirmed reset type and only official-post evidence in subscriber email', async () => {
+    let message: { subject: string; html: string } | null = null;
+    const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/subscriptions?select=email&is_active=eq.true')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
+      if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth')) return new Response(JSON.stringify([]));
+      if (url === 'https://api.resend.com/emails') {
+        message = JSON.parse(String(init?.body)) as { subject: string; html: string };
+        return new Response(JSON.stringify({ id: 'email-evidence' }), { status: 200 });
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await expect(notifyAll(emailEnv(), {
+        id: 'banked-reset',
+        ts: Date.now(),
+        text: 'The banked reset has landed for all paid Codex users.',
+        link: 'https://x.com/thsottiaux/status/123456789',
+      })).resolves.toMatchObject({ emails: 1, errors: [] });
+      expect(message).toMatchObject({ subject: expect.stringContaining('Banked reset') });
+      expect(message?.html).toContain('积存额度重置');
+      expect(message?.html).toContain('https://x.com/thsottiaux/status/123456789');
+
+      await notifyAll(emailEnv(), {
+        id: 'direct-reset-with-unsafe-link',
+        ts: Date.now(),
+        text: 'Codex usage limits were reset.',
+        link: 'https://example.test/not-official',
+      });
+      expect(message).toMatchObject({ subject: expect.stringContaining('Direct usage-limit reset') });
+      expect(message?.html).not.toContain('example.test/not-official');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('leaves a reset eligible for retry when email or Push delivery is not configured', async () => {
     const emailFetch = vi.fn(async (input: string) => {
       const url = String(input);

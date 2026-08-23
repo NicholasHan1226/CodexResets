@@ -252,6 +252,21 @@ export function isResetRetraction(text: string): boolean {
 
 type ResetTopic = 'banked' | 'limits' | 'quota' | 'credits' | 'general';
 
+/**
+ * Visitor-facing delivery type, derived only from the confirmed announcement
+ * text. "Direct" means a directly available usage-limit reset, not merely a
+ * direct-source fetch; the other labels retain the wording the announcement
+ * made explicit.
+ */
+export type ResetNotificationType = 'banked' | 'direct' | 'quota' | 'credits';
+
+export function classifyResetNotification(text: string): ResetNotificationType {
+  if (BANKED_RESET_RE.test(text)) return 'banked';
+  if (QUOTA_RESET_RE.test(text)) return 'quota';
+  if (CREDIT_RESET_RE.test(text)) return 'credits';
+  return 'direct';
+}
+
 function resetTopic(text: string): ResetTopic {
   if (BANKED_RESET_RE.test(text)) return 'banked';
   if (LIMIT_RESET_RE.test(text)) return 'limits';
