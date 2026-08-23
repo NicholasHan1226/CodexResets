@@ -162,7 +162,9 @@ async function sendEmail(env: Env, email: string, event: ResetEvent & { id: stri
   // leaving the reset unmarked lets the next automated run recover after the
   // credential is restored.
   if (!env.RESEND_API_KEY) throw new Error('Resend email delivery is not configured');
-  const expiresAt = Math.floor(Date.now() / 1000) + UNSUBSCRIBE_TTL_SECONDS;
+  // This timestamp must be derived from the event, not the retry time: Resend
+  // checks that a repeated idempotency key has the exact same payload.
+  const expiresAt = Math.floor(event.ts / 1000) + UNSUBSCRIBE_TTL_SECONDS;
   const token = env.UNSUBSCRIBE_SECRET ? await signToken(`${email.toLowerCase()}.${expiresAt}`, env.UNSUBSCRIBE_SECRET) : '';
   const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&x=${expiresAt}&t=${token}`;
   const resetTime = formatResetTime(event.ts);

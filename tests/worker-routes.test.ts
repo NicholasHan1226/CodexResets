@@ -638,6 +638,38 @@ describe('pipeline read endpoints', () => {
     }
   });
 
+  it('keeps a reset-email payload stable when a provider request is retried', async () => {
+    const requests: Array<{ idempotencyKey: string | null; body: string }> = [];
+    const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/subscriptions?select=email&is_active=eq.true')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
+      if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth')) return new Response(JSON.stringify([]));
+      if (url === 'https://api.resend.com/emails') {
+        requests.push({
+          idempotencyKey: new Headers(init?.headers).get('idempotency-key'),
+          body: String(init?.body),
+        });
+        return new Response(JSON.stringify({ id: 'email-idempotent' }), { status: 200 });
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const event = {
+      id: 'retry-safe-reset',
+      ts: Date.parse('2026-08-22T00:50:00.000Z'),
+      text: 'The banked reset has landed for all paid Codex users.',
+      link: 'https://x.com/thsottiaux/status/123456789',
+    };
+    try {
+      await notifyAll(emailEnv(), event);
+      await notifyAll(emailEnv(), event);
+      expect(requests).toHaveLength(2);
+      expect(requests[1]).toEqual(requests[0]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('leaves a reset eligible for retry when email or Push delivery is not configured', async () => {
     const emailFetch = vi.fn(async (input: string) => {
       const url = String(input);
