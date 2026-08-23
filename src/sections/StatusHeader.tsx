@@ -47,14 +47,16 @@ export function StatusHeader({ prediction, isLive, isRefreshing, onRefresh, onSh
           <span className="hidden font-mono text-[10px] text-muted-foreground/50 md:inline">
             {prediction.modelVersion}
           </span>
-          <span className="flex shrink-0 items-center gap-1.5" aria-label={isLive ? 'Live data' : 'Simulated data'}>
-            <span className={`w-1.5 h-1.5 rounded-full ${
-              isLive ? 'bg-primary live-dot' : 'bg-muted-foreground/40'
-            }`} />
-            <span className="hidden font-mono text-[10px] text-muted-foreground sm:inline">
-              {isLive ? 'LIVE' : 'SIM'}
+          {!isRefreshing && (
+            <span className="flex shrink-0 items-center gap-1.5" aria-label={isLive ? 'Live data' : 'Simulated data'}>
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                isLive ? 'bg-primary live-dot' : 'bg-muted-foreground/40'
+              }`} />
+              <span className="hidden font-mono text-[10px] text-muted-foreground sm:inline">
+                {isLive ? 'LIVE' : 'SIM'}
+              </span>
             </span>
-          </span>
+          )}
         </div>
 
         {/* Right: Time + actions */}
