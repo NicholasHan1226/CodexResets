@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { probabilityWithin, scoreForecastModels, scoreHighConfidenceDecisions, selectForecastModel } from '../src/lib/forecast-model';
 import { mergeResetEpisodes } from '../src/lib/reset-episodes';
-import { MIN_CALENDAR_RECORDS, RESET_HISTORY, shouldShowResetCalendar } from '../src/lib/reset-data';
+import { MIN_CALENDAR_RECORDS, RESET_HISTORY, setDynamicResetHistory, shouldShowResetCalendar } from '../src/lib/reset-data';
 import { generatePrediction } from '../src/lib/prediction';
 import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
 import { ForecastLedger } from '../worker/src/forecast-ledger';
@@ -22,6 +22,7 @@ function regularHistory(): ResetRecord[] {
 describe('reset episode forecasting', () => {
   afterEach(() => {
     vi.useRealTimers();
+    setDynamicResetHistory(null);
   });
 
   it('shows the annual calendar only once there is enough reviewed history to make it useful', () => {
@@ -110,6 +111,16 @@ describe('reset episode forecasting', () => {
     expect(prediction.curve[1].timestamp).toBe(now + 6 * 60 * 60 * 1000);
     expect(prediction.curve.some((point) => point.timestamp - 3 * 60 * 60 * 1000 === Date.parse(prediction.windowStart))).toBe(true);
     expect(Date.parse(prediction.windowEnd) - Date.parse(prediction.windowStart)).toBe(6 * 60 * 60 * 1000);
+  });
+
+  it('clears a prior Worker history when the browser falls back to its bundled baseline', () => {
+    const transientRecord = record('transient-live-record', Date.parse('2026-08-23T01:00:00Z'));
+    const fromWorker = generatePrediction([transientRecord]);
+    expect(fromWorker.lastReset).toBe(new Date(transientRecord.timestamp).toISOString());
+
+    // This is the input the hook supplies if the next Worker request fails.
+    const fallback = generatePrediction([]);
+    expect(fallback.lastReset).toBe(new Date(RESET_HISTORY[0].timestamp).toISOString());
   });
 
   it('records a history-only production forecast snapshot', async () => {
