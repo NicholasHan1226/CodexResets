@@ -367,6 +367,9 @@ async function sendPush(env: Env, row: PushSubRow, event: ResetEvent): Promise<'
       title: 'Codex Reset Alert / Codex 重置提醒',
       body: `${details.labelEn} confirmed / 已确认：${details.labelZh}`,
       url: details.evidenceUrl || '/',
+      actionTitle: details.evidenceUrl
+        ? 'View official announcement / 查看官方公告'
+        : 'Open dashboard / 打开仪表盘',
     }),
     options: { ttl: 86400 },
   };

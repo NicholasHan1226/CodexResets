@@ -21,7 +21,7 @@ self.addEventListener('push', function (event) {
       probability: data.probability,
     },
     actions: [
-      { action: 'view', title: 'View Dashboard' },
+      { action: 'view', title: data.actionTitle || 'Open dashboard / 打开仪表盘' },
       { action: 'dismiss', title: 'Dismiss' },
     ],
     vibrate: [200, 100, 200],
