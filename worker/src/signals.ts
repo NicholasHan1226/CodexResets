@@ -4,7 +4,11 @@ import { RESET_RE, CONTEXT_RE, isResetAnnouncement, isScheduledResetAnnouncement
 
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
-const SCHEDULED_RESET_SIGNAL_TTL_HOURS = 48;
+// Only an announcement without a parseable target is bounded by post age.
+// Once an official target is explicit, the target itself is the meaningful
+// expiry boundary; a late-day "tomorrow" target can otherwise outlive this
+// post-age window by a few minutes and disappear before confirmation.
+const UNTIMED_SCHEDULED_SIGNAL_TTL_HOURS = 48;
 // A published target stays useful just long enough for the direct account
 // timeline and the confirmation pipeline to converge. After that, an
 // unconfirmed target is no longer a forward-looking answer and must not keep
@@ -151,9 +155,11 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
   const targetElapsed = typeof scheduledAt === 'number' && scheduledAt <= now;
   const elapsedWithinGrace = !targetElapsed
     || now - scheduledAt <= SCHEDULED_RESET_ELAPSED_GRACE_HOURS * HOUR;
+  const scheduleIsFresh = typeof scheduledAt === 'number'
+    ? elapsedWithinGrace
+    : hoursSinceScheduledReset !== null && hoursSinceScheduledReset < UNTIMED_SCHEDULED_SIGNAL_TTL_HOURS;
   if (hoursSinceScheduledReset !== null
-    && hoursSinceScheduledReset < SCHEDULED_RESET_SIGNAL_TTL_HOURS
-    && elapsedWithinGrace) {
+    && scheduleIsFresh) {
     return {
       ...base,
       status: 'active',

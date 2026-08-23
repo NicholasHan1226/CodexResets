@@ -323,6 +323,29 @@ describe('pipeline read endpoints', () => {
         status: 'idle',
         description: 'signals.lastPostDays',
       });
+
+      // A late-day "tomorrow" target can be nearly 48 hours after its post.
+      // It must remain visible throughout the confirmation grace period
+      // rather than expiring when the post itself turns 48 hours old.
+      const lateScheduled = {
+        text: 'Reset will land around 23:59 PST tomorrow.',
+        link: 'https://x.com/thsottiaux/status/late-target',
+        ts: Date.parse('2026-08-23T08:01:00.000Z'),
+      };
+      vi.setSystemTime(new Date('2026-08-25T08:01:00.000Z'));
+      const lateElapsedSnapshot = await buildSignalsSnapshot(
+        envWith({}),
+        { ok: true, sourceKind: 'direct', tweets: [lateScheduled] },
+        now - 4 * 24 * 60 * 60 * 1000,
+        3.8,
+        [],
+        { state: 'clear', incidentCount: 0 },
+      );
+      expect(lateElapsedSnapshot.signals[0]).toMatchObject({
+        status: 'active',
+        description: 'signals.resetScheduleElapsed',
+        scheduledAt: Date.parse('2026-08-25T07:59:00.000Z'),
+      });
     } finally {
       vi.useRealTimers();
     }
