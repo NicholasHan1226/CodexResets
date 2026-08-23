@@ -11,6 +11,8 @@ import type { ResetRecord, ResetSignal } from '@/types/reset';
 const PIPELINE_API_URL = (import.meta.env.VITE_PIPELINE_API_URL || '').replace(/\/+$/, '');
 const PIPELINE_TIMEOUT_MS = 3500;
 export const PIPELINE_SNAPSHOT_MAX_AGE_MS = 90 * 60 * 1000;
+const PIPELINE_SIGNAL_SOURCES = ['tibopost', 'status_page', 'cooldown', 'launch_noise'] as const;
+const PIPELINE_SIGNAL_SOURCE_SET = new Set<string>(PIPELINE_SIGNAL_SOURCES);
 
 interface PipelineSnapshot {
   signals: ResetSignal[];
@@ -38,6 +40,32 @@ export function isFreshPipelineSnapshot(generatedAt: unknown, now = Date.now()):
     && now - generatedAt <= PIPELINE_SNAPSHOT_MAX_AGE_MS;
 }
 
+/**
+ * A partially formed Worker response must not be presented as a LIVE model
+ * beside locally generated substitutes. The pipeline owns these four sources;
+ * accept the snapshot only when every source is present exactly once and each
+ * display value is safe to render.
+ */
+export function isCompletePipelineSnapshot(snapshot: Partial<PipelineSnapshot>, now = Date.now()): snapshot is PipelineSnapshot {
+  if (!isFreshPipelineSnapshot(snapshot.generatedAt, now)
+    || !Array.isArray(snapshot.signals)
+    || snapshot.signals.length !== PIPELINE_SIGNAL_SOURCES.length) return false;
+
+  const seen = new Set<string>();
+  for (const signal of snapshot.signals) {
+    if (!signal || !PIPELINE_SIGNAL_SOURCE_SET.has(signal.source)
+      || seen.has(signal.source)
+      || typeof signal.label !== 'string' || signal.label.length === 0
+      || typeof signal.description !== 'string' || signal.description.length === 0
+      || (signal.status !== 'active' && signal.status !== 'weak' && signal.status !== 'idle')
+      || typeof signal.value !== 'number' || !Number.isFinite(signal.value) || signal.value < 0 || signal.value > 1
+      || typeof signal.updatedAt !== 'number' || !Number.isFinite(signal.updatedAt)
+      || signal.updatedAt > now + 5 * 60 * 1000) return false;
+    seen.add(signal.source);
+  }
+  return seen.size === PIPELINE_SIGNAL_SOURCES.length;
+}
+
 // Fetch the server-side snapshot built by the pipeline Worker. Signals and
 // compact verified history arrive together, avoiding a second critical-path
 // request on the first dashboard render.
@@ -54,7 +82,7 @@ async function fetchPipelineSnapshot(force = false): Promise<PipelineSnapshot | 
     });
     if (!res.ok) return null;
     const data = (await res.json()) as PipelineSnapshot;
-    if (!isFreshPipelineSnapshot(data.generatedAt) || !Array.isArray(data.signals) || data.signals.length === 0) return null;
+    if (!isCompletePipelineSnapshot(data)) return null;
     // Snapshot is refreshed every 30min server-side; cache for 5min locally
     const snapshot: PipelineSnapshot = {
       signals: data.signals,
@@ -323,11 +351,9 @@ export async function fetchRealSignals(): Promise<ResetSignal[]> {
 export async function getDashboardInputs(simulatedSignals: ResetSignal[], force = false): Promise<DashboardInputs> {
   // Tier 1: server-side pipeline snapshot (most reliable)
   const pipeline = await fetchPipelineSnapshot(force);
-  if (pipeline && pipeline.signals.length > 0) {
-    const pipelineSources = new Set(pipeline.signals.map((s) => s.source));
-    const missing = simulatedSignals.filter((s) => !pipelineSources.has(s.source));
+  if (pipeline) {
     return {
-      signals: [...pipeline.signals, ...missing],
+      signals: pipeline.signals,
       hasRealData: true,
       records: parsePipelineHistory(pipeline.history),
     };
