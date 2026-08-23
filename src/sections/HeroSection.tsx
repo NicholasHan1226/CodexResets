@@ -25,7 +25,8 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
 
   const lastResetDate = prediction.lastReset ? new Date(prediction.lastReset) : null;
   const daysSince = prediction.daysSinceLastReset;
-  const isLikely = pct24 >= 50;
+  // Keep the verdict aligned with the horizon the visitor selected.
+  const isLikely = pct >= 50;
 
   const lastResetStr = lastResetDate
     ? lastResetDate.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
@@ -76,7 +77,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
     <section aria-label="Reset probability" className="hero-stage max-w-4xl">
       {/* Terminal prompt — answer first, then the evidence in dim text */}
       <p className="font-mono text-sm text-muted-foreground">
-        <span className="text-primary">❯</span> will codex reset? →{' '}
+        <span className="text-primary">❯</span> {t('hero.question', { n: timeframe })} →{' '}
         <span className="text-foreground font-semibold">
           {isLikely ? t('hero.answerYes') : t('hero.answerNo')}
         </span>{' '}

@@ -188,6 +188,7 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
     (best, point, index) => Math.abs(point.timestamp - nowTimestamp) < Math.abs(chartData[best].timestamp - nowTimestamp) ? index : best,
     0
   );
+  const firstForecastIndex = chartData.length > 1 ? 1 : nearestNowIndex;
 
   const handlePointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -218,12 +219,12 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
           {t("curve.title")}
           {hours && (
             <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
-              next {hours}h
+              {t("curve.window", { n: hours })}
             </span>
           )}
         </h2>
         <span className="font-mono text-xs text-muted-foreground">
-          {t("curve.peak")}: {Math.round(peak.probability * 100)}%
+          {t("curve.peakWindow")}: {Math.round(peak.probability * 100)}%
           <span className="ml-2 text-muted-foreground/50">{tzLabel}</span>
         </span>
       </div>
@@ -239,12 +240,12 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
               onPointerLeave={(e) => {
                 if (e.pointerType === 'mouse') setHoverIdx(null);
               }}
-              onFocus={() => setHoverIdx((current) => current ?? nearestNowIndex)}
+              onFocus={() => setHoverIdx((current) => current ?? firstForecastIndex)}
               onBlur={() => setHoverIdx(null)}
               onKeyDown={handleKeyDown}
               tabIndex={0}
               role="group"
-              aria-label={t("curve.subtitle")}
+              aria-label={hours ? t("curve.window", { n: hours }) : t("curve.subtitle")}
               aria-describedby="curve-explorer-status"
             >
               <defs>
@@ -387,7 +388,7 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
           )}
 
           {/* HTML tooltip — follows the hovered point */}
-          {hoverPoint && hoverLocal && pts[hoverIdx ?? 0] && (
+          {hoverPoint && hoverLocal && hoverIdx !== null && hoverIdx > 0 && pts[hoverIdx] && (
             <div
               className="pointer-events-none absolute z-10 rounded-md border border-border bg-card px-3 py-2 shadow-lg"
               style={{
@@ -407,9 +408,9 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
             </div>
           )}
           <p id="curve-explorer-status" className="sr-only" aria-live="polite">
-            {hoverPoint && hoverLocal
+            {hoverPoint && hoverLocal && hoverIdx !== null && hoverIdx > 0
               ? `${hoverLocal.getFullYear()}-${String(hoverLocal.getMonth() + 1).padStart(2, "0")}-${String(hoverLocal.getDate()).padStart(2, "0")} ${String(hoverLocal.getHours()).padStart(2, "0")}:00, ${Math.round(hoverPoint.probability * 100)}%`
-              : ''}
+              : hoverIdx === 0 ? `${t("curve.now")} · ${t("curve.fromNow")}` : ''}
           </p>
         </div>
 
@@ -421,8 +422,7 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
               {t("curve.now")} {nowLocalLabel}
             </span>
             <span className="mx-2 text-border">·</span>
-            {t("hero.probLabel")}{" "}
-            <span className="text-foreground">{Math.round(probAtNow * 100)}%</span>
+            <span>{t("curve.fromNow")}</span>
             <span className="mx-2 text-border">·</span>
             {tzLabel}
           </p>
