@@ -273,3 +273,8 @@ The Worker sends one Resend health-failure alert every six hours when
 `HEALTH_ALERT_EMAIL` is configured for non-source processing errors or three
 consecutive direct-source failures. The response includes non-secret check
 states for diagnosis.
+
+## License
+
+[MIT](LICENSE) — reuse, modification, and commercial distribution are allowed
+when the copyright and license notice are retained.
