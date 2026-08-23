@@ -283,3 +283,8 @@ when the copyright and license notice are retained.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the project scope, local quality
 gate, and safe bug-reporting guidance.
+
+## Security
+
+Report vulnerabilities through [GitHub private vulnerability reporting](https://github.com/NicholasHan1226/CodexResets/security/advisories/new).
+See [SECURITY.md](SECURITY.md) for scope and reporting guidance.
