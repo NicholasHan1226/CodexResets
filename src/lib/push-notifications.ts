@@ -66,8 +66,11 @@ export async function subscribeToPush(): Promise<PushSubscriptionData | null> {
 
   try {
     // Register service worker
-    const registration = await navigator.serviceWorker.register('/sw.js');
-    await registration.update();
+    const installingRegistration = await navigator.serviceWorker.register('/sw.js');
+    await installingRegistration.update();
+    // `ready` is safe only after this call has installed a registration. It
+    // gives PushManager an active worker rather than a still-installing one.
+    const registration = await navigator.serviceWorker.ready;
 
     // Request permission
     const permission = await Notification.requestPermission();
@@ -113,7 +116,8 @@ export async function unsubscribeFromPush(): Promise<boolean> {
   if (!isPushSupported()) return false;
 
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await navigator.serviceWorker.getRegistration('/');
+    if (!registration) return true;
     const subscription = await registration.pushManager.getSubscription();
 
     if (subscription) {
@@ -142,7 +146,12 @@ export async function isSubscribedToPush(): Promise<boolean> {
   if (!isPushSupported()) return false;
 
   try {
-    const registration = await navigator.serviceWorker.ready;
+    // A first-time visitor has no registration yet. Waiting on `ready` here
+    // would never settle because registration starts only after they choose
+    // to enable notifications, leaving the control permanently in its
+    // loading state.
+    const registration = await navigator.serviceWorker.getRegistration('/');
+    if (!registration) return false;
     const subscription = await registration.pushManager.getSubscription();
     return subscription !== null;
   } catch {
