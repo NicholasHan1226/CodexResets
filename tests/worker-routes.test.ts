@@ -534,6 +534,16 @@ describe('pipeline read endpoints', () => {
     }
   });
 
+  it('fails closed when an upstream status JSON body exceeds the configured bound', async () => {
+    const fetchMock = vi.fn(async () => new Response(`{"incidents":"${'x'.repeat(70 * 1024)}"}`, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await expect(getStatusEvidence()).resolves.toEqual({ state: 'unavailable', incidentCount: 0 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('keeps an explicit Codex reset notice strong and promotion noise weak', () => {
     const detection = detectResetEvents([
       { ts: 1, link: 'https://example.test/reset', text: 'The banked reset has landed for all paid Codex users.' },
