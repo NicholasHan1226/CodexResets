@@ -1,5 +1,7 @@
 # Codex Resets
 
+[Visit the live dashboard at codexresets.cc](https://codexresets.cc)
+
 `codexresets.cc` is a public dashboard that estimates when OpenAI Codex usage
 limits may reset. It combines a browser UI with a scheduled Cloudflare Worker
 that collects signals and produces a KV-backed snapshot.
