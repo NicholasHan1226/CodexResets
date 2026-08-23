@@ -4,6 +4,7 @@ import { RESET_RE, CONTEXT_RE, isResetAnnouncement, isScheduledResetAnnouncement
 
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
+const SCHEDULED_RESET_SIGNAL_TTL_HOURS = 48;
 
 interface StatusIncident {
   status: string;
@@ -128,7 +129,7 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
       descriptionParams: { n: hoursSinceResetMention },
     };
   }
-  if (hoursSinceScheduledReset !== null && hoursSinceScheduledReset < 24 * 7) {
+  if (hoursSinceScheduledReset !== null && hoursSinceScheduledReset < SCHEDULED_RESET_SIGNAL_TTL_HOURS) {
     return {
       ...base,
       status: 'active',

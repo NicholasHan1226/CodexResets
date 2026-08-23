@@ -13,7 +13,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.signalNo': 'no official reset signal',
     'hero.signalWatch': 'related activity to watch',
     'hero.signalYes': 'reset signal detected',
-    'hero.signalScheduled': 'official reset announced',
+    'hero.signalScheduled': 'official reset scheduled',
     'hero.question': 'will Codex reset within {n}h?',
     'hero.answerNo': 'Not likely.',
     'hero.answerWatch': 'Possible — keep watching.',

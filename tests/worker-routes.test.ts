@@ -255,6 +255,16 @@ describe('pipeline read endpoints', () => {
       description: 'signals.resetScheduled',
     });
     expect(detectResetEvents([scheduled])).toEqual({ strong: [], weak: [] });
+
+    const expiredSnapshot = await buildSignalsSnapshot(
+      envWith({}),
+      { ok: true, sourceKind: 'direct', tweets: [{ ...scheduled, ts: now - 49 * 60 * 60 * 1000 }] },
+      now - 4 * 24 * 60 * 60 * 1000,
+      3.8,
+      [],
+      { state: 'clear', incidentCount: 0 },
+    );
+    expect(expiredSnapshot.signals[0].description).not.toBe('signals.resetScheduled');
   });
 
   it('returns a fresh signal snapshot with browser CORS and security headers enabled', async () => {
