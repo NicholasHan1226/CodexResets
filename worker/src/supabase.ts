@@ -2,6 +2,7 @@ import type { Env } from './types';
 import { readTextWithin } from './util';
 
 const SUPABASE_ERROR_MAX_BYTES = 8 * 1024;
+const SUPABASE_TIMEOUT_MS = 8_000;
 
 /**
  * Minimal PostgREST client.
@@ -13,6 +14,9 @@ export function sb(env: Env, path: string, init: RequestInit = {}, useService = 
   if (!key) throw new Error(useService ? 'SUPABASE_SERVICE_ROLE_KEY not configured' : 'SUPABASE_ANON_KEY not configured');
   return fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
     ...init,
+    // A stalled database request must not consume the entire cron run and
+    // prevent the Worker from publishing its next health/signal snapshot.
+    signal: init.signal ?? AbortSignal.timeout(SUPABASE_TIMEOUT_MS),
     headers: {
       apikey: key,
       authorization: `Bearer ${key}`,
