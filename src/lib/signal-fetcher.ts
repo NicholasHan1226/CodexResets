@@ -41,11 +41,11 @@ export function isFreshPipelineSnapshot(generatedAt: unknown, now = Date.now()):
 // Fetch the server-side snapshot built by the pipeline Worker. Signals and
 // compact verified history arrive together, avoiding a second critical-path
 // request on the first dashboard render.
-async function fetchPipelineSnapshot(): Promise<PipelineSnapshot | null> {
+async function fetchPipelineSnapshot(force = false): Promise<PipelineSnapshot | null> {
   if (!PIPELINE_API_URL) return null;
 
   const cacheKey = 'pipeline_snapshot';
-  const cached = getCached<PipelineSnapshot>(cacheKey);
+  const cached = force ? null : getCached<PipelineSnapshot>(cacheKey);
   if (cached) return cached;
 
   try {
@@ -70,8 +70,8 @@ async function fetchPipelineSnapshot(): Promise<PipelineSnapshot | null> {
   }
 }
 
-export async function fetchPipelineSignals(): Promise<ResetSignal[] | null> {
-  return (await fetchPipelineSnapshot())?.signals ?? null;
+export async function fetchPipelineSignals(force = false): Promise<ResetSignal[] | null> {
+  return (await fetchPipelineSnapshot(force))?.signals ?? null;
 }
 
 // RSS proxies for Twitter/X feeds (fallback chain)
@@ -320,9 +320,9 @@ export async function fetchRealSignals(): Promise<ResetSignal[]> {
 }
 
 // Return the Worker snapshot when available, otherwise the local fallback.
-export async function getDashboardInputs(simulatedSignals: ResetSignal[]): Promise<DashboardInputs> {
+export async function getDashboardInputs(simulatedSignals: ResetSignal[], force = false): Promise<DashboardInputs> {
   // Tier 1: server-side pipeline snapshot (most reliable)
-  const pipeline = await fetchPipelineSnapshot();
+  const pipeline = await fetchPipelineSnapshot(force);
   if (pipeline && pipeline.signals.length > 0) {
     const pipelineSources = new Set(pipeline.signals.map((s) => s.source));
     const missing = simulatedSignals.filter((s) => !pipelineSources.has(s.source));

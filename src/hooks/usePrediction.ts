@@ -8,7 +8,9 @@ import type { ResetPrediction, ResetRecord } from "@/types/reset";
  * Fetches real signals from public sources (Tibo tweets, OpenAI status page)
  * and reset history from Supabase.
  * Falls back to the bundled, local model if live inputs are unavailable.
- * Refreshes data every 5 minutes (signals are cached).
+ * Refreshes data every 5 minutes; an explicit user refresh bypasses the
+ * short in-memory snapshot cache so it always asks the Worker for its latest
+ * already-generated result.
  */
 export function usePrediction() {
   // Wait for the first refresh rather than showing a bundled estimate that
@@ -20,11 +22,11 @@ export function usePrediction() {
   // Honest badge: LIVE only when a fresh Worker signal snapshot was received.
   const isLive = usingRealData;
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force = false) => {
     setSignalsLoading(true);
     
     try {
-      const { signals, hasRealData, records: snapshotRecords } = await getDashboardInputs(generatePrediction().signals);
+      const { signals, hasRealData, records: snapshotRecords } = await getDashboardInputs(generatePrediction().signals, force);
       // The Worker supplies real verified history with a fresh snapshot. If
       // it is unavailable, use the local baseline immediately rather than
       // opening a second cross-origin database request on the visitor path.

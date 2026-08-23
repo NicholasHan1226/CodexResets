@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchOpenAIStatus, fetchTiboTweets, isFreshPipelineSnapshot, PIPELINE_SNAPSHOT_MAX_AGE_MS } from '../src/lib/signal-fetcher';
+import { fetchOpenAIStatus, fetchPipelineSignals, fetchTiboTweets, isFreshPipelineSnapshot, PIPELINE_SNAPSHOT_MAX_AGE_MS } from '../src/lib/signal-fetcher';
 
 describe('browser signal fallbacks', () => {
   afterEach(() => {
@@ -36,5 +36,9 @@ describe('browser signal fallbacks', () => {
     expect(isFreshPipelineSnapshot(now - PIPELINE_SNAPSHOT_MAX_AGE_MS + 1, now)).toBe(true);
     expect(isFreshPipelineSnapshot(now - PIPELINE_SNAPSHOT_MAX_AGE_MS - 1, now)).toBe(false);
     expect(isFreshPipelineSnapshot(now + 5 * 60 * 1000 + 1, now)).toBe(false);
+  });
+
+  it('accepts an explicit force flag for a manual pipeline refresh', async () => {
+    await expect(fetchPipelineSignals(true)).resolves.toBeNull();
   });
 });

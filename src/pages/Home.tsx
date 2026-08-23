@@ -42,7 +42,7 @@ export default function Home() {
           prediction={prediction}
           isLive={isLive}
           isRefreshing={signalsLoading}
-          onRefresh={() => { void refresh(); }}
+          onRefresh={() => { void refresh(true); }}
           onShare={handleShare}
         />
 
