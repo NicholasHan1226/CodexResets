@@ -3,7 +3,7 @@ import { handleConfirmEmail, handleHealth, handleHealthDetails, handleReleaseSta
 import { isExpiredPushEndpoint, notifyAll, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
 import { signToken } from '../worker/src/util';
 import { buildSignalsSnapshot, getStatusEvidence } from '../worker/src/signals';
-import { computeSignalBaseline, isDuplicateResetNotice, runPipeline, runPipelineOnce, shouldSendHealthAlert } from '../worker/src/pipeline';
+import { computeSignalBaseline, isAutomaticallyDeliverable, isDuplicateResetNotice, runPipeline, runPipelineOnce, shouldSendHealthAlert } from '../worker/src/pipeline';
 import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
 import { refreshOfficialCodexDiscovery } from '../worker/src/discovery';
 import { getSubscriptionQuality, getXWebhookQuality } from '../worker/src/operational-metrics';
@@ -753,6 +753,16 @@ describe('pipeline read endpoints', () => {
     expect(isDuplicateResetNotice(banked, direct)).toBe(false);
     expect(isDuplicateResetNotice(banked, { ...direct, link: banked.link })).toBe(true);
     expect(isDuplicateResetNotice({ ts: now, link: '', text: '' }, direct)).toBe(false);
+  });
+
+  it('never replays a manual or historical confirmed row to subscribers', () => {
+    const base = {
+      id: 'reset', reset_date: '2026-08-22T00:00:00.000Z', source_url: null,
+      description: 'verified reset', verified: true,
+    };
+    expect(isAutomaticallyDeliverable({ ...base, automated: true, auto_state: 'confirmed' })).toBe(true);
+    expect(isAutomaticallyDeliverable({ ...base, auto_state: 'confirmed' })).toBe(false);
+    expect(isAutomaticallyDeliverable({ ...base, automated: true, auto_state: 'confirmed', notified_at: '2026-08-22T00:01:00.000Z' })).toBe(false);
   });
 
   it('uses Google News as a healthy degraded source when every social mirror is unavailable', async () => {

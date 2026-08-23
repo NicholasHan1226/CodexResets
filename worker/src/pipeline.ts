@@ -207,8 +207,8 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
     ).length;
   }
 
-  // 5. Deliver automatically confirmed resets. The earlier migration marked
-  // pre-existing confirmed rows as delivered, preventing a historical replay.
+  // 5. Deliver only resets confirmed by this Worker. Historical/manual rows
+  // remain model evidence but can never be replayed to all subscribers.
   const records = allRecords.filter((record) => record.verified);
   try {
     await recordForecastSnapshot(env, records, Date.now());
@@ -223,7 +223,7 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
     report.errors.push(`forecast snapshot: ${err instanceof Error ? err.message : String(err)}`);
     await env.CACHE.put(FORECAST_RELEASE_STATUS_KEY, '0', { expirationTtl: FORECAST_RELEASE_STATUS_TTL_SECONDS }).catch(() => {});
   }
-  for (const record of records.filter((row) => !row.notified_at)) {
+  for (const record of records.filter(isAutomaticallyDeliverable)) {
     const outcome = await notifyAll(env, {
       id: record.id,
       ts: new Date(record.reset_date).getTime(),
@@ -294,6 +294,14 @@ export function isDuplicateResetNotice(
   if (!existing.text.trim()) return false;
   if (!Number.isFinite(existing.ts) || Math.abs(existing.ts - candidate.ts) >= 6 * HOUR) return false;
   return classifyResetNotification(existing.text) === classifyResetNotification(candidate.text);
+}
+
+/** Prevent a missed migration or an operator-added historical row from replaying alerts. */
+export function isAutomaticallyDeliverable(record: ResetRecordRow): boolean {
+  return record.verified
+    && record.automated === true
+    && record.auto_state === 'confirmed'
+    && !record.notified_at;
 }
 
 /**
