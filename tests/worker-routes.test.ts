@@ -280,6 +280,8 @@ describe('pipeline read endpoints', () => {
       scheduledAt: Date.parse('2026-08-24T22:00:00.000Z'),
     });
     expect(parseScheduledResetAt(scheduled.text, scheduled.ts)).toBe(Date.parse('2026-08-24T22:00:00.000Z'));
+    expect(parseScheduledResetAt('Reset will land at 14:30 PST tomorrow.', scheduled.ts)).toBe(Date.parse('2026-08-24T22:30:00.000Z'));
+    expect(parseScheduledResetAt('Reset will land at 9 PST tomorrow.', scheduled.ts)).toBeUndefined();
     expect(detectResetEvents([scheduled])).toEqual({ strong: [], weak: [] });
 
     const degradedSnapshot = await buildSignalsSnapshot(

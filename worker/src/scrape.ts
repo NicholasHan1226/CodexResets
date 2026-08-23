@@ -266,17 +266,23 @@ export function isScheduledResetAnnouncement(text: string): boolean {
 export function parseScheduledResetAt(text: string, postedAt: number): number | undefined {
   if (!isScheduledResetAnnouncement(text) || !/\btomorrow\b/i.test(text) || !Number.isFinite(postedAt)) return undefined;
 
-  const match = text.match(/\b(?:at|around|by)\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\s*(PST|PDT)\b/i);
+  const match = text.match(/\b(?:at|around|by)\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?\s*(PST|PDT)\b/i);
   if (!match) return undefined;
 
   const hourInput = Number(match[1]);
   const minute = Number(match[2] || 0);
+  const meridiemToken = match[3];
+  // Without AM/PM, require an explicit minute field. This accepts unambiguous
+  // 24-hour forms such as "14:30 PST" but still rejects vague "9 PST".
+  if (!meridiemToken && match[2] === undefined) return undefined;
   if (!Number.isInteger(hourInput) || !Number.isInteger(minute) || hourInput > 23 || minute > 59) return undefined;
 
-  const meridiem = match[3].replace(/\./g, '').toLowerCase();
+  const meridiem = meridiemToken?.replace(/\./g, '').toLowerCase();
   // Authors sometimes write "14pm". Interpret that unambiguously as 14:00,
   // while preserving ordinary 12-hour AM/PM notation.
-  const hour = hourInput > 12
+  const hour = !meridiem
+    ? hourInput
+    : hourInput > 12
     ? hourInput
     : meridiem === 'pm'
       ? (hourInput % 12) + 12
