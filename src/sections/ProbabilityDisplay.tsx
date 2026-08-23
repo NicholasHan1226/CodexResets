@@ -27,16 +27,16 @@ export function ProbabilityDisplay({ pct, timeframe, onTimeframeChange }: Probab
           {t('hero.probLabel')}
         </span>
         {/* Timeframe toggle */}
-        <div className="flex items-center font-mono text-sm" role="tablist" aria-label="Timeframe">
+        <div className="flex items-center rounded-sm border border-border/50 bg-background/50 p-0.5 font-mono text-sm" role="tablist" aria-label="Timeframe">
           {([24, 48] as const).map((tf) => (
             <button
               key={tf}
               role="tab"
               aria-selected={timeframe === tf}
               onClick={() => onTimeframeChange(tf)}
-              className={`px-2 py-0.5 transition-colors ${
+              className={`rounded-[3px] px-2 py-0.5 transition-[color,background-color,transform] active:translate-y-px ${
                 timeframe === tf
-                  ? 'text-primary font-semibold'
+                  ? 'bg-primary/10 text-primary font-semibold'
                   : 'text-muted-foreground/40 hover:text-muted-foreground'
               }`}
             >

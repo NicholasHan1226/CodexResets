@@ -43,7 +43,7 @@ export default function Home() {
           onShare={handleShare}
         />
 
-        <main className="mx-auto max-w-3xl px-4 md:px-6 py-10" role="main" aria-label="Codex Reset Prediction Dashboard">
+        <main className="mx-auto max-w-4xl px-4 py-10 md:px-6 lg:py-12" role="main" aria-label="Codex Reset Prediction Dashboard">
           {/* The probability + quick nav */}
           <div className="micro-fade-up">
             <HeroSection

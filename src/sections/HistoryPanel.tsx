@@ -32,7 +32,7 @@ export function HistoryPanel() {
   const currentSpark = SPARK_CHARS[Math.min(7, Math.round((currentWait / maxGap) * 7))];
 
   return (
-    <section aria-label="Reset history" className="max-w-3xl">
+    <section aria-label="Reset history" className="max-w-4xl">
       <h2 className="text-lg font-semibold text-foreground">
         <span className="mr-2 font-mono font-normal text-primary">❯</span>
         {t('history.title')}

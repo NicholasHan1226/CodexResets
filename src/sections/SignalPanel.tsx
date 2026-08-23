@@ -61,7 +61,7 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
   const composite = total > 0 ? prediction.signals.reduce((sum, s) => sum + s.value, 0) / total : 0;
 
   return (
-    <section aria-label="Signal radar" className="max-w-3xl">
+    <section aria-label="Signal radar" className="max-w-4xl">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">
           <span className="mr-2 font-mono font-normal text-primary">❯</span>
@@ -94,7 +94,7 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
           return (
             <div
               key={signal.label}
-              className={`flex gap-4 py-3 ${i > 0 ? 'border-t border-border/20' : ''} ${
+              className={`flex gap-4 py-3 transition-colors ${i > 0 ? 'border-t border-border/20' : ''} ${
                 signal.status === 'active' ? '-mx-2 bg-primary/5 px-2' : ''
               }`}
             >

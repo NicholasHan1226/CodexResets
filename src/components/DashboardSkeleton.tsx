@@ -11,7 +11,7 @@ export function DashboardSkeleton() {
     <div className="min-h-screen bg-background" role="main" aria-label="Dashboard loading">
       {/* Status header */}
       <div className="border-b border-border/20">
-        <div className="mx-auto flex h-12 max-w-3xl items-center justify-between px-4 md:px-6">
+        <div className="mx-auto flex h-12 max-w-4xl items-center justify-between px-4 md:px-6">
           <div className="flex items-center gap-3">
             <Bar className="h-4 w-28" />
             <Bar className="h-3 w-10" />
@@ -23,7 +23,7 @@ export function DashboardSkeleton() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-3xl px-4 py-10 md:px-6">
+      <div className="mx-auto max-w-4xl px-4 py-10 md:px-6">
         {/* Hero: prompt line */}
         <Bar className="h-4 w-64" />
 

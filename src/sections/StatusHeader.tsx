@@ -40,25 +40,25 @@ export function StatusHeader({ prediction, isLive, isRefreshing, onRefresh, onSh
 
   return (
     <header className="sticky top-0 z-50 bg-background/90 backdrop-blur-sm border-b border-border/20">
-      <div className="max-w-3xl mx-auto px-4 md:px-6 h-12 flex items-center justify-between">
+      <div className="mx-auto flex min-h-12 max-w-4xl items-center justify-between gap-3 px-3 py-2 sm:px-4 md:px-6">
         {/* Left: Title + status */}
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-sm font-semibold text-foreground">{t('app.title')}</span>
-          <span className="font-mono text-[10px] text-muted-foreground/50">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <span className="shrink-0 whitespace-nowrap font-mono text-[11px] font-semibold text-foreground sm:text-sm">{t('app.title')}</span>
+          <span className="hidden font-mono text-[10px] text-muted-foreground/50 md:inline">
             {prediction.modelVersion}
           </span>
-          <span className="flex items-center gap-1.5">
+          <span className="flex shrink-0 items-center gap-1.5" aria-label={isLive ? 'Live data' : 'Simulated data'}>
             <span className={`w-1.5 h-1.5 rounded-full ${
               isLive ? 'bg-primary live-dot' : 'bg-muted-foreground/40'
             }`} />
-            <span className="font-mono text-[10px] text-muted-foreground">
+            <span className="hidden font-mono text-[10px] text-muted-foreground sm:inline">
               {isLive ? 'LIVE' : 'SIM'}
             </span>
           </span>
         </div>
 
         {/* Right: Time + actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <span className="hidden sm:inline font-mono text-xs text-muted-foreground/60">
             {utcTime}
           </span>
@@ -68,7 +68,7 @@ export function StatusHeader({ prediction, isLive, isRefreshing, onRefresh, onSh
 
           <Link
             to="/about"
-            className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="hidden font-mono text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline"
           >
             [docs]
           </Link>
@@ -84,7 +84,7 @@ export function StatusHeader({ prediction, isLive, isRefreshing, onRefresh, onSh
           {onShare && (
             <button
               onClick={onShare}
-              className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="hidden font-mono text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline"
               aria-label={t('header.share')}
             >
               [share]
@@ -95,7 +95,7 @@ export function StatusHeader({ prediction, isLive, isRefreshing, onRefresh, onSh
             onClick={onRefresh}
             disabled={isRefreshing}
             aria-busy={isRefreshing}
-            className="font-mono text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-wait disabled:opacity-70"
+            className="font-mono text-xs text-muted-foreground transition-[color,transform] hover:text-foreground active:translate-y-px disabled:cursor-wait disabled:opacity-70"
           >
             <span className={isRefreshing ? 'micro-refresh-pulse' : undefined}>
               {isRefreshing ? '[refresh…]' : '[refresh]'}

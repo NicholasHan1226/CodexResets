@@ -177,7 +177,7 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
   const hoverLocal = hoverPoint ? new Date(hoverPoint.timestamp) : null;
 
   return (
-    <section aria-label="Probability curve" className="max-w-3xl">
+    <section aria-label="Probability curve" className="max-w-4xl">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">
           <span className="mr-2 font-mono font-normal text-primary">❯</span>

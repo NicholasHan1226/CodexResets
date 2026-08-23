@@ -113,7 +113,7 @@ export function ResetAlertsPanel({ prob24h }: ResetAlertsPanelProps) {
   const pct = Math.round(prob24h * 100);
 
   return (
-    <section aria-label="Reset alerts" className="max-w-3xl">
+    <section aria-label="Reset alerts" className="max-w-4xl">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">
           <span className="mr-2 font-mono font-normal text-primary">❯</span>
@@ -158,8 +158,10 @@ export function ResetAlertsPanel({ prob24h }: ResetAlertsPanelProps) {
             <form onSubmit={handleEmailSubmit} className="space-y-3">
               <div className="flex items-stretch gap-2">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <label className="sr-only" htmlFor="reset-alert-email">{t('subscribe.placeholder')}</label>
                   <span className="shrink-0 font-mono text-sm text-primary">❯</span>
                   <input
+                    id="reset-alert-email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}

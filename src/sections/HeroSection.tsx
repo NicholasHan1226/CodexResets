@@ -73,7 +73,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
   };
 
   return (
-    <section aria-label="Reset probability">
+    <section aria-label="Reset probability" className="hero-stage max-w-4xl">
       {/* Terminal prompt — answer first, then the evidence in dim text */}
       <p className="font-mono text-sm text-muted-foreground">
         <span className="text-primary">❯</span> will codex reset? →{' '}
@@ -117,7 +117,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange }: HeroSe
       <p className="mt-4 font-mono text-xs">
         <button
           onClick={handleShare}
-          className="text-primary hover:text-primary/80 transition-colors"
+          className="command-action text-primary"
         >
           {copied ? t('hero.copied') : t('hero.shareLink')}
         </button>
