@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { probabilityWithin, scoreForecastModels, scoreHighConfidenceDecisions, selectForecastModel } from '../src/lib/forecast-model';
 import { mergeResetEpisodes } from '../src/lib/reset-episodes';
 import { MIN_CALENDAR_RECORDS, RESET_HISTORY, shouldShowResetCalendar } from '../src/lib/reset-data';
@@ -20,6 +20,10 @@ function regularHistory(): ResetRecord[] {
 }
 
 describe('reset episode forecasting', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('shows the annual calendar only once there is enough reviewed history to make it useful', () => {
     expect(shouldShowResetCalendar(RESET_HISTORY)).toBe(false);
     const enoughHistory = Array.from({ length: MIN_CALENDAR_RECORDS }, (_, index) => record(`calendar-${index}`, Date.now() - index * DAY_MS));
@@ -93,6 +97,18 @@ describe('reset episode forecasting', () => {
     // tiny aggregate rounding error that can appear across 16 buckets.
     expect(Math.abs(probabilityIn(24) - prediction.prob24h)).toBeLessThanOrEqual(0.01);
     expect(Math.abs(probabilityIn(48) - prediction.prob48h)).toBeLessThanOrEqual(0.02);
+  });
+
+  it('keeps curve buckets and the peak window on their exact forecast boundary', () => {
+    const now = Date.parse('2026-08-23T00:37:00.000Z');
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+
+    const prediction = generatePrediction(regularHistory());
+    expect(prediction.generatedAt).toBe(now);
+    expect(prediction.curve[0].timestamp).toBe(now + 3 * 60 * 60 * 1000);
+    expect(prediction.curve[1].timestamp).toBe(now + 6 * 60 * 60 * 1000);
+    expect(Date.parse(prediction.windowStart)).toBeGreaterThanOrEqual(prediction.curve[0].timestamp);
   });
 
   it('records a history-only production forecast snapshot', async () => {

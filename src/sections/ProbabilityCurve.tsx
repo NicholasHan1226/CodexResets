@@ -83,9 +83,7 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
   const tzLabel = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const allData = curve.map((point) => {
-    const pointDate = new Date(point.date);
-    pointDate.setUTCHours(point.hour, 0, 0, 0);
-    return { ...point, timestamp: pointDate.getTime() };
+    return { ...point, timestamp: point.timestamp };
   });
 
   // Forecast samples begin three hours in the future. Add the exact current

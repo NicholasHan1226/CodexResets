@@ -18,6 +18,7 @@ function generateCurve(
     const cumulative = probabilityWithin(history, model, now.getTime(), horizonHours);
     const pointAt = new Date(now.getTime() + horizonHours * HOUR_MS);
     rawPoints.push({
+      timestamp: pointAt.getTime(),
       date: pointAt.toISOString().slice(0, 10),
       hour: pointAt.getUTCHours(),
       probability: Math.round(Math.max(0, cumulative - priorCumulative) * 1000) / 1000,
@@ -53,7 +54,10 @@ function findResetWindow(curve: ProbabilityPoint[]): { start: string; end: strin
     }
   }
   const start = curve[bestStart] || { date: new Date().toISOString().slice(0, 10), hour: 0 };
-  const startDate = new Date(`${start.date}T${String(start.hour).padStart(2, '0')}:00:00Z`);
+  // Curve buckets retain their exact three-hour boundary. Reconstructing this
+  // from date/hour silently rounds the boundary down to the previous whole
+  // hour whenever a visitor refreshes at (for example) 12:37.
+  const startDate = new Date(start.timestamp);
   const endDate = new Date(startDate.getTime() + 6 * HOUR_MS);
   return {
     start: startDate.toISOString(),

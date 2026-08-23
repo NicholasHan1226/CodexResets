@@ -33,6 +33,8 @@ export interface ResetSignal {
 }
 
 export interface ProbabilityPoint {
+  /** Exact end of this forward-looking probability bucket in epoch milliseconds. */
+  timestamp: number;
   /** ISO date string */
   date: string;
   /** Hour of day (0-23) */
