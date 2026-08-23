@@ -1,8 +1,9 @@
 import type { Env, ScrapeResult, Tweet, ResetEvent } from './types';
-import { decodeEntities, stripTags } from './util';
+import { decodeEntities, readTextWithin, stripTags } from './util';
 
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_TWEETS = 15;
+const MAX_EXTERNAL_TEXT_BYTES = 512 * 1024;
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 
@@ -55,7 +56,12 @@ export async function scrapeTweets(env: Env): Promise<ScrapeResult> {
         attempted.push(`${base}: HTTP ${res.status}`);
         continue;
       }
-      const tweets = parseRssItems(await res.text());
+      const text = await readTextWithin(res, MAX_EXTERNAL_TEXT_BYTES);
+      if (text === null) {
+        attempted.push(`${base}: response too large`);
+        continue;
+      }
+      const tweets = parseRssItems(text);
       if (tweets.length === 0) {
         attempted.push(`${base}: 0 items`);
         continue;
@@ -76,7 +82,12 @@ export async function scrapeTweets(env: Env): Promise<ScrapeResult> {
         attempted.push(`${base}: HTTP ${res.status}`);
         continue;
       }
-      const tweets = parseNitterHtml(await res.text(), base);
+      const text = await readTextWithin(res, MAX_EXTERNAL_TEXT_BYTES);
+      if (text === null) {
+        attempted.push(`${base}: response too large`);
+        continue;
+      }
+      const tweets = parseNitterHtml(text, base);
       if (tweets.length === 0) {
         attempted.push(`${base}: 0 items`);
         continue;
@@ -143,7 +154,8 @@ export async function scrapeNewsMentions(): Promise<Tweet[]> {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     if (!res.ok) return [];
-    return parseRssItems(await res.text());
+    const text = await readTextWithin(res, MAX_EXTERNAL_TEXT_BYTES);
+    return text === null ? [] : parseRssItems(text);
   } catch {
     return [];
   }

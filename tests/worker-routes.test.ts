@@ -3,7 +3,7 @@ import { handleConfirmEmail, handleHealth, handleHealthDetails, handleReleaseSta
 import { isExpiredPushEndpoint, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
 import { signToken } from '../worker/src/util';
 import { buildSignalsSnapshot, getStatusEvidence } from '../worker/src/signals';
-import { runPipeline, shouldSendHealthAlert } from '../worker/src/pipeline';
+import { runPipeline, runPipelineOnce, shouldSendHealthAlert } from '../worker/src/pipeline';
 import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
 import { refreshOfficialCodexDiscovery } from '../worker/src/discovery';
 import { getSubscriptionQuality, getXWebhookQuality } from '../worker/src/operational-metrics';
@@ -135,7 +135,7 @@ describe('pipeline read endpoints', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
     try {
-      const report = await runPipeline(env, 'test');
+      const report = await runPipelineOnce(env, 'test');
 
       expect(report).toMatchObject({
         scrape: 'ok',
@@ -202,13 +202,26 @@ describe('pipeline read endpoints', () => {
     expect(direct.signals[0]).toMatchObject({ status: 'active', value: 0.9, description: 'signals.resetAnnounced' });
   });
 
-  it('returns a cacheable signal snapshot with browser CORS enabled', async () => {
-    const snapshot = JSON.stringify({ signals: [{ source: 'tibopost', sourceUrl: 'https://example.test/source' }], generatedAt: 123 });
+  it('returns a fresh signal snapshot with browser CORS and security headers enabled', async () => {
+    const snapshot = JSON.stringify({ signals: [{ source: 'tibopost', sourceUrl: 'https://example.test/source' }], generatedAt: Date.now() });
     const response = await handleSignals(envWith({ 'signals:latest': snapshot }));
 
     expect(response.status).toBe(200);
     expect(response.headers.get('access-control-allow-origin')).toBe('*');
-    await expect(response.json()).resolves.toEqual({ signals: [{ source: 'tibopost' }], generatedAt: 123 });
+    expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
+    expect(response.headers.get('x-frame-options')).toBe('DENY');
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({ signals: [{ source: 'tibopost' }] }));
+  });
+
+  it('rejects a stale signal snapshot instead of serving it as live data', async () => {
+    const snapshot = JSON.stringify({
+      signals: [{ source: 'tibopost' }],
+      generatedAt: Date.now() - 91 * 60 * 1000,
+    });
+    const response = await handleSignals(envWith({ 'signals:latest': snapshot }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ error: 'signal snapshot stale' });
   });
 
   it('returns 503 until the first signal snapshot exists', async () => {
@@ -256,6 +269,37 @@ describe('pipeline read endpoints', () => {
   it('requires the private cron credential for detailed health diagnostics', async () => {
     const response = await handleHealthDetails(new Request('https://api.example.test/api/health/details'), emailEnv());
     expect(response.status).toBe(401);
+  });
+
+  it('routes every production trigger through the pipeline coordinator', async () => {
+    const expected: RunReport = {
+      startedAt: new Date().toISOString(),
+      trigger: 'cron',
+      scrape: 'ok',
+      tweetsSeen: 0,
+      candidates: 0,
+      inserted: 0,
+      notifiedEmails: 0,
+      notifiedPush: 0,
+      errors: [],
+    };
+    const received: RequestInit[] = [];
+    const env = {
+      ...envWith({}),
+      PIPELINE_COORDINATOR: {
+        idFromName: (name: string) => name,
+        get: () => ({
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            received.push(init || {});
+            return new Response(JSON.stringify(expected));
+          },
+        }),
+      },
+    } as Env;
+
+    await expect(runPipeline(env, 'cron')).resolves.toEqual(expected);
+    expect(received).toHaveLength(1);
+    expect(JSON.parse(String(received[0].body))).toEqual({ trigger: 'cron' });
   });
 
   it('answers X webhook CRC checks without exposing the consumer secret', async () => {

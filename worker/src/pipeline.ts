@@ -38,7 +38,24 @@ const DELIVERY_METRIC_TTL_SECONDS = 31 * 24 * 60 * 60;
 const FORECAST_CALIBRATION_ALERT_TTL_SECONDS = 120 * 24 * 60 * 60;
 const FORECAST_RELEASE_STATUS_TTL_SECONDS = 2 * 60 * 60;
 
+/**
+ * Route every trigger through one globally addressed Durable Object. This
+ * prevents a cron tick, a signed webhook and a manual recovery run from
+ * reading the same row and delivering it twice.
+ */
 export async function runPipeline(env: Env, trigger: string): Promise<RunReport> {
+  const id = env.PIPELINE_COORDINATOR.idFromName('global');
+  const response = await env.PIPELINE_COORDINATOR.get(id).fetch('https://pipeline-coordinator/run', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ trigger }),
+  });
+  if (!response.ok) throw new Error(`pipeline coordinator ${response.status}`);
+  return await response.json() as RunReport;
+}
+
+/** The serialized pipeline body; only PipelineCoordinator may invoke this in production. */
+export async function runPipelineOnce(env: Env, trigger: string): Promise<RunReport> {
   const report: RunReport = {
     startedAt: new Date().toISOString(),
     trigger,

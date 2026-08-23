@@ -213,7 +213,7 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
 
   return (
     <section aria-label="Probability curve" className="max-w-4xl">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 className="text-lg font-semibold text-foreground">
           <span className="mr-2 font-mono font-normal text-primary">❯</span>
           {t("curve.title")}
@@ -223,7 +223,7 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
             </span>
           )}
         </h2>
-        <span className="font-mono text-xs text-muted-foreground">
+        <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">
           {t("curve.peakWindow")}: {Math.round(peak.probability * 100)}%
           <span className="ml-2 text-muted-foreground/50">{tzLabel}</span>
         </span>

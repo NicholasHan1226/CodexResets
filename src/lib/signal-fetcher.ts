@@ -10,10 +10,18 @@ import type { ResetSignal } from '@/types/reset';
 
 const PIPELINE_API_URL = (import.meta.env.VITE_PIPELINE_API_URL || '').replace(/\/+$/, '');
 const PIPELINE_TIMEOUT_MS = 6000;
+export const PIPELINE_SNAPSHOT_MAX_AGE_MS = 90 * 60 * 1000;
 
 interface PipelineSnapshot {
   signals: ResetSignal[];
   generatedAt: number;
+}
+
+export function isFreshPipelineSnapshot(generatedAt: unknown, now = Date.now()): generatedAt is number {
+  return typeof generatedAt === 'number'
+    && Number.isFinite(generatedAt)
+    && generatedAt <= now + 5 * 60 * 1000
+    && now - generatedAt <= PIPELINE_SNAPSHOT_MAX_AGE_MS;
 }
 
 // Fetch the server-side signal snapshot built by the pipeline worker
@@ -30,7 +38,7 @@ export async function fetchPipelineSignals(): Promise<ResetSignal[] | null> {
     });
     if (!res.ok) return null;
     const data = (await res.json()) as PipelineSnapshot;
-    if (!Array.isArray(data.signals) || data.signals.length === 0) return null;
+    if (!isFreshPipelineSnapshot(data.generatedAt) || !Array.isArray(data.signals) || data.signals.length === 0) return null;
     // Snapshot is refreshed every 30min server-side; cache for 5min locally
     setCache(cacheKey, data.signals, 5 * 60 * 1000);
     return data.signals;

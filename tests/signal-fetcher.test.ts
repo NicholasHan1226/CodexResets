@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchOpenAIStatus, fetchTiboTweets } from '../src/lib/signal-fetcher';
+import { fetchOpenAIStatus, fetchTiboTweets, isFreshPipelineSnapshot, PIPELINE_SNAPSHOT_MAX_AGE_MS } from '../src/lib/signal-fetcher';
 
 describe('browser signal fallbacks', () => {
   afterEach(() => {
@@ -29,5 +29,12 @@ describe('browser signal fallbacks', () => {
       source: 'status_page',
       label: 'OpenAI Status',
     });
+  });
+
+  it('does not accept an expired or far-future Worker snapshot as live', () => {
+    const now = Date.now();
+    expect(isFreshPipelineSnapshot(now - PIPELINE_SNAPSHOT_MAX_AGE_MS + 1, now)).toBe(true);
+    expect(isFreshPipelineSnapshot(now - PIPELINE_SNAPSHOT_MAX_AGE_MS - 1, now)).toBe(false);
+    expect(isFreshPipelineSnapshot(now + 5 * 60 * 1000 + 1, now)).toBe(false);
   });
 });

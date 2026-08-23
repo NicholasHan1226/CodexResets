@@ -1,36 +1,16 @@
 /**
  * Reset Records Service
- * Fetches reset history from Supabase with localStorage caching
+ * Fetches verified reset history from Supabase.
  */
 
 import { getSupabase } from '@/lib/supabase';
 import type { ResetRecord } from '@/types/reset';
 
-const CACHE_KEY = 'codex-resets:records';
-const CACHE_TTL = 1000 * 60 * 30; // 30 minutes
-
-interface CachedData {
-  records: ResetRecord[];
-  timestamp: number;
-}
-
 /**
- * Fetch reset records from Supabase with caching
+ * Fetch the current verified records. Prediction history is small, so keeping
+ * it out of localStorage avoids a stale browser cache changing a new visit.
  */
 export async function fetchResetRecords(): Promise<ResetRecord[]> {
-  // Check cache first
-  const cached = localStorage.getItem(CACHE_KEY);
-  if (cached) {
-    try {
-      const data: CachedData = JSON.parse(cached);
-      if (Date.now() - data.timestamp < CACHE_TTL) {
-        return data.records;
-      }
-    } catch {
-      // Invalid cache, continue to fetch
-    }
-  }
-
   try {
     const supabase = await getSupabase();
     const { data, error } = await supabase
@@ -41,11 +21,6 @@ export async function fetchResetRecords(): Promise<ResetRecord[]> {
 
     if (error) {
       console.error('Failed to fetch reset records:', error);
-      // Return cached data if available, even if expired
-      if (cached) {
-        const data: CachedData = JSON.parse(cached);
-        return data.records;
-      }
       return [];
     }
 
@@ -61,27 +36,9 @@ export async function fetchResetRecords(): Promise<ResetRecord[]> {
       verified: row.verified,
     }));
 
-    // Update cache
-    localStorage.setItem(CACHE_KEY, JSON.stringify({
-      records,
-      timestamp: Date.now(),
-    }));
-
     return records;
   } catch (err) {
     console.error('Network error fetching reset records:', err);
-    // Return cached data if available
-    if (cached) {
-      const data: CachedData = JSON.parse(cached);
-      return data.records;
-    }
     return [];
   }
-}
-
-/**
- * Clear the reset records cache
- */
-export function clearResetRecordsCache(): void {
-  localStorage.removeItem(CACHE_KEY);
 }

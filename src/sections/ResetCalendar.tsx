@@ -81,8 +81,12 @@ export function ResetCalendar() {
         {t('calendar.title')}
       </h2>
 
-      <div className="mt-4 overflow-x-auto">
-        <div className="flex gap-[2px] min-w-fit">
+      <div
+        className="mt-4 w-full max-w-full overflow-x-auto"
+        role="img"
+        aria-label={`${t('calendar.title')}: ${stats.totalResets} ${t('calendar.totalResets').toLowerCase()}, ${stats.daysWithResets} ${t('calendar.daysWithResets').toLowerCase()}`}
+      >
+        <div className="flex w-max gap-[2px]">
           {weeks.map((week, weekIndex) => (
             <div key={weekIndex} className="flex flex-col gap-[2px]">
               {week.map((day, dayIndex) => (
@@ -91,13 +95,7 @@ export function ResetCalendar() {
                   className={`w-[10px] h-[10px] rounded-[2px] ${getColor(day.count)} ${
                     day.count > 0 ? 'cursor-default' : ''
                   }`}
-                  title={
-                    day.count > 0
-                      ? day.date.toLocaleDateString()
-                      : day.count === 0
-                        ? day.date.toLocaleDateString()
-                        : ''
-                  }
+                  aria-hidden="true"
                 />
               ))}
             </div>

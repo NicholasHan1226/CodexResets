@@ -37,7 +37,11 @@ export function TimeDistribution() {
       </div>
 
       {/* Bar chart */}
-      <div className="mt-4 flex items-end gap-[2px] sm:gap-[3px] h-24 sm:h-32">
+      <div
+        className="mt-4 flex h-24 items-end gap-[2px] sm:h-32 sm:gap-[3px]"
+        role="img"
+        aria-label={`${t('timeDistribution.title')}: ${String(bestStart).padStart(2, '0')}:00–${String((bestStart + 3) % 24).padStart(2, '0')}:00 ${t('timeDistribution.peakWindow')}`}
+      >
         {hourlyCounts.map((count, hour) => {
           const height = maxCount > 0 ? (count / maxCount) * 100 : 0;
           // The peak window may cross midnight (for example 23:00–02:00).
@@ -53,7 +57,7 @@ export function TimeDistribution() {
                       : "bg-muted/60 hover:bg-muted"
                 }`}
                 style={{ height: `${Math.max(2, height)}%` }}
-                title={`${String(hour).padStart(2, "0")}:00 — ${count} ${t('timeDistribution.resets')}`}
+                aria-hidden="true"
               />
             </div>
           );

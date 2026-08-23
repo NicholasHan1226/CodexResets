@@ -249,7 +249,7 @@ const translations: Record<Locale, Record<string, string>> = {
     // Footer
     'footer.modelVersion': 'Model v2.4.1',
     'footer.dataSources': 'Data: @thsottiaux posts · OpenAI Status · Historical patterns',
-    'footer.disclaimer': 'Not affiliated with OpenAI. Resets are manually triggered and cannot be precisely predicted.',
+    'footer.disclaimer': 'Not affiliated with OpenAI. Reset timing can change; estimates are for planning only.',
 
     // Calendar
     'calendar.title': 'Reset Calendar',
@@ -516,7 +516,7 @@ const translations: Record<Locale, Record<string, string>> = {
     // Footer
     'footer.modelVersion': '模型 v2.4.1',
     'footer.dataSources': '数据源：@thsottiaux 推文 · OpenAI 状态页 · 历史模式',
-    'footer.disclaimer': '非 OpenAI 官方产品。重置由手动触发，无法精确预测。',
+    'footer.disclaimer': '非 OpenAI 官方产品。重置节奏可能变化，预测仅供参考。',
 
     // Calendar
     'calendar.title': '重置日历',

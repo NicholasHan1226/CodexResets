@@ -1,5 +1,5 @@
 import type { DeliveryMetrics, Env, HealthCheck, HealthChecks, RunReport } from './types';
-import { json, html, escapeHtml, verifyToken } from './util';
+import { json, html, escapeHtml, timingSafeEqual, verifyToken } from './util';
 import { hasPrivilegedAccess, privUpsertPush, privDeletePush, privDeleteEmail, privActivateEmail } from './privileged';
 import { runPipeline } from './pipeline';
 import { sendPushSubscriptionTest, sendSubscriptionConfirmation, sendTestEmail } from './notify';
@@ -32,8 +32,9 @@ const PUSH_ENDPOINT_HOSTS = new Set([
 export async function handleSignals(env: Env): Promise<Response> {
   const raw = await env.CACHE.get('signals:latest');
   if (!raw) return json({ error: 'no snapshot yet' }, 503);
-  const snapshot = parseJson<{ signals?: Array<Record<string, unknown>> }>(raw);
+  const snapshot = parseJson<{ signals?: Array<Record<string, unknown>>; generatedAt?: number }>(raw);
   if (!snapshot?.signals) return json({ error: 'no snapshot yet' }, 503);
+  if (timestampCheck(snapshot.generatedAt, Date.now()) !== 'ok') return json({ error: 'signal snapshot stale' }, 503);
   return json({
     ...snapshot,
     signals: snapshot.signals.map((signal) => {
@@ -107,7 +108,7 @@ function reportCheck(report: RunReport | null, now: number): HealthCheck {
 
 function timestampCheck(timestamp: number | undefined, now: number): HealthCheck {
   if (!timestamp || !Number.isFinite(timestamp)) return 'missing';
-  return now - timestamp <= HEALTH_STALE_MS ? 'ok' : 'stale';
+  return timestamp <= now + 5 * 60 * 1000 && now - timestamp <= HEALTH_STALE_MS ? 'ok' : 'stale';
 }
 
 function parseJson<T>(raw: string | null): T | null {
@@ -606,7 +607,7 @@ function base64Bytes(value: string): Uint8Array {
 function isCronAuthorized(request: Request, env: Env): boolean {
   const auth = request.headers.get('authorization') || '';
   const token = auth.replace(/^bearer\s+/i, '');
-  return Boolean(env.CRON_SECRET && token === env.CRON_SECRET);
+  return Boolean(env.CRON_SECRET && timingSafeEqual(token, env.CRON_SECRET));
 }
 
 /** POST /api/run — manual trigger (protected by CRON_SECRET) */

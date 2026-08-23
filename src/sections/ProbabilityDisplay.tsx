@@ -1,4 +1,5 @@
 import { useI18n } from '@/contexts/I18nContext';
+import type { KeyboardEvent } from 'react';
 
 interface ProbabilityDisplayProps {
   /** Probability 0-100 */
@@ -15,6 +16,12 @@ const BAR_WIDTH = 30;
  */
 export function ProbabilityDisplay({ pct, timeframe, onTimeframeChange }: ProbabilityDisplayProps) {
   const { t } = useI18n();
+
+  const moveTimeframe = (event: KeyboardEvent<HTMLButtonElement>, current: 24 | 48) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    onTimeframeChange(current === 24 ? 48 : 24);
+  };
 
   const filled = Math.round((pct / 100) * BAR_WIDTH);
   const barFilled = '█'.repeat(filled);
@@ -34,6 +41,7 @@ export function ProbabilityDisplay({ pct, timeframe, onTimeframeChange }: Probab
               role="tab"
               aria-selected={timeframe === tf}
               onClick={() => onTimeframeChange(tf)}
+              onKeyDown={(event) => moveTimeframe(event, tf)}
               className={`rounded-[3px] px-2 py-0.5 transition-[color,background-color,transform] active:translate-y-px ${
                 timeframe === tf
                   ? 'bg-primary/10 text-primary font-semibold'

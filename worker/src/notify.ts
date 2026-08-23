@@ -5,6 +5,8 @@ import { hasPrivilegedAccess, privListEmails, privListPush, privDeletePush, type
 import { signToken, escapeHtml } from './util';
 
 const UNSUBSCRIBE_TTL_SECONDS = 30 * 24 * 60 * 60;
+const OUTBOUND_TIMEOUT_MS = 8_000;
+const DELIVERY_CONCURRENCY = 10;
 
 interface SubscriptionRow {
   email: string;
@@ -19,6 +21,14 @@ export interface NotifyResult {
 
 export function isExpiredPushEndpoint(status: number): boolean {
   return status === 404 || status === 410;
+}
+
+async function settleInBatches<T, R>(items: T[], task: (item: T) => Promise<R>): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = [];
+  for (let start = 0; start < items.length; start += DELIVERY_CONCURRENCY) {
+    results.push(...await Promise.allSettled(items.slice(start, start + DELIVERY_CONCURRENCY).map(task)));
+  }
+  return results;
 }
 
 /** Immediately proves a new browser endpoint can receive an encrypted push. */
@@ -42,7 +52,7 @@ export async function sendPushSubscriptionTest(env: Env, row: PushSubRow): Promi
     }),
     options: { ttl: 60 },
   }, subscription, vapid);
-  const res = await fetch(subscription.endpoint, { ...payload, redirect: 'error', signal: AbortSignal.timeout(8_000) });
+  const res = await fetch(subscription.endpoint, { ...payload, redirect: 'error', signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS) });
   if (isExpiredPushEndpoint(res.status)) return 'gone';
   if (!res.ok) throw new Error(`push endpoint ${res.status}`);
   return 'sent';
@@ -68,13 +78,13 @@ export async function notifyAll(env: Env, event: ResetEvent): Promise<NotifyResu
     errors.push(`fetch pushes: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  const emailResults = await Promise.allSettled(emails.map((row) => sendEmail(env, row.email, event)));
+  const emailResults = await settleInBatches(emails, (row) => sendEmail(env, row.email, event));
   const sentEmails = emailResults.filter((r) => r.status === 'fulfilled' && r.value).length;
   for (const r of emailResults) {
     if (r.status === 'rejected') errors.push(`email: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`);
   }
 
-  const pushResults = await Promise.allSettled(pushes.map((row) => sendPush(env, row, event)));
+  const pushResults = await settleInBatches(pushes, (row) => sendPush(env, row, event));
   let sentPushes = 0;
   let prunedPushEndpoints = 0;
   for (let i = 0; i < pushResults.length; i++) {
@@ -117,6 +127,7 @@ async function sendEmail(env: Env, email: string, event: ResetEvent): Promise<bo
       headers: { 'List-Unsubscribe': `<${unsubUrl}>` },
       html: emailHtml(env, resetLocal, unsubUrl),
     }),
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
   return true;
@@ -135,6 +146,7 @@ export async function sendSubscriptionConfirmation(env: Env, email: string, toke
       subject: 'Confirm Codex Resets subscription / 确认 Codex 重置提醒订阅',
       html: confirmationHtml(confirmUrl),
     }),
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
 }
@@ -151,6 +163,7 @@ export async function sendTestEmail(env: Env, email: string): Promise<void> {
       subject: '[Test] Codex Resets alert delivery / 提醒投递测试',
       html: testEmailHtml(env),
     }),
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
 }
@@ -167,6 +180,7 @@ export async function sendHealthAlert(env: Env, report: RunReport): Promise<void
       subject: '[Action required] Codex Resets Worker health failed / 运行异常',
       html: healthAlertHtml(env, report),
     }),
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
 }
@@ -183,6 +197,7 @@ export async function sendCalibrationAlert(env: Env, calibration: ForecastCalibr
       subject: '[Review] Codex Resets forecast calibration / 预测校准复核',
       html: calibrationAlertHtml(env, calibration),
     }),
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
 }
@@ -286,7 +301,7 @@ async function sendPush(env: Env, row: PushSubRow, event: ResetEvent): Promise<'
   };
 
   const payload = await buildPushPayload(message, subscription, vapid);
-  const res = await fetch(subscription.endpoint, { ...payload, redirect: 'error', signal: AbortSignal.timeout(8_000) });
+  const res = await fetch(subscription.endpoint, { ...payload, redirect: 'error', signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS) });
   if (isExpiredPushEndpoint(res.status)) return 'gone';
   if (!res.ok) throw new Error(`push endpoint ${res.status}`);
   return 'sent';

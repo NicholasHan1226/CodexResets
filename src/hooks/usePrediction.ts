@@ -8,21 +8,17 @@ import type { ResetPrediction, ResetRecord } from "@/types/reset";
  * Hook that manages the reset prediction state.
  * Fetches real signals from public sources (Tibo tweets, OpenAI status page)
  * and reset history from Supabase.
- * Falls back to simulated data if real fetch fails.
+ * Falls back to the bundled, local model if live inputs are unavailable.
  * Refreshes data every 5 minutes (signals are cached).
  */
 export function usePrediction() {
-  // Render instantly from local historical data — network data enhances it async.
-  // This keeps LCP off the Supabase roundtrip critical path.
-  const [prediction, setPrediction] = useState<ResetPrediction | null>(() => {
-    const data = generatePrediction();
-    return { ...data, generatedAt: Date.now() };
-  });
+  // Wait for the first refresh rather than showing a bundled estimate that
+  // could disagree with current verified history for one visible frame.
+  const [prediction, setPrediction] = useState<ResetPrediction | null>(null);
   const [resetRecords, setResetRecords] = useState<ResetRecord[]>([]);
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [usingRealData, setUsingRealData] = useState(false);
-  // Honest badge: LIVE only when real signals/records actually flowed in,
-  // SIM when we're showing the bundled fallback model.
+  // Honest badge: LIVE only when a fresh Worker signal snapshot was received.
   const isLive = usingRealData;
 
   const refresh = useCallback(async () => {
@@ -34,17 +30,13 @@ export function usePrediction() {
       const recordsPromise = fetchResetRecords();
       const signalsPromise = getSignalsWithFallback(generatePrediction().signals);
 
-      const records = await recordsPromise;
-      if (records.length > 0) {
-        setResetRecords(records);
-      }
-
-      const { signals, hasRealData } = await signalsPromise;
-      setUsingRealData(hasRealData || records.length > 0);
+      const [records, { signals, hasRealData }] = await Promise.all([recordsPromise, signalsPromise]);
+      setResetRecords(records);
+      setUsingRealData(hasRealData);
 
       // Signals remain informational; probabilities are derived from the
       // forward-looking reset history only.
-      setPrediction(generatePrediction(records.length > 0 ? records : undefined, signals));
+      setPrediction(generatePrediction(records, signals));
     } catch (error) {
       console.warn('Error refreshing prediction:', error);
       // Fall back to simulated data — timestamp it honestly so the header's
@@ -59,9 +51,7 @@ export function usePrediction() {
 
   // Initial load and periodic refresh (every 5 minutes)
   useEffect(() => {
-    // Run the first network refresh after the initial paint. The state above
-    // already provides an immediate local prediction, so this avoids a
-    // synchronous state update while the effect is being mounted.
+    // Run after mount so the skeleton is the only pre-refresh state.
     const initialRefresh = window.setTimeout(() => {
       void refresh();
     }, 0);

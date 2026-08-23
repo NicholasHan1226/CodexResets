@@ -4,6 +4,7 @@ export function json(data: unknown, status = 200, extraHeaders: Record<string, s
     headers: {
       'content-type': 'application/json; charset=utf-8',
       'cache-control': 'no-store',
+      ...securityHeaders(),
       ...corsHeaders(),
       ...extraHeaders,
     },
@@ -21,8 +22,22 @@ export function corsHeaders(): Record<string, string> {
 export function html(body: string, status = 200): Response {
   return new Response(body, {
     status,
-    headers: { 'content-type': 'text/html; charset=utf-8' },
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+      ...securityHeaders(),
+    },
   });
+}
+
+function securityHeaders(): Record<string, string> {
+  return {
+    'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    'permissions-policy': 'camera=(), geolocation=(), microphone=(), payment=()',
+    'referrer-policy': 'no-referrer',
+    'x-content-type-options': 'nosniff',
+    'x-frame-options': 'DENY',
+  };
 }
 
 export function escapeHtml(s: string): string {
@@ -45,6 +60,46 @@ export function decodeEntities(s: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;|&apos;/g, "'")
     .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
+}
+
+/** Read a third-party text response without letting an unexpected body size consume a Worker run. */
+export async function readTextWithin(response: Response, maxBytes: number): Promise<string | null> {
+  const declaredLength = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) return null;
+  if (!response.body) return '';
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      total += next.value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(next.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder('utf-8', { fatal: false, ignoreBOM: false }).decode(bytes);
+}
+
+export function timingSafeEqual(left: string, right: string): boolean {
+  if (left.length !== right.length) return false;
+  let diff = 0;
+  for (let i = 0; i < left.length; i++) diff |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  return diff === 0;
 }
 
 // --- HMAC (Web Crypto) for email unsubscribe tokens ------------------------
@@ -74,8 +129,5 @@ export async function signToken(payload: string, secret: string): Promise<string
 
 export async function verifyToken(payload: string, token: string, secret: string): Promise<boolean> {
   const expected = await signToken(payload, secret);
-  if (expected.length !== token.length) return false;
-  let diff = 0;
-  for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ token.charCodeAt(i);
-  return diff === 0;
+  return timingSafeEqual(expected, token);
 }

@@ -58,13 +58,6 @@ export class ErrorBoundary extends Component<Props, State> {
               <p className="text-sm text-muted-foreground">
                 An unexpected error occurred. Please try refreshing the page.
               </p>
-              {this.state.error && (
-                <div className="rounded-lg bg-muted/50 p-3">
-                  <code className="text-xs font-mono text-muted-foreground break-all">
-                    {this.state.error.message}
-                  </code>
-                </div>
-              )}
               <div className="flex gap-2">
                 <Button
                   onClick={this.handleReset}

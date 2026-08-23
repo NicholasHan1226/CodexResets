@@ -46,6 +46,10 @@ class_name = "RateLimiter"
 name = "FORECAST_LEDGER"
 class_name = "ForecastLedger"
 
+[[durable_objects.bindings]]
+name = "PIPELINE_COORDINATOR"
+class_name = "PipelineCoordinator"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["RateLimiter"]
@@ -53,6 +57,10 @@ new_sqlite_classes = ["RateLimiter"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["ForecastLedger"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["PipelineCoordinator"]
 
 [triggers]
 crons = ["*/30 * * * *"]

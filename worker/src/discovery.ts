@@ -1,9 +1,10 @@
 import type { Env } from './types';
-import { decodeEntities, stripTags } from './util';
+import { decodeEntities, readTextWithin, stripTags } from './util';
 
 const OFFICIAL_CODEX_CHANGELOG_URL = 'https://help.openai.com/en/articles/11428266-codex-changelog';
 const CACHE_KEY = 'official-discovery:codex-changelog';
 const CACHE_TTL_SECONDS = 6 * 60 * 60;
+const MAX_DISCOVERY_TEXT_BYTES = 300 * 1024;
 
 export interface OfficialDiscoveryStatus {
   checkedAt: string;
@@ -37,7 +38,9 @@ export async function refreshOfficialCodexDiscovery(env: Env): Promise<OfficialD
   try {
     const response = await fetch(OFFICIAL_CODEX_CHANGELOG_URL, { signal: AbortSignal.timeout(8000) });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const text = decodeEntities(stripTags((await response.text()).slice(0, 300_000)));
+    const body = await readTextWithin(response, MAX_DISCOVERY_TEXT_BYTES);
+    if (body === null) throw new Error('response too large');
+    const text = decodeEntities(stripTags(body));
     const status: OfficialDiscoveryStatus = {
       checkedAt: new Date().toISOString(),
       reachable: true,

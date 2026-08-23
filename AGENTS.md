@@ -35,8 +35,9 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   cooldown / launch_noise), mirrors the frontend model
 - `src/pipeline.ts`  — orchestration: scrape → detect → direct-source
   stabilization → automatic correction/confirmation → notify → snapshot to KV
-  (`signals:latest`) → health report
-  (`health:last_run`)
+  (`signals:latest`) → health report (`health:last_run`). Every cron, webhook, and manual trigger
+  enters the globally addressed `PipelineCoordinator` Durable Object first, so
+  discovery, confirmation, and delivery remain a single-writer workflow.
 - `src/forecast.ts`  — private daily prediction snapshots and automatic
   24/48-hour outcome resolution through a single-writer Durable Object ledger;
   7/14/30 review thresholds and a
@@ -44,7 +45,8 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
 - `src/discovery.ts` — isolated OpenAI-owned Codex update discovery context;
   it never becomes a reset candidate or notification input
 - `src/notify.ts`    — Resend email (HMAC-signed unsubscribe links) +
-  Web Push via @block65/webcrypto-web-push (prunes 404/410 endpoints)
+  Web Push via @block65/webcrypto-web-push (prunes 404/410 endpoints), with
+  bounded fan-out and outbound timeouts
 - `src/operational-metrics.ts` — append-only, non-PII KV telemetry for
   subscription conversion/delivery and signed X webhook pipeline outcomes;
   use unique event keys rather than a shared request-time counter because KV
@@ -85,7 +87,8 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
 
 - A strong announcement from a direct target-account source enters an
   `observed` state for one cron interval (30 minutes). The Worker then confirms
-  and notifies automatically; no Supabase dashboard action is required.
+  and notifies automatically; no Supabase dashboard action is required. The
+  coordinator serializes all run triggers before any database read or delivery.
 - A later direct-source correction in the 72-hour correction window changes a
   still-pending automated record to `retracted`, so it cannot affect the model
   or subscriber delivery. Corrections must match the reset topic (banked,
@@ -145,11 +148,14 @@ src/
 - Monospace font (IBM Plex Mono) for all data/numbers
 
 ## Key Patterns
-- `usePrediction` renders instantly from local data, network enhances async;
-  records + signals fetched in parallel, 5min auto-refresh
+- `usePrediction` starts with the dashboard skeleton, then resolves records +
+  signals in parallel and refreshes every 5 minutes. This avoids a stale local
+  estimate flashing before current data is available.
 - Signals: `getSignalsWithFallback` is three-tier — pipeline snapshot
   (`VITE_PIPELINE_API_URL/api/signals`) → direct browser fetch → simulated.
   Worker snapshot descriptions are i18n keys (`signals.*`) rendered via `t()`.
+  A snapshot older than 90 minutes (or implausibly future-dated) is unavailable,
+  never `LIVE`.
 - Simulated-fallback honesty: when network sources fail, signals must say
   "unavailable" (idle, low value) — never fabricate activity from cooldown
   arithmetic. Cooldown is the only honestly computable offline signal
