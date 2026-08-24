@@ -14,10 +14,10 @@ describe('share summary', () => {
     );
   });
 
-  it('shares an official schedule instead of a stale history-only percentage', () => {
+  it('shares an official schedule as a strong input alongside the calibrated percentage', () => {
     expect(buildShareSummary({
       ...state,
       officialSchedule: { targetLabel: 'Aug 25 06:00', window: 'after' },
-    })).toBe('codex resets ❯ official schedule: Aug 25 06:00 (after 24h)');
+    })).toBe('codex resets ❯ 22% in 24h\n██░░░░░░░░ 22% · waited 1.6d · median 2.6d\nofficial schedule signal: Aug 25 06:00 (after 24h)');
   });
 });

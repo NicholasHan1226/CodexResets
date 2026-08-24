@@ -39,6 +39,8 @@ export default function Home() {
         window: primaryForecast.window,
       }
     : undefined;
+  // A scheduled target keeps the deeper timing-distribution section out of
+  // the way, while the primary model probability and curve stay visible.
   const showHistoricalTiming = !officialSchedule;
 
   const handleShare = async () => {
@@ -79,7 +81,7 @@ export default function Home() {
           <hr className="my-10 border-border/30" />
 
           <div id="curve" className="scroll-mt-16">
-            <ProbabilityCurve curve={prediction.curve} hours={timeframe} officialSchedule={officialSchedule} />
+            <ProbabilityCurve curve={prediction.curve} hours={timeframe} />
           </div>
 
           <hr className="my-10 border-border/30" />

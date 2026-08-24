@@ -14,31 +14,35 @@ export function buildShareSummary(state: {
   medianDays: number;
   officialSchedule?: { targetLabel: string | null; window: 'within' | 'after' | 'pending' | 'elapsed' };
 }, locale: 'en' | 'zh' = 'en'): string {
-  if (state.officialSchedule) {
-    const target = state.officialSchedule.targetLabel;
-    const relation = state.officialSchedule.window === 'within'
-      ? (locale === 'zh' ? `在未来 ${state.hours} 小时内` : `within ${state.hours}h`)
-      : state.officialSchedule.window === 'after'
-        ? (locale === 'zh' ? `在未来 ${state.hours} 小时之后` : `after ${state.hours}h`)
-        : state.officialSchedule.window === 'elapsed'
-          ? (locale === 'zh' ? '预告时间已过，等待确认' : 'target passed, confirmation pending')
-        : (locale === 'zh' ? '时间待确认' : 'time pending confirmation');
-    return locale === 'zh'
-      ? `Codex 重置预判 ❯ 官方已预告${target ? `：${target}` : ''}（${relation}）`
-      : `codex resets ❯ official schedule${target ? `: ${target}` : ''} (${relation})`;
-  }
   const filled = Math.max(0, Math.min(10, Math.round((state.pct / 100) * 10)));
   const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
+  const scheduleLine = state.officialSchedule
+    ? (() => {
+        const target = state.officialSchedule?.targetLabel;
+        const relation = state.officialSchedule?.window === 'within'
+          ? (locale === 'zh' ? `在未来 ${state.hours} 小时内` : `within ${state.hours}h`)
+          : state.officialSchedule?.window === 'after'
+            ? (locale === 'zh' ? `在未来 ${state.hours} 小时之后` : `after ${state.hours}h`)
+            : state.officialSchedule?.window === 'elapsed'
+              ? (locale === 'zh' ? '预告时间已过，等待确认' : 'target passed, confirmation pending')
+              : (locale === 'zh' ? '时间待确认' : 'time pending confirmation');
+        return locale === 'zh'
+          ? `官方预告强信号${target ? `：${target}` : ''}（${relation}）`
+          : `official schedule signal${target ? `: ${target}` : ''} (${relation})`;
+      })()
+    : null;
   if (locale === 'zh') {
     return [
       `Codex 重置预判 ❯ 未来 ${state.hours} 小时 ${state.pct}%`,
       `${bar} ${state.pct}% · 已等待 ${state.daysSince.toFixed(1)} 天 · 中位间隔 ${state.medianDays.toFixed(1)} 天`,
-    ].join('\n');
+      scheduleLine,
+    ].filter(Boolean).join('\n');
   }
   return [
     `codex resets ❯ ${state.pct}% in ${state.hours}h`,
     `${bar} ${state.pct}% · waited ${state.daysSince.toFixed(1)}d · median ${state.medianDays.toFixed(1)}d`,
-  ].join('\n');
+    scheduleLine,
+  ].filter(Boolean).join('\n');
 }
 
 /** Canonical share target — the live site root. */

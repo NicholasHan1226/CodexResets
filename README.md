@@ -131,15 +131,16 @@ time-ordered model selection.
 Direct reset announcements are already-observed information, so they are not
 part of the browser or Worker probability model. Legacy private snapshots that
 contained one are excluded from calibration and formal release scoring.
-When a direct official post schedules a future reset, the dashboard replaces
-the visitor-facing probability number and curve with the official timing. It
-states whether that target is inside the selected 24/48-hour window (or says
-that the time remains unconfirmed) and shows the remaining time from the
-visitor's current clock. If a stated target passes before a separate
-reset confirmation, the dashboard says exactly that and waits for confirmation;
-it never continues to present the past time as upcoming. The history-only model
-stays in calibration only, so an announced schedule never contradicts visitor
-copy or contaminates forecast scoring.
+When a direct official post schedules a future reset, the dashboard keeps the
+visitor-facing history-calibrated probability number and curve visible, and
+shows the official timing alongside them as a separate strong signal. It states
+whether that target is inside the selected 24/48-hour window (or says that the
+time remains unconfirmed) and shows the remaining time from the visitor's
+current clock. If a stated target passes before a separate reset confirmation,
+the dashboard says exactly that and waits for confirmation; it never continues
+to present the past time as upcoming. The history-only model stays in
+calibration only, so an announced schedule never contaminates forecast scoring
+or becomes an invented combined percentage.
 An OpenAI-owned Codex changelog is checked as discovery context only; it can
 never create a candidate, raise a forecast, confirm a reset, or send an alert.
 

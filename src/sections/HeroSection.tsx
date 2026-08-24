@@ -31,9 +31,9 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
   const officialSignal = prediction.signals.find((signal) => signal.source === 'tibopost');
   const hasScheduledReset = primaryForecast.kind === 'official-schedule';
   // The wording tracks probability bands: a middle range should not read as
-  // either a dismissal or a guarantee. A direct official schedule is more
-  // actionable than an independent history-only model estimate, so it owns
-  // the visitor-facing conclusion without changing calibration inputs.
+  // either a dismissal or a guarantee. A direct official schedule is a
+  // strong live input, while the independently calibrated history model stays
+  // visible beside it rather than being replaced.
   const verdictKey = hasScheduledReset
     ? primaryForecast.window === 'after'
       ? 'hero.answerScheduledAfter'
@@ -146,7 +146,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
           {t('hero.medianGap')}{' '}
           <span className="text-foreground">{prediction.medianIntervalDays.toFixed(1)}d</span>
         </span>
-        {!hasScheduledReset && windowStr && (
+        {windowStr && (
           <span className="inline-block whitespace-nowrap">
             <span className="mr-2 text-border">·</span>
             {t('hero.windowShort')}{' '}

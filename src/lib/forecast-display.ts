@@ -9,7 +9,7 @@ export type PrimaryForecast =
 /**
  * The public answer should incorporate information a visitor already knows.
  * Model probabilities remain history-only calibration inputs, while a direct
- * official schedule replaces the prominent probability readout.
+ * official schedule is shown beside the prominent probability readout.
  */
 export function getPrimaryForecast(
   signals: ResetSignal[],
