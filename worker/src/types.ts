@@ -132,6 +132,8 @@ export interface RunReport {
   notifiedEmails: number;
   /** Email-only 24-hour forecast notices delivered before a reset is confirmed. */
   forecastPrealertEmails?: number;
+  /** Email-only notices when a direct official scheduled time becomes due. */
+  scheduledExecutionEmails?: number;
   notifiedPush: number;
   /** Invalid 404/410 browser endpoints pruned while delivering a real alert. */
   prunedPushEndpoints?: number;
@@ -153,6 +155,7 @@ export interface DeliveryMetrics {
   statusHeld: number;
   emails: number;
   forecastPrealertEmails: number;
+  scheduledExecutionEmails: number;
   pushes: number;
   /** Invalid 404/410 endpoints pruned after a real reset delivery. */
   prunedPushEndpoints: number;

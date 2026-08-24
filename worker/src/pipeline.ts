@@ -18,7 +18,7 @@ import {
   privRetractAutomatedReset,
 } from './privileged';
 import { buildSignalsSnapshot, getStatusEvidence } from './signals';
-import { notifyAll, notifyForecastPrealert, sendCalibrationAlert, sendHealthAlert, type ForecastPrealert } from './notify';
+import { notifyAll, notifyForecastPrealert, notifyScheduledExecution, sendCalibrationAlert, sendHealthAlert, type ForecastPrealert, type ScheduledExecutionNotice } from './notify';
 import { FORECAST_RELEASE_STATUS_KEY, getForecastCalibration, recordForecastSnapshot, type ForecastCalibration } from './forecast';
 import { refreshOfficialCodexDiscovery } from './discovery';
 import { recordSubscriptionMetric } from './operational-metrics';
@@ -73,6 +73,7 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
     inserted: 0,
     notifiedEmails: 0,
     forecastPrealertEmails: 0,
+    scheduledExecutionEmails: 0,
     notifiedPush: 0,
     errors: [],
   };
@@ -268,14 +269,20 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
   await env.CACHE.put('signals:latest', JSON.stringify(snapshot), { expirationTtl: 7 * 24 * HOUR / 1000 });
 
   // 6a. A single email-only forecast notice is useful when the next 24 hours
-  // cross the public 70% planning threshold. It is separate from confirmed
-  // reset delivery and runs only with a current direct source plus no active
-  // incident, so a stale model never pages subscribers.
+  // cross the public 70% planning threshold. A separate due-time notice makes
+  // a direct official schedule actionable when it arrives, without treating
+  // it as a confirmed reset or altering history.
   if (scrape.sourceKind === 'direct' && statusEvidence.state !== 'incident') {
     const prealert = getForecastPrealert(records, snapshot.signals, latestResetTs, recordNow);
     if (prealert) {
       const outcome = await notifyForecastPrealert(env, prealert, deliveryLedger);
       report.forecastPrealertEmails = (report.forecastPrealertEmails || 0) + outcome.emails;
+      report.errors.push(...outcome.errors);
+    }
+    const scheduledExecution = getScheduledExecutionNotice(snapshot.signals, recordNow);
+    if (scheduledExecution) {
+      const outcome = await notifyScheduledExecution(env, scheduledExecution, deliveryLedger);
+      report.scheduledExecutionEmails = (report.scheduledExecutionEmails || 0) + outcome.emails;
       report.errors.push(...outcome.errors);
     }
   }
@@ -394,6 +401,7 @@ async function updateDeliveryMetrics(env: Env, report: RunReport): Promise<void>
     statusHeld: (previous.statusHeld || 0) + (report.autoHeldByStatus || 0),
     emails: (previous.emails || 0) + report.notifiedEmails,
     forecastPrealertEmails: (previous.forecastPrealertEmails || 0) + (report.forecastPrealertEmails || 0),
+    scheduledExecutionEmails: (previous.scheduledExecutionEmails || 0) + (report.scheduledExecutionEmails || 0),
     pushes: (previous.pushes || 0) + report.notifiedPush,
     prunedPushEndpoints: (previous.prunedPushEndpoints || 0) + (report.prunedPushEndpoints || 0),
     errors: (previous.errors || 0) + report.errors.length,
@@ -432,6 +440,10 @@ export function getForecastPrealert(
   const selection = selectForecastModel(canonicalHistory);
   const modelProbability = probabilityWithin(canonicalHistory, selection.model, now, FORECAST_PREALERT_HOURS);
   const primaryForecast = getPrimaryForecast(signals, FORECAST_PREALERT_HOURS, now);
+  // A pre-alert is future-facing. Once the stated time arrives, the distinct
+  // scheduled-execution notice below takes over instead of sending a stale
+  // forecast email after the fact.
+  if (primaryForecast.kind === 'official-schedule' && primaryForecast.window === 'grace') return null;
   const planningProbability = getPlanningProbability(modelProbability, signals, primaryForecast);
   if (planningProbability < FORECAST_PREALERT_THRESHOLD) return null;
 
@@ -445,6 +457,33 @@ export function getForecastPrealert(
     modelProbability,
     planningProbability,
     officialEvidenceUrl: officialSchedule?.sourceUrl || null,
+  };
+}
+
+/**
+ * A direct official schedule is timely execution evidence at its stated time,
+ * but never a substitute for the separate confirmed-reset record. The signal
+ * builder already expires elapsed schedules after the six-hour correction
+ * grace, so this cannot notify indefinitely from an old announcement.
+ */
+export function getScheduledExecutionNotice(
+  signals: SignalsPayload['signals'],
+  now = Date.now(),
+): ScheduledExecutionNotice | null {
+  const signal = signals.find((item) => (
+    item.source === 'tibopost'
+      && item.status === 'active'
+      && item.description === 'signals.resetScheduleElapsed'
+      && typeof item.scheduledAt === 'number'
+      && Number.isFinite(item.scheduledAt)
+      && item.scheduledAt <= now
+  ));
+  const scheduledAt = signal?.scheduledAt;
+  if (!signal || typeof scheduledAt !== 'number' || !Number.isFinite(scheduledAt)) return null;
+  return {
+    id: `scheduled-execution:${scheduledAt}:${signal.updatedAt}`,
+    scheduledAt,
+    officialEvidenceUrl: signal.sourceUrl || null,
   };
 }
 

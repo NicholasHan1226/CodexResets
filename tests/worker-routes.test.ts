@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { handleConfirmEmail, handleHealth, handleHealthDetails, handleReleaseStatus, handleResendWebhook, handleSignals, handleSubscribeEmail, handleSubscribePush, handleTestEmail, handleUnsubscribeEmail, handleUnsubscribePush, handleXWebhook } from '../worker/src/routes';
-import { isExpiredPushEndpoint, notifyAll, notifyForecastPrealert, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
+import { isExpiredPushEndpoint, notifyAll, notifyForecastPrealert, notifyScheduledExecution, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
 import { signToken } from '../worker/src/util';
 import { buildSignalsSnapshot, getStatusEvidence } from '../worker/src/signals';
-import { computeSignalBaseline, getForecastPrealert, isAutomaticallyDeliverable, isDuplicateResetNotice, runPipeline, runPipelineOnce, shouldSendHealthAlert } from '../worker/src/pipeline';
+import { computeSignalBaseline, getForecastPrealert, getScheduledExecutionNotice, isAutomaticallyDeliverable, isDuplicateResetNotice, runPipeline, runPipelineOnce, shouldSendHealthAlert } from '../worker/src/pipeline';
 import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
 import { refreshOfficialCodexDiscovery } from '../worker/src/discovery';
 import { getSubscriptionQuality, getXWebhookQuality } from '../worker/src/operational-metrics';
@@ -761,6 +761,53 @@ describe('pipeline read endpoints', () => {
       expect(messages[0].html).toContain('not a confirmed reset');
       expect(messages[0].html).toContain('https://x.com/thsottiaux/status/123456789');
       expect(fetchMock.mock.calls.some(([url]) => String(url).includes('push_subscriptions'))).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('sends one due-time notice for a direct official schedule without writing a reset confirmation', async () => {
+    const now = Date.parse('2026-08-24T02:00:00.000Z');
+    const notice = getScheduledExecutionNotice([{
+      source: 'tibopost',
+      label: 'Tibo Posting',
+      status: 'active',
+      value: 0.8,
+      description: 'signals.resetScheduleElapsed',
+      updatedAt: now - 3 * 60 * 60 * 1000,
+      scheduledAt: now - 30 * 60 * 1000,
+      sourceUrl: 'https://x.com/thsottiaux/status/987654321',
+    }], now);
+    expect(notice).toMatchObject({
+      id: `scheduled-execution:${now - 30 * 60 * 1000}:${now - 3 * 60 * 60 * 1000}`,
+      officialEvidenceUrl: 'https://x.com/thsottiaux/status/987654321',
+    });
+
+    const delivered = new Set<string>();
+    const ledger = {
+      hasDelivered: async (id: string, channel: 'email' | 'push', recipient: string) => delivered.has(`${id}:${channel}:${recipient}`),
+      markDelivered: async (id: string, channel: 'email' | 'push', recipient: string) => { delivered.add(`${id}:${channel}:${recipient}`); },
+    };
+    const messages: Array<{ subject: string; html: string }> = [];
+    const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/subscriptions?select=email&is_active=eq.true')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
+      if (url === 'https://api.resend.com/emails') {
+        messages.push(JSON.parse(String(init?.body)) as { subject: string; html: string });
+        return new Response(JSON.stringify({ id: 'scheduled-email' }), { status: 200 });
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const first = await notifyScheduledExecution(emailEnv(), notice!, ledger);
+      const duplicate = await notifyScheduledExecution(emailEnv(), notice!, ledger);
+      expect(first).toMatchObject({ emails: 1, errors: [], pending: false });
+      expect(duplicate).toMatchObject({ emails: 0, errors: [], pending: false });
+      expect(messages).toHaveLength(1);
+      expect(messages[0].subject).toContain('scheduled reset is now due');
+      expect(messages[0].html).toContain('not a separate confirmation post');
+      expect(messages[0].html).toContain('https://x.com/thsottiaux/status/987654321');
     } finally {
       vi.unstubAllGlobals();
     }

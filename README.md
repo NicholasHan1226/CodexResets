@@ -78,6 +78,11 @@ scheduled interval, and then confirmed and delivered. A later direct-source
 correction within the stabilization window automatically retracts the matching
 pending notice. Notices older than 48 hours and all degraded discovery never
 create a forecast or confirmed-reset email alert.
+When an exact direct official schedule reaches its stated time, the first
+healthy 30-minute collection run sends one separate execution notice. It says
+the reset is expected to be live, links the official schedule, and clearly
+distinguishes this from a later confirmation post; it never enters reset
+history or forecast calibration.
 Confirmed alert emails and browser Push messages identify the reset type from
 the official announcement wording (banked, direct usage-limit, quota, or
 credits). Emails include the escaped announcement excerpt plus a link only
@@ -227,10 +232,13 @@ all migrations in `supabase/migrations/` before release.
 Resend remains the email delivery provider. Moving the database does not
 change its API key, verified sender domain, or mail routing.
 
-Forecast and confirmed-alert fan-out use the existing globally serialized
-pipeline coordinator. The forecast path is email-only: it sends once when the
-next-24-hour planning likelihood reaches 70%, and its campaign identity is
-tied to the last confirmed reset so it cannot repeat in the same reset cycle.
+Forecast, official-schedule execution, and confirmed-alert fan-out use the
+existing globally serialized pipeline coordinator. The forecast path is
+email-only: it sends once when the next-24-hour planning likelihood reaches
+70%, and its campaign identity is tied to the last confirmed reset so it
+cannot repeat in the same reset cycle. A direct official schedule gets its own
+once-only due-time notice after its stated time arrives; that notice remains
+explicitly non-confirming and does not alter reset history.
 It records a 31-day keyed digest for each successfully delivered recipient,
 never the email address or Push endpoint itself. A temporary failure therefore
 retries only the missing recipient on the next automatic pipeline run. Each

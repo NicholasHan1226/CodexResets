@@ -90,6 +90,10 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   Worker sends one email-only forecast notice per reset cycle. Its identity is
   anchored to the last confirmed reset, it is clearly not a confirmation, and
   browser Push remains reserved for confirmed resets.
+- When an exact direct official scheduled time arrives, the first healthy
+  collection run sends one email-only execution notice. It says the reset is
+  expected to be live, remains distinct from confirmation, and never changes
+  reset history, model inputs, or calibration evidence.
 - A strong announcement from a direct target-account source enters an
   `observed` state for one cron interval (30 minutes). The Worker then confirms
   and notifies automatically; no Supabase dashboard action is required. The

@@ -43,6 +43,14 @@ export interface ForecastPrealert {
   officialEvidenceUrl: string | null;
 }
 
+/** A due-time notice is evidence-led but remains distinct from confirmation. */
+export interface ScheduledExecutionNotice {
+  /** Stable per official schedule, preventing repeat notices on later cron runs. */
+  id: string;
+  scheduledAt: number;
+  officialEvidenceUrl: string | null;
+}
+
 export function isExpiredPushEndpoint(status: number): boolean {
   return status === 404 || status === 410;
 }
@@ -190,6 +198,51 @@ export async function notifyForecastPrealert(
   };
 }
 
+/**
+ * Tell subscribers when a direct official schedule has reached its stated
+ * time. This makes a silent execution actionable without inventing a
+ * confirmed reset record or affecting forecast history.
+ */
+export async function notifyScheduledExecution(
+  env: Env,
+  notice: ScheduledExecutionNotice,
+  deliveryLedger?: DeliveryLedger,
+): Promise<Pick<NotifyResult, 'emails' | 'errors' | 'pending'>> {
+  const errors: string[] = [];
+  if (!hasPrivilegedAccess(env)) {
+    return { emails: 0, errors: ['scheduled execution notice skipped: no privileged DB access'], pending: false };
+  }
+
+  let emails: SubscriptionRow[] = [];
+  try {
+    emails = await privListEmails(env);
+  } catch (err) {
+    errors.push(`fetch emails: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  const safeNotice: ScheduledExecutionNotice = {
+    ...notice,
+    officialEvidenceUrl: officialEvidenceUrl(notice.officialEvidenceUrl || ''),
+  };
+  const emailCandidates = await pendingRecipients(emails, 'email', safeNotice.id, (row) => row.email, deliveryLedger);
+  const emailBatch = emailCandidates.slice(0, MAX_DELIVERIES_PER_CHANNEL_RUN);
+  const emailResults = await settleInBatches(emailBatch, (candidate) => sendScheduledExecutionEmail(env, candidate.row.email, safeNotice));
+  const sentEmails = emailResults.filter((result) => result.status === 'fulfilled' && result.value).length;
+  for (let index = 0; index < emailResults.length; index++) {
+    const result = emailResults[index];
+    if (result.status === 'fulfilled' && result.value && deliveryLedger) {
+      await deliveryLedger.markDelivered(safeNotice.id, 'email', emailBatch[index].recipient);
+    }
+    if (result.status === 'rejected') errors.push(`scheduled execution email: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+  }
+
+  return {
+    emails: sentEmails,
+    errors,
+    pending: emailCandidates.length > emailBatch.length,
+  };
+}
+
 interface PendingRecipient<T> {
   row: T;
   recipient: string;
@@ -275,6 +328,31 @@ async function sendForecastPrealertEmail(env: Env, email: string, prealert: Fore
   return true;
 }
 
+async function sendScheduledExecutionEmail(env: Env, email: string, notice: ScheduledExecutionNotice): Promise<boolean> {
+  if (!env.RESEND_API_KEY) throw new Error('Resend email delivery is not configured');
+  const expiresAt = Math.floor(notice.scheduledAt / 1000) + UNSUBSCRIBE_TTL_SECONDS;
+  const token = env.UNSUBSCRIBE_SECRET ? await signToken(`${email.toLowerCase()}.${expiresAt}`, env.UNSUBSCRIBE_SECRET) : '';
+  const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&x=${expiresAt}&t=${token}`;
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${env.RESEND_API_KEY}`,
+      'content-type': 'application/json',
+      'idempotency-key': await scheduledExecutionEmailIdempotencyKey(notice.id, email),
+    },
+    body: JSON.stringify({
+      from: env.RESEND_FROM,
+      to: [email],
+      subject: 'Codex scheduled reset is now due / Codex 预定重置现应生效',
+      headers: { 'List-Unsubscribe': `<${unsubUrl}>` },
+      html: scheduledExecutionEmailHtml(env, notice, unsubUrl),
+    }),
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
+  return true;
+}
+
 /** Keep the provider-visible idempotency key deterministic without exposing an email address. */
 async function resetEmailIdempotencyKey(resetId: string, email: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.trim().toLowerCase()));
@@ -286,6 +364,12 @@ async function forecastEmailIdempotencyKey(prealertId: string, email: string): P
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.trim().toLowerCase()));
   const fingerprint = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
   return `forecast/${prealertId}/email/${fingerprint}`;
+}
+
+async function scheduledExecutionEmailIdempotencyKey(noticeId: string, email: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.trim().toLowerCase()));
+  const fingerprint = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `scheduled/${noticeId}/email/${fingerprint}`;
 }
 
 /** Send an explicit opt-in confirmation before an address enters the alert list. */
@@ -398,6 +482,25 @@ function forecastPrealertEmailHtml(env: Env, prealert: ForecastPrealert, unsubUr
 </body></html>`;
 }
 
+function scheduledExecutionEmailHtml(env: Env, notice: ScheduledExecutionNotice, unsubUrl: string): string {
+  const evidence = notice.officialEvidenceUrl
+    ? `<p style="margin:0 0 16px;font-size:14px;color:#3d4250"><a href="${escapeHtml(notice.officialEvidenceUrl)}" style="color:#0b7d62">View official announcement / 查看官方公告</a></p>`
+    : '';
+  return `<!doctype html>
+<html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
+  <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
+    <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#10a37f">❯ codex resets</p>
+    <h1 style="margin:0 0 12px;font-size:20px">Scheduled reset is now due / 预定重置现应生效</h1>
+    <p style="margin:0 0 12px;font-size:14px;color:#3d4250">The time stated in a direct official reset schedule has arrived. Codex access is expected to be available now. / 官方直接预告所列时间已到，Codex 额度预计现已可用。</p>
+    <p style="margin:0 0 16px;font-size:13px;color:#667085">This is an execution notice based on the official schedule, not a separate confirmation post. We will send a confirmed-reset alert if one follows. / 这是基于官方预告的执行通知，不是独立的确认帖；如后续出现确认信息，会另行发送确认提醒。</p>
+    ${evidence}
+    <a href="${env.SITE_URL}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open dashboard / 打开仪表盘</a>
+    <hr style="margin:20px 0 12px;border:none;border-top:1px solid #e4e6ea" />
+    <p style="margin:0;font-size:11px;color:#9aa0ac">You subscribed at codexresets.cc · <a href="${unsubUrl}" style="color:#9aa0ac">Unsubscribe / 退订</a></p>
+  </div>
+</body></html>`;
+}
+
 /** Bilingual alerts always include China Standard Time as well as UTC. */
 function formatResetTime(timestamp: number): string {
   const date = new Date(timestamp);
@@ -415,7 +518,7 @@ function confirmationHtml(confirmUrl: string): string {
   <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
     <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#10a37f">❯ codex resets</p>
     <h1 style="margin:0 0 12px;font-size:20px">Confirm your subscription / 确认订阅</h1>
-    <p style="margin:0 0 16px;font-size:14px;color:#3d4250">Confirm this address to receive one 24-hour forecast notice when it reaches 70%, plus confirmed Codex reset alerts. If you did not request this, ignore this email. / 确认后即可在未来 24 小时综合判断达到 70% 时收到一次预告，并接收已确认的 Codex 重置提醒；若非本人操作，请忽略。</p>
+    <p style="margin:0 0 16px;font-size:14px;color:#3d4250">Confirm this address to receive one 24-hour forecast notice when it reaches 70%, a direct official schedule due-time notice, plus confirmed Codex reset alerts. If you did not request this, ignore this email. / 确认后即可在未来 24 小时综合判断达到 70% 时收到一次预告、在官方预告时间到达时收到执行通知，并接收已确认的 Codex 重置提醒；若非本人操作，请忽略。</p>
     <a href="${confirmUrl}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Confirm subscription / 确认订阅</a>
     <p style="margin:20px 0 0;font-size:11px;color:#9aa0ac">This confirmation link expires in 24 hours. / 链接 24 小时内有效。</p>
   </div>

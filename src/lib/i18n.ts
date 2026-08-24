@@ -211,8 +211,8 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Subscribe
     'subscribe.title': 'RESET RADAR',
-    'subscribe.description': 'We’ll email one 24-hour forecast at 70%, then the confirmed reset type and official announcement. Confirm your email first.',
-    'subscribe.command': 'watch reset-forecast+confirmed --channel email',
+    'subscribe.description': 'We’ll email one 24-hour forecast at 70%, a due-time notice for an official schedule, then the confirmed reset type and official announcement. Confirm your email first.',
+    'subscribe.command': 'watch forecast+scheduled+confirmed --channel email',
     'subscribe.armed': 'ARMED',
     'subscribe.standby': 'STANDBY',
     'subscribe.placeholder': 'your@email.com',
@@ -220,7 +220,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'subscribe.subscribed': 'Subscribed!',
     'subscribe.subscribers': '{n} subscribers',
     'subscribe.invalidEmail': 'Please enter a valid email',
-    'subscribe.success': "Subscribed — we'll email a 24-hour forecast and any confirmed reset.",
+    'subscribe.success': "Subscribed — we'll email a 24-hour forecast, official due-time notice, and any confirmed reset.",
     'subscribe.confirmationSent': 'Check your inbox to confirm your subscription.',
     'subscribe.verificationRequired': 'Complete the human verification before subscribing.',
     'subscribe.verificationUnavailable': 'Subscription verification is temporarily unavailable.',
@@ -521,8 +521,8 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Subscribe
     'subscribe.title': '重置雷达',
-    'subscribe.description': '未来 24 小时综合判断达到 70% 时会发送一次预告；重置确认后会另行告知类型并附官方公告。请先完成邮箱确认。',
-    'subscribe.command': 'watch reset-forecast+confirmed --channel email',
+    'subscribe.description': '未来 24 小时综合判断达到 70% 时会发送一次预告；官方预告时间到达时会发送执行通知；重置确认后会另行告知类型并附官方公告。请先完成邮箱确认。',
+    'subscribe.command': 'watch forecast+scheduled+confirmed --channel email',
     'subscribe.armed': '已生效',
     'subscribe.standby': '待命',
     'subscribe.placeholder': '你的邮箱',
@@ -530,7 +530,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'subscribe.subscribed': '已订阅！',
     'subscribe.subscribers': '{n} 位订阅者',
     'subscribe.invalidEmail': '请输入有效的邮箱地址',
-    'subscribe.success': '已订阅——达到预告条件及重置确认后都会邮件通知你。',
+    'subscribe.success': '已订阅——达到预告条件、官方预告时间到达及重置确认后都会邮件通知你。',
     'subscribe.confirmationSent': '请查收邮箱并完成订阅确认。',
     'subscribe.verificationRequired': '请先完成人机验证，再订阅。',
     'subscribe.verificationUnavailable': '订阅验证暂时不可用。',
