@@ -49,6 +49,8 @@ export interface ScheduledExecutionNotice {
   id: string;
   scheduledAt: number;
   officialEvidenceUrl: string | null;
+  /** Aggregated only; no community posts, people, or links are exposed. */
+  communityCorroborated?: boolean;
 }
 
 export function isExpiredPushEndpoint(status: number): boolean {
@@ -486,6 +488,9 @@ function scheduledExecutionEmailHtml(env: Env, notice: ScheduledExecutionNotice,
   const evidence = notice.officialEvidenceUrl
     ? `<p style="margin:0 0 16px;font-size:14px;color:#3d4250"><a href="${escapeHtml(notice.officialEvidenceUrl)}" style="color:#0b7d62">View official announcement / 查看官方公告</a></p>`
     : '';
+  const community = notice.communityCorroborated
+    ? '<p style="margin:0 0 16px;font-size:13px;color:#667085">Independent public reports also indicate that access is available. / 多位独立公开反馈也显示额度现已可用。</p>'
+    : '';
   return `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
   <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
@@ -493,6 +498,7 @@ function scheduledExecutionEmailHtml(env: Env, notice: ScheduledExecutionNotice,
     <h1 style="margin:0 0 12px;font-size:20px">Scheduled reset is now due / 预定重置现应生效</h1>
     <p style="margin:0 0 12px;font-size:14px;color:#3d4250">The time stated in a direct official reset schedule has arrived. Codex access is expected to be available now. / 官方直接预告所列时间已到，Codex 额度预计现已可用。</p>
     <p style="margin:0 0 16px;font-size:13px;color:#667085">This is an execution notice based on the official schedule, not a separate confirmation post. We will send a confirmed-reset alert if one follows. / 这是基于官方预告的执行通知，不是独立的确认帖；如后续出现确认信息，会另行发送确认提醒。</p>
+    ${community}
     ${evidence}
     <a href="${env.SITE_URL}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open dashboard / 打开仪表盘</a>
     <hr style="margin:20px 0 12px;border:none;border-top:1px solid #e4e6ea" />

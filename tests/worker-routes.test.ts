@@ -9,6 +9,7 @@ import { refreshOfficialCodexDiscovery } from '../worker/src/discovery';
 import { getSubscriptionQuality, getXWebhookQuality } from '../worker/src/operational-metrics';
 import type { Env, RunReport } from '../worker/src/types';
 import { detectResetEvents, detectResetRetractions, isRetractionForCandidate, isScheduledResetAnnouncement, isTimelyAutomatedCandidate, parseScheduledResetAt, scrapeTweets } from '../worker/src/scrape';
+import { findCommunityResetCorroboration } from '../worker/src/community';
 import { RESET_HISTORY } from '../src/lib/reset-data';
 import { intervalDays, median, mergeResetEpisodes } from '../src/lib/reset-episodes';
 
@@ -808,6 +809,60 @@ describe('pipeline read endpoints', () => {
       expect(messages[0].subject).toContain('scheduled reset is now due');
       expect(messages[0].html).toContain('not a separate confirmation post');
       expect(messages[0].html).toContain('https://x.com/thsottiaux/status/987654321');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('uses only independent post-reset public reports as schedule corroboration', async () => {
+    const scheduledAt = Date.parse('2026-08-24T02:00:00.000Z');
+    const now = scheduledAt + 30 * 60 * 1000;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      expect(url.pathname).toBe('/2/tweets/search/recent');
+      expect(url.searchParams.get('query')).toContain('Codex');
+      expect(url.searchParams.get('start_time')).toBe(new Date(scheduledAt).toISOString());
+      return new Response(JSON.stringify({ data: [
+        { id: 'one', author_id: 'a', created_at: new Date(scheduledAt + 2 * 60 * 1000).toISOString(), text: 'My Codex usage limits are back after the reset.' },
+        { id: 'two', author_id: 'b', created_at: new Date(scheduledAt + 4 * 60 * 1000).toISOString(), text: 'Codex reset landed and quota is restored for me.' },
+        { id: 'three', author_id: 'c', created_at: new Date(scheduledAt + 6 * 60 * 1000).toISOString(), text: 'Codex credits reset happened — access is available again.' },
+        { id: 'prediction', author_id: 'd', created_at: new Date(scheduledAt + 8 * 60 * 1000).toISOString(), text: 'When will the Codex reset happen tomorrow?' },
+        { id: 'before', author_id: 'e', created_at: new Date(scheduledAt - 60 * 1000).toISOString(), text: 'Codex quota reset is back.' },
+      ] }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await expect(findCommunityResetCorroboration({ ...envWith({}), X_BEARER_TOKEN: 'test-token' }, scheduledAt, now)).resolves.toEqual({
+        availability: 'live', matchedPosts: 3, distinctAuthors: 3, corroborated: true,
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('fails closed when recent search is unavailable or reports are not independent', async () => {
+    const scheduledAt = Date.parse('2026-08-24T02:00:00.000Z');
+    const now = scheduledAt + 30 * 60 * 1000;
+    const failingFetch = vi.fn(async () => new Response('no access', { status: 403 }));
+    vi.stubGlobal('fetch', failingFetch);
+    try {
+      await expect(findCommunityResetCorroboration({ ...envWith({}), X_BEARER_TOKEN: 'test-token' }, scheduledAt, now)).resolves.toEqual({
+        availability: 'unavailable', matchedPosts: 0, distinctAuthors: 0, corroborated: false,
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    const sameAuthorFetch = vi.fn(async () => new Response(JSON.stringify({ data: [
+      { id: 'one', author_id: 'only-author', created_at: new Date(scheduledAt + 2 * 60 * 1000).toISOString(), text: 'Codex usage limits are back after reset.' },
+      { id: 'two', author_id: 'only-author', created_at: new Date(scheduledAt + 4 * 60 * 1000).toISOString(), text: 'Codex quota reset landed for me.' },
+      { id: 'three', author_id: 'only-author', created_at: new Date(scheduledAt + 6 * 60 * 1000).toISOString(), text: 'My Codex credits are restored after reset.' },
+    ] })));
+    vi.stubGlobal('fetch', sameAuthorFetch);
+    try {
+      await expect(findCommunityResetCorroboration({ ...envWith({}), X_BEARER_TOKEN: 'test-token' }, scheduledAt, now)).resolves.toEqual({
+        availability: 'live', matchedPosts: 3, distinctAuthors: 1, corroborated: false,
+      });
     } finally {
       vi.unstubAllGlobals();
     }

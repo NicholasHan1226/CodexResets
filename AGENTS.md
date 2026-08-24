@@ -94,6 +94,14 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   collection run sends one email-only execution notice. It says the reset is
   expected to be live, remains distinct from confirmation, and never changes
   reset history, model inputs, or calibration evidence.
+- During that same short due-time window, the Worker may query X Recent Search
+  with the existing app-only token for aggregate corroboration only. It needs
+  at least three distinct authors and independently worded post-reset reports;
+  raw post text, links, usernames, and identifiers are neither persisted nor
+  exposed. This can add one short sentence to the due-time email, but never
+  confirms a reset, changes history/calibration, or creates an alert without
+  the direct official schedule. If search access is unavailable it fails closed
+  without affecting the official pipeline.
 - A strong announcement from a direct target-account source enters an
   `observed` state for one cron interval (30 minutes). The Worker then confirms
   and notifies automatically; no Supabase dashboard action is required. The

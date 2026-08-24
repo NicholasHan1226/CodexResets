@@ -27,6 +27,7 @@ import { intervalDays, median, mergeResetEpisodes } from '../../src/lib/reset-ep
 import type { ResetRecord } from '../../src/types/reset';
 import { probabilityWithin, selectForecastModel } from '../../src/lib/forecast-model';
 import { getPlanningProbability, getPrimaryForecast } from '../../src/lib/forecast-display';
+import { findCommunityResetCorroboration } from './community';
 
 const HOUR = 3600 * 1000;
 // Seed with the newest bundled reset so the snapshot works before the DB
@@ -281,6 +282,9 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
     }
     const scheduledExecution = getScheduledExecutionNotice(snapshot.signals, recordNow);
     if (scheduledExecution) {
+      const community = await findCommunityResetCorroboration(env, scheduledExecution.scheduledAt, recordNow);
+      report.communityCorroboration = community;
+      scheduledExecution.communityCorroborated = community.corroborated;
       const outcome = await notifyScheduledExecution(env, scheduledExecution, deliveryLedger);
       report.scheduledExecutionEmails = (report.scheduledExecutionEmails || 0) + outcome.emails;
       report.errors.push(...outcome.errors);
@@ -402,6 +406,7 @@ async function updateDeliveryMetrics(env: Env, report: RunReport): Promise<void>
     emails: (previous.emails || 0) + report.notifiedEmails,
     forecastPrealertEmails: (previous.forecastPrealertEmails || 0) + (report.forecastPrealertEmails || 0),
     scheduledExecutionEmails: (previous.scheduledExecutionEmails || 0) + (report.scheduledExecutionEmails || 0),
+    communityCorroboratedRuns: (previous.communityCorroboratedRuns || 0) + (report.communityCorroboration?.corroborated ? 1 : 0),
     pushes: (previous.pushes || 0) + report.notifiedPush,
     prunedPushEndpoints: (previous.prunedPushEndpoints || 0) + (report.prunedPushEndpoints || 0),
     errors: (previous.errors || 0) + report.errors.length,

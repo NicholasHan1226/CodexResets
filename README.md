@@ -83,6 +83,14 @@ healthy 30-minute collection run sends one separate execution notice. It says
 the reset is expected to be live, links the official schedule, and clearly
 distinguishes this from a later confirmation post; it never enters reset
 history or forecast calibration.
+Only while that official due-time window is active, the Worker can use X Recent
+Search with the existing app-only token to look for aggregate corroboration.
+It requires at least three different authors and three independently worded
+post-reset reports before adding a brief corroboration sentence to that
+execution notice. The raw posts, accounts, links, and text fingerprints are
+not stored or exposed. Community reports never create an alert by themselves,
+never confirm a reset, and never alter history, model inputs, or calibration;
+an unavailable search endpoint simply has no effect on the official path.
 Confirmed alert emails and browser Push messages identify the reset type from
 the official announcement wording (banked, direct usage-limit, quota, or
 credits). Emails include the escaped announcement excerpt plus a link only
@@ -239,6 +247,11 @@ email-only: it sends once when the next-24-hour planning likelihood reaches
 cannot repeat in the same reset cycle. A direct official schedule gets its own
 once-only due-time notice after its stated time arrives; that notice remains
 explicitly non-confirming and does not alter reset history.
+For an active due-time window, the same run may add aggregate corroboration
+from X Recent Search only after three distinct authors give independently
+worded post-reset reports. It retains no community post content or identity;
+this is supplementary execution evidence, not a confirmation or a new signal
+source for the model.
 It records a 31-day keyed digest for each successfully delivered recipient,
 never the email address or Push endpoint itself. A temporary failure therefore
 retries only the missing recipient on the next automatic pipeline run. Each

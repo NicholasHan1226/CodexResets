@@ -134,6 +134,13 @@ export interface RunReport {
   forecastPrealertEmails?: number;
   /** Email-only notices when a direct official scheduled time becomes due. */
   scheduledExecutionEmails?: number;
+  /** Aggregate-only public-post corroboration for a due official schedule. */
+  communityCorroboration?: {
+    availability: 'live' | 'unavailable';
+    matchedPosts: number;
+    distinctAuthors: number;
+    corroborated: boolean;
+  };
   notifiedPush: number;
   /** Invalid 404/410 browser endpoints pruned while delivering a real alert. */
   prunedPushEndpoints?: number;
@@ -156,6 +163,8 @@ export interface DeliveryMetrics {
   emails: number;
   forecastPrealertEmails: number;
   scheduledExecutionEmails: number;
+  /** Runs where independent public reports corroborated a due schedule. */
+  communityCorroboratedRuns: number;
   pushes: number;
   /** Invalid 404/410 endpoints pruned after a real reset delivery. */
   prunedPushEndpoints: number;
