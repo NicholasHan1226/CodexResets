@@ -8,8 +8,10 @@ import {
   handleSubscribePush,
   handleSubscribeEmail,
   handleConfirmEmail,
+  handleConfirmEmailPost,
   handleUnsubscribePush,
   handleUnsubscribeEmail,
+  handleUnsubscribeEmailPost,
   handleResendWebhook,
   handleXWebhook,
   handleRun,
@@ -48,13 +50,16 @@ export default {
           if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
           return await handleSubscribeEmail(request, env);
         case '/api/subscribe/confirm':
-          if (request.method !== 'GET') return json({ error: 'method not allowed' }, 405);
-          return await handleConfirmEmail(url, env);
+          if (request.method === 'GET') return await handleConfirmEmail(url, env);
+          if (request.method === 'POST') return await handleConfirmEmailPost(url, env);
+          return json({ error: 'method not allowed' }, 405);
         case '/api/unsubscribe/push':
           if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
           return await handleUnsubscribePush(request, env);
         case '/api/unsubscribe':
-          return await handleUnsubscribeEmail(url, env);
+          if (request.method === 'GET') return await handleUnsubscribeEmail(url, env);
+          if (request.method === 'POST') return await handleUnsubscribeEmailPost(url, env);
+          return json({ error: 'method not allowed' }, 405);
         case '/api/webhooks/resend':
           if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
           return await handleResendWebhook(request, env);

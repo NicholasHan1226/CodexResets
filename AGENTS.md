@@ -56,7 +56,8 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
 - `src/routes.ts`    — GET /api/signals, public GET /api/health, protected
   GET /api/health/details,
   POST /api/subscribe/push, POST /api/unsubscribe/push,
-  GET /api/unsubscribe (HMAC email), POST /api/webhooks/resend (Svix-signed),
+  GET/POST /api/unsubscribe (HMAC email; GET confirms, POST executes),
+  POST /api/webhooks/resend (Svix-signed),
   GET/POST /api/webhooks/x (X CRC + signed Activity events),
   POST /api/run (Bearer CRON_SECRET)
 - Deploy: `cd worker && CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... npx wrangler deploy`

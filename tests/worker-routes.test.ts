@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { handleConfirmEmail, handleHealth, handleHealthDetails, handleReleaseStatus, handleResendWebhook, handleSignals, handleSubscribeEmail, handleSubscribePush, handleTestEmail, handleUnsubscribeEmail, handleUnsubscribePush, handleXWebhook } from '../worker/src/routes';
+import { handleConfirmEmail, handleConfirmEmailPost, handleHealth, handleHealthDetails, handleReleaseStatus, handleResendWebhook, handleSignals, handleSubscribeEmail, handleSubscribePush, handleTestEmail, handleUnsubscribeEmail, handleUnsubscribeEmailPost, handleUnsubscribePush, handleXWebhook } from '../worker/src/routes';
 import { isExpiredPushEndpoint, notifyAll, notifyForecastPrealert, notifyScheduledExecution, sendHealthAlert, sendPushSubscriptionTest } from '../worker/src/notify';
 import { signToken } from '../worker/src/util';
 import { buildSignalsSnapshot, getStatusEvidence } from '../worker/src/signals';
@@ -677,14 +677,14 @@ describe('pipeline read endpoints', () => {
   });
 
   it('includes a confirmed reset type and only official-post evidence in subscriber email', async () => {
-    let message: { subject: string; html: string } | null = null;
+    let message: { subject: string; html: string; headers: Record<string, string> } | null = null;
     let idempotencyKey: string | null = null;
     const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith('/subscriptions?select=email&is_active=eq.true')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
       if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth')) return new Response(JSON.stringify([]));
       if (url === 'https://api.resend.com/emails') {
-        message = JSON.parse(String(init?.body)) as { subject: string; html: string };
+        message = JSON.parse(String(init?.body)) as { subject: string; html: string; headers: Record<string, string> };
         idempotencyKey = new Headers(init?.headers).get('idempotency-key');
         return new Response(JSON.stringify({ id: 'email-evidence' }), { status: 200 });
       }
@@ -703,6 +703,7 @@ describe('pipeline read endpoints', () => {
       expect(message?.html).toContain('https://x.com/thsottiaux/status/123456789');
       expect(message?.html).toContain('Asia/Shanghai (UTC+8)');
       expect(message?.html).toContain('UTC ');
+      expect(message?.headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
       expect(idempotencyKey).toMatch(/^reset\/banked-reset\/email\/[a-f0-9]{64}$/);
 
       await notifyAll(emailEnv(), {
@@ -741,7 +742,7 @@ describe('pipeline read endpoints', () => {
       hasDelivered: async (id: string, channel: 'email' | 'push', recipient: string) => delivered.has(`${id}:${channel}:${recipient}`),
       markDelivered: async (id: string, channel: 'email' | 'push', recipient: string) => { delivered.add(`${id}:${channel}:${recipient}`); },
     };
-    const messages: Array<{ subject: string; html: string }> = [];
+    const messages: Array<{ subject: string; html: string; headers: Record<string, string> }> = [];
     const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith('/subscriptions?select=email&is_active=eq.true')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
@@ -761,6 +762,8 @@ describe('pipeline read endpoints', () => {
       expect(messages[0].subject).toContain('forecast');
       expect(messages[0].html).toContain('not a confirmed reset');
       expect(messages[0].html).toContain('https://x.com/thsottiaux/status/123456789');
+      expect(messages[0].headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
+      expect(messages[0].headers['List-Unsubscribe']).toContain('/api/unsubscribe?');
       expect(fetchMock.mock.calls.some(([url]) => String(url).includes('push_subscriptions'))).toBe(false);
     } finally {
       vi.unstubAllGlobals();
@@ -789,7 +792,7 @@ describe('pipeline read endpoints', () => {
       hasDelivered: async (id: string, channel: 'email' | 'push', recipient: string) => delivered.has(`${id}:${channel}:${recipient}`),
       markDelivered: async (id: string, channel: 'email' | 'push', recipient: string) => { delivered.add(`${id}:${channel}:${recipient}`); },
     };
-    const messages: Array<{ subject: string; html: string }> = [];
+    const messages: Array<{ subject: string; html: string; headers: Record<string, string> }> = [];
     const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith('/subscriptions?select=email&is_active=eq.true')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
@@ -809,6 +812,7 @@ describe('pipeline read endpoints', () => {
       expect(messages[0].subject).toContain('scheduled reset is now due');
       expect(messages[0].html).toContain('not a separate confirmation post');
       expect(messages[0].html).toContain('https://x.com/thsottiaux/status/987654321');
+      expect(messages[0].headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
     } finally {
       vi.unstubAllGlobals();
     }
@@ -1321,6 +1325,15 @@ describe('pipeline read endpoints', () => {
         { ...emailEnv(), UNSUBSCRIBE_SECRET: 'unsubscribe-test-secret' },
       );
       expect(valid.status).toBe(200);
+      await expect(valid.text()).resolves.toContain('Stop reset alerts');
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      const confirmed = await handleUnsubscribeEmailPost(
+        new URL(`https://api.example.test/api/unsubscribe?e=reader@example.test&x=${expiresAt}&t=${token}`),
+        { ...emailEnv(), UNSUBSCRIBE_SECRET: 'unsubscribe-test-secret' },
+      );
+      expect(confirmed.status).toBe(200);
+      await expect(confirmed.text()).resolves.toBe('');
       const expired = await handleUnsubscribeEmail(
         new URL(`https://api.example.test/api/unsubscribe?e=reader@example.test&x=${expiresAt - 120}&t=${token}`),
         { ...emailEnv(), UNSUBSCRIBE_SECRET: 'unsubscribe-test-secret' },
@@ -1346,7 +1359,16 @@ describe('pipeline read endpoints', () => {
       );
 
       expect(response.status).toBe(200);
-      await expect(response.text()).resolves.toContain('Subscription confirmed');
+      await expect(response.text()).resolves.toContain('Confirm subscription');
+      expect(cache[`subscribe:confirm:${token}`]).toBeDefined();
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      const confirmed = await handleConfirmEmailPost(
+        new URL(`https://api.example.test/api/subscribe/confirm?t=${token}`),
+        emailEnv(cache),
+      );
+      expect(confirmed.status).toBe(200);
+      await expect(confirmed.text()).resolves.toContain('Subscription confirmed');
       expect(cache[`subscribe:confirm:${token}`]).toBeUndefined();
       expect(fetchMock.mock.calls[0]?.[0]).toBe('https://db.example.test/rest/v1/subscriptions?on_conflict=email');
       const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -1368,7 +1390,7 @@ describe('pipeline read endpoints', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     try {
-      const response = await handleConfirmEmail(
+      const response = await handleConfirmEmailPost(
         new URL(`https://api.example.test/api/subscribe/confirm?t=${token}`),
         env,
       );

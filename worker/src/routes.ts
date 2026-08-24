@@ -252,7 +252,7 @@ export async function handleUnsubscribePush(request: Request, env: Env): Promise
   return json({ ok: true });
 }
 
-/** GET /api/unsubscribe?e=...&t=... — HMAC-signed email unsubscribe (no login) */
+/** GET /api/unsubscribe?e=...&t=... — show an explicit email-unsubscribe confirmation. */
 export async function handleUnsubscribeEmail(url: URL, env: Env): Promise<Response> {
   const email = (url.searchParams.get('e') || '').toLowerCase().trim();
   const token = url.searchParams.get('t') || '';
@@ -265,10 +265,30 @@ export async function handleUnsubscribeEmail(url: URL, env: Env): Promise<Respon
   const ok = await verifyToken(`${email}.${expiresAt}`, token, env.UNSUBSCRIBE_SECRET);
   if (!ok) return html(unsubPage('Invalid or expired unsubscribe link.', false), 403);
 
+  const action = `/api/unsubscribe?e=${encodeURIComponent(email)}&x=${expiresAt}&t=${encodeURIComponent(token)}`;
+  return html(unsubPage(`Stop reset alerts for <b>${escapeHtml(email)}</b>?`, true, {
+    action,
+    label: 'Unsubscribe',
+  }));
+}
+
+/** POST /api/unsubscribe?e=...&t=... — perform a signed one-click unsubscribe. */
+export async function handleUnsubscribeEmailPost(url: URL, env: Env): Promise<Response> {
+  const email = (url.searchParams.get('e') || '').toLowerCase().trim();
+  const token = url.searchParams.get('t') || '';
+  const expiresAt = Number(url.searchParams.get('x'));
+  const validEmail = EMAIL_RE.test(email);
+  if (!validEmail || !token || !isValidUnsubscribeExpiry(expiresAt)) return html('', 400);
+  if (!env.UNSUBSCRIBE_SECRET || !hasPrivilegedAccess(env)) return html('', 503);
+  const ok = await verifyToken(`${email}.${expiresAt}`, token, env.UNSUBSCRIBE_SECRET);
+  if (!ok) return html('', 403);
+
   const res = await privDeleteEmail(env, email);
-  if (!res.ok) return html(unsubPage('We could not process this unsubscribe request. Please try again later.', false), 502);
+  if (!res.ok) return html('', 502);
   await recordSubscriptionMetric(env, 'email_unsubscribed').catch(() => {});
-  return html(unsubPage(`<b>${escapeHtml(email)}</b> has been unsubscribed. You will no longer receive reset alerts.`, true));
+  // Mailbox providers call this endpoint from List-Unsubscribe-Post and expect
+  // an empty success response. Browser visitors see the GET confirmation page.
+  return html('', 200);
 }
 
 /** POST /api/webhooks/resend — signed bounce and complaint suppression. */
@@ -425,7 +445,7 @@ export async function handleSubscribeEmail(request: Request, env: Env): Promise<
   return json({ ok: true, status: 'pending' });
 }
 
-/** GET /api/subscribe/confirm?t=... — activate a previously confirmed email. */
+/** GET /api/subscribe/confirm?t=... — show an explicit double-opt-in confirmation. */
 export async function handleConfirmEmail(url: URL, env: Env): Promise<Response> {
   const token = url.searchParams.get('t') || '';
   if (!/^[0-9a-f-]{36}$/i.test(token)) return html(confirmPage('Invalid or expired confirmation link.', false), 400);
@@ -435,6 +455,21 @@ export async function handleConfirmEmail(url: URL, env: Env): Promise<Response> 
   const email = pending?.email?.toLowerCase().trim() || '';
   if (!EMAIL_RE.test(email)) return html(confirmPage('This confirmation link has expired.', false), 410);
 
+  return html(confirmPage('Confirm this subscription to receive reset alerts.', true, {
+    action: `/api/subscribe/confirm?t=${encodeURIComponent(token)}`,
+    label: 'Confirm subscription',
+  }));
+}
+
+/** POST /api/subscribe/confirm?t=... — activate an explicitly confirmed email. */
+export async function handleConfirmEmailPost(url: URL, env: Env): Promise<Response> {
+  const token = url.searchParams.get('t') || '';
+  if (!/^[0-9a-f-]{36}$/i.test(token)) return html(confirmPage('Invalid or expired confirmation link.', false), 400);
+
+  const key = `subscribe:confirm:${token}`;
+  const pending = parseJson<{ email?: string }>(await env.CACHE.get(key));
+  const email = pending?.email?.toLowerCase().trim() || '';
+  if (!EMAIL_RE.test(email)) return html(confirmPage('This confirmation link has expired.', false), 410);
   if (!hasPrivilegedAccess(env)) return html(confirmPage('Server not configured.', false), 503);
   const res = await privActivateEmail(env, email);
   if (!res.ok) return html(confirmPage('We could not activate this subscription. Please try again later.', false), 502);
@@ -468,20 +503,22 @@ export async function handleTestEmail(request: Request, env: Env): Promise<Respo
   return json({ ok: true });
 }
 
-function unsubPage(message: string, ok: boolean): string {
+function unsubPage(message: string, ok: boolean, action?: { action: string; label: string }): string {
   return `<!doctype html><html><body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0b0c0f;color:#f0f2f5;font-family:-apple-system,'Segoe UI',Roboto,sans-serif">
   <div style="text-align:center;padding:24px">
     <p style="font-family:Menlo,monospace;color:${ok ? '#10a37f' : '#ef4444'};font-size:13px">❯ codex resets</p>
     <p style="font-size:16px;margin:12px 0 20px">${message}</p>
+    ${action ? `<form method="post" action="${escapeHtml(action.action)}" style="margin:0 0 20px"><button type="submit" style="border:0;border-radius:6px;background:#10a37f;color:#07110e;padding:10px 14px;font-weight:600;cursor:pointer">${escapeHtml(action.label)}</button></form>` : ''}
     <a href="https://codexresets.cc" style="color:#10a37f;font-size:13px;text-decoration:none">← Back to dashboard</a>
   </div></body></html>`;
 }
 
-function confirmPage(message: string, ok: boolean): string {
+function confirmPage(message: string, ok: boolean, action?: { action: string; label: string }): string {
   return `<!doctype html><html><body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0b0c0f;color:#f0f2f5;font-family:-apple-system,'Segoe UI',Roboto,sans-serif">
   <div style="text-align:center;padding:24px">
     <p style="font-family:Menlo,monospace;color:${ok ? '#10a37f' : '#ef4444'};font-size:13px">❯ codex resets</p>
     <p style="font-size:16px;margin:12px 0 20px">${message}</p>
+    ${action ? `<form method="post" action="${escapeHtml(action.action)}" style="margin:0 0 20px"><button type="submit" style="border:0;border-radius:6px;background:#10a37f;color:#07110e;padding:10px 14px;font-weight:600;cursor:pointer">${escapeHtml(action.label)}</button></form>` : ''}
     <a href="https://codexresets.cc" style="color:#10a37f;font-size:13px;text-decoration:none">← Back to dashboard</a>
   </div></body></html>`;
 }

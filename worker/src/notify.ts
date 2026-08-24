@@ -295,7 +295,7 @@ async function sendEmail(env: Env, email: string, event: ResetEvent & { id: stri
       from: env.RESEND_FROM,
       to: [email],
       subject: `Codex ${details.labelEn} confirmed / 已确认：${details.labelZh}`,
-      headers: { 'List-Unsubscribe': `<${unsubUrl}>` },
+      headers: unsubscribeHeaders(unsubUrl),
       html: emailHtml(env, resetTime, unsubUrl, details),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
@@ -321,7 +321,7 @@ async function sendForecastPrealertEmail(env: Env, email: string, prealert: Fore
       from: env.RESEND_FROM,
       to: [email],
       subject: `Codex reset forecast: ${probability}% within 24h / 未来 24 小时重置预告：${probability}%`,
-      headers: { 'List-Unsubscribe': `<${unsubUrl}>` },
+      headers: unsubscribeHeaders(unsubUrl),
       html: forecastPrealertEmailHtml(env, prealert, unsubUrl),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
@@ -346,13 +346,21 @@ async function sendScheduledExecutionEmail(env: Env, email: string, notice: Sche
       from: env.RESEND_FROM,
       to: [email],
       subject: 'Codex scheduled reset is now due / Codex 预定重置现应生效',
-      headers: { 'List-Unsubscribe': `<${unsubUrl}>` },
+      headers: unsubscribeHeaders(unsubUrl),
       html: scheduledExecutionEmailHtml(env, notice, unsubUrl),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
   return true;
+}
+
+/** RFC 8058 one-click unsubscribe for mailbox providers plus a regular GET page for people. */
+function unsubscribeHeaders(unsubUrl: string): Record<string, string> {
+  return {
+    'List-Unsubscribe': `<${unsubUrl}>`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+  };
 }
 
 /** Keep the provider-visible idempotency key deterministic without exposing an email address. */

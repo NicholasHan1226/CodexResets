@@ -55,7 +55,11 @@ losing or double-settling calibration evidence. Its first write carries over
 only pre-existing, still-future KV samples once, so an in-flight forecast is
 not discarded during the ledger migration.
 - `POST /api/subscribe/email` — starts a confirmation email; the address is
-  activated only by `GET /api/subscribe/confirm?t=...` within 24 hours.
+  activated only by an explicit `POST /api/subscribe/confirm?t=...` action
+  within 24 hours. `GET /api/subscribe/confirm` only shows that action.
+- `GET /api/unsubscribe` shows an explicit unsubscribe action; signed
+  `POST /api/unsubscribe` performs it and also supports mailbox one-click
+  unsubscribe (`List-Unsubscribe-Post`).
 
 Email delivery uses Resend. Link tracking is served from
 `links.codexresets.cc`; open tracking stays disabled. Cloudflare Web Analytics
