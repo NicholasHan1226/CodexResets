@@ -3,7 +3,9 @@ import { readJsonWithin } from './util';
 
 const FETCH_TIMEOUT_MS = 8_000;
 const MAX_RESPONSE_BYTES = 64 * 1024;
-const MAX_RESULTS = 25;
+// Three independent reports are required; ten results preserve useful headroom
+// without buying a broad social feed for every official schedule.
+const MAX_RESULTS = 10;
 const HOUR = 60 * 60 * 1000;
 const COMMUNITY_WINDOW_MS = 6 * HOUR;
 const MIN_DISTINCT_AUTHORS = 3;

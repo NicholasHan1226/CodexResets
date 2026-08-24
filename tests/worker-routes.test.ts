@@ -821,6 +821,7 @@ describe('pipeline read endpoints', () => {
       const url = new URL(String(input));
       expect(url.pathname).toBe('/2/tweets/search/recent');
       expect(url.searchParams.get('query')).toContain('Codex');
+      expect(url.searchParams.get('max_results')).toBe('10');
       expect(url.searchParams.get('start_time')).toBe(new Date(scheduledAt).toISOString());
       return new Response(JSON.stringify({ data: [
         { id: 'one', author_id: 'a', created_at: new Date(scheduledAt + 2 * 60 * 1000).toISOString(), text: 'My Codex usage limits are back after the reset.' },
