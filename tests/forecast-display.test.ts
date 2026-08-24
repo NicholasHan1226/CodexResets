@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPlanningProbability, getPrimaryForecast } from '@/lib/forecast-display';
+import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPlanningProbability, getPrimaryForecast, OFFICIAL_SCHEDULE_GRACE_MS } from '@/lib/forecast-display';
 import type { ResetSignal } from '@/types/reset';
 
 const now = Date.parse('2026-08-24T00:00:00.000Z');
@@ -29,8 +29,15 @@ describe('primary forecast display', () => {
     expect(getPlanningProbability(0.24, [scheduledSignal], within48h)).toBeCloseTo(0.848, 3);
   });
 
-  it('does not retain an official boost after the stated target has elapsed', () => {
-    const elapsed = getPrimaryForecast([{ ...scheduledSignal, scheduledAt: now - 60_000 }], 24, now);
+  it('keeps a just-passed official target as strong evidence during its execution grace period', () => {
+    const graceSignal = { ...scheduledSignal, description: 'signals.resetScheduleElapsed', scheduledAt: now - 2 * 60 * 60 * 1000 } as const;
+    const grace = getPrimaryForecast([graceSignal], 24, now);
+    expect(grace).toEqual({ kind: 'official-schedule', scheduledAt: graceSignal.scheduledAt, window: 'grace' });
+    expect(getPlanningProbability(0.24, [graceSignal], grace)).toBeCloseTo(0.848, 3);
+  });
+
+  it('does not retain an official boost beyond the execution grace period', () => {
+    const elapsed = getPrimaryForecast([{ ...scheduledSignal, scheduledAt: now - OFFICIAL_SCHEDULE_GRACE_MS - 60_000 }], 24, now);
     expect(getPlanningProbability(0.24, [scheduledSignal], elapsed)).toBe(0.24);
   });
 
@@ -45,8 +52,8 @@ describe('primary forecast display', () => {
   });
 
   it('does not present a passed official target as an upcoming schedule', () => {
-    expect(getPrimaryForecast([{ ...scheduledSignal, scheduledAt: now - 60_000 }], 24, now)).toEqual({
-      kind: 'official-schedule', scheduledAt: now - 60_000, window: 'elapsed',
+    expect(getPrimaryForecast([{ ...scheduledSignal, scheduledAt: now - OFFICIAL_SCHEDULE_GRACE_MS - 60_000 }], 24, now)).toEqual({
+      kind: 'official-schedule', scheduledAt: now - OFFICIAL_SCHEDULE_GRACE_MS - 60_000, window: 'elapsed',
     });
   });
 
@@ -57,6 +64,7 @@ describe('primary forecast display', () => {
   it('anchors a future official target to the current visitor time', () => {
     expect(formatOfficialScheduleCountdown(now + 4 * 60 * 60 * 1000 + 20 * 60 * 1000, now, 'zh')).toBe('距现在约 4小时20分钟');
     expect(formatOfficialScheduleCountdown(now + 4 * 60 * 60 * 1000 + 20 * 60 * 1000, now, 'en')).toBe('~4h 20m from now');
-    expect(formatOfficialScheduleCountdown(now - 1, now, 'zh')).toBeNull();
+    expect(formatOfficialScheduleCountdown(now - 2 * 60 * 60 * 1000, now, 'zh')).toBe('预告后 2小时 · 宽限剩余 4小时');
+    expect(formatOfficialScheduleCountdown(now - OFFICIAL_SCHEDULE_GRACE_MS - 1, now, 'zh')).toBeNull();
   });
 });

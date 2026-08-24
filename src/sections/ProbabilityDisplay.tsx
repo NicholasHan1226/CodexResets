@@ -9,7 +9,7 @@ interface ProbabilityDisplayProps {
   timeframe: 24 | 48;
   onTimeframeChange: (tf: 24 | 48) => void;
   officialSchedule?: {
-    window: 'within' | 'after' | 'pending' | 'elapsed';
+    window: 'within' | 'after' | 'pending' | 'grace' | 'elapsed';
     targetLabel: string | null;
     countdownLabel: string | null;
   };
@@ -100,6 +100,8 @@ export function ProbabilityDisplay({ pct, modelPct, timeframe, onTimeframeChange
                   ? 'hero.scheduleWithin'
                   : officialSchedule.window === 'after'
                     ? 'hero.scheduleAfter'
+                    : officialSchedule.window === 'grace'
+                      ? 'hero.scheduleGrace'
                     : 'hero.scheduleElapsed',
                 { n: timeframe },
               )}</span>

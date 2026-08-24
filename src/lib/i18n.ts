@@ -22,6 +22,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.answerScheduledAfter': 'An official reset is scheduled after this window.',
     'hero.answerScheduledPending': 'An official reset is scheduled; its time is not yet precise.',
     'hero.answerScheduledElapsed': 'The official target time passed; confirmation is pending.',
+    'hero.answerScheduledGrace': 'The official target passed; it is still in the execution grace period.',
     'hero.lastResetWas': 'The last verified global reset was',
     'hero.lastResetLabel': 'last verified reset',
     'hero.daysAgo': 'days ago',
@@ -37,6 +38,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.scheduleAfter': 'after the next {n}h',
     'hero.schedulePending': 'Official target time is pending confirmation',
     'hero.scheduleElapsed': 'target passed · awaiting confirmation',
+    'hero.scheduleGrace': 'target passed · execution grace period',
     'hero.withinHours': 'within next {n}h',
     'hero.modelWithinHours': 'history-model estimate · next {n}h',
     'hero.compositeWithinHours': 'planning likelihood · next {n}h',
@@ -66,6 +68,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'advice.scheduled': 'An official schedule takes priority; wait for the confirmed reset alert.',
     'advice.scheduledPending': 'An official schedule exists, but its timing is not yet precise. Keep the confirmation alert on.',
     'advice.scheduledElapsed': 'The official target time has passed. Wait for the confirmed reset alert.',
+    'advice.scheduledGrace': 'The official target just passed. It still strongly supports a reset; keep the confirmation alert on.',
 
     // Error boundary
     'error.title': 'Something went wrong',
@@ -329,6 +332,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.answerScheduledAfter': '官方已预告将在本窗口之后重置。',
     'hero.answerScheduledPending': '官方已预告重置，但具体时间尚未明确。',
     'hero.answerScheduledElapsed': '官方预告时间已过，等待实际确认。',
+    'hero.answerScheduledGrace': '官方预告时间已过，仍在执行宽限期内。',
     'hero.lastResetWas': '上次已验证的全局重置发生在',
     'hero.lastResetLabel': '上次已验证重置',
     'hero.daysAgo': '天前',
@@ -344,6 +348,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.scheduleAfter': '在未来 {n} 小时之后',
     'hero.schedulePending': '官方预告时间待确认',
     'hero.scheduleElapsed': '预告时间已过 · 等待确认',
+    'hero.scheduleGrace': '预告时间已过 · 执行宽限期内',
     'hero.withinHours': '未来 {n} 小时内',
     'hero.modelWithinHours': '历史模型估计 · 未来 {n} 小时',
     'hero.compositeWithinHours': '综合预判 · 未来 {n} 小时',
@@ -373,6 +378,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'advice.scheduled': '官方预告优先；等待重置实际确认后再接收提醒。',
     'advice.scheduledPending': '已发现官方预告，但具体时间尚未明确；请保持确认提醒开启。',
     'advice.scheduledElapsed': '官方预告时间已过；请等待实际确认提醒。',
+    'advice.scheduledGrace': '官方预告刚过；它仍强力支持重置，请保持确认提醒开启。',
 
     // Error boundary
     'error.title': '页面出现问题',

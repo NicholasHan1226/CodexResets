@@ -144,8 +144,10 @@ the dashboard says exactly that and waits for confirmation; it never continues
 to present the past time as upcoming. The history-only model stays in
 calibration only, so an announced schedule never contaminates forecast scoring.
 The planning likelihood is a transparent, live decision aid rather than a new
-calibrated model metric; it never raises a window whose scheduled target is
-outside it, unknown, or already elapsed.
+calibrated model metric. A stated target remains a strong planning input for a
+six-hour execution grace period after it passes; it never raises a window whose
+scheduled target is outside it, unknown, or beyond that grace period without a
+confirmed reset.
 An OpenAI-owned Codex changelog is checked as discovery context only; it can
 never create a candidate, raise a forecast, confirm a reset, or send an alert.
 

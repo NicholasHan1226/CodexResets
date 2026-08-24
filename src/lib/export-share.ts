@@ -12,7 +12,7 @@ export function buildShareSummary(state: {
   hours: 24 | 48;
   daysSince: number;
   medianDays: number;
-  officialSchedule?: { targetLabel: string | null; window: 'within' | 'after' | 'pending' | 'elapsed' };
+  officialSchedule?: { targetLabel: string | null; window: 'within' | 'after' | 'pending' | 'grace' | 'elapsed' };
 }, locale: 'en' | 'zh' = 'en'): string {
   const filled = Math.max(0, Math.min(10, Math.round((state.pct / 100) * 10)));
   const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
@@ -23,6 +23,8 @@ export function buildShareSummary(state: {
           ? (locale === 'zh' ? `在未来 ${state.hours} 小时内` : `within ${state.hours}h`)
           : state.officialSchedule?.window === 'after'
             ? (locale === 'zh' ? `在未来 ${state.hours} 小时之后` : `after ${state.hours}h`)
+            : state.officialSchedule?.window === 'grace'
+              ? (locale === 'zh' ? '预告已过，仍在执行宽限期' : 'target passed, still in execution grace')
             : state.officialSchedule?.window === 'elapsed'
               ? (locale === 'zh' ? '预告时间已过，等待确认' : 'target passed, confirmation pending')
               : (locale === 'zh' ? '时间待确认' : 'time pending confirmation');

@@ -39,6 +39,8 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
   const verdictKey = hasScheduledReset
     ? primaryForecast.window === 'after'
       ? 'hero.answerScheduledAfter'
+      : primaryForecast.window === 'grace'
+        ? 'hero.answerScheduledGrace'
       : primaryForecast.window === 'elapsed'
         ? 'hero.answerScheduledElapsed'
         : primaryForecast.window === 'pending'
@@ -164,6 +166,8 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
         {t(hasScheduledReset
           ? primaryForecast.window === 'elapsed'
             ? 'advice.scheduledElapsed'
+            : primaryForecast.window === 'grace'
+              ? 'advice.scheduledGrace'
             : primaryForecast.window === 'pending'
               ? 'advice.scheduledPending'
               : 'advice.scheduled'
