@@ -64,7 +64,7 @@ describe('primary forecast display', () => {
   it('anchors a future official target to the current visitor time', () => {
     expect(formatOfficialScheduleCountdown(now + 4 * 60 * 60 * 1000 + 20 * 60 * 1000, now, 'zh')).toBe('距现在约 4小时20分钟');
     expect(formatOfficialScheduleCountdown(now + 4 * 60 * 60 * 1000 + 20 * 60 * 1000, now, 'en')).toBe('~4h 20m from now');
-    expect(formatOfficialScheduleCountdown(now - 2 * 60 * 60 * 1000, now, 'zh')).toBe('预告后 2小时 · 宽限剩余 4小时');
+    expect(formatOfficialScheduleCountdown(now - 2 * 60 * 60 * 1000, now, 'zh')).toBeNull();
     expect(formatOfficialScheduleCountdown(now - OFFICIAL_SCHEDULE_GRACE_MS - 1, now, 'zh')).toBeNull();
   });
 });

@@ -24,7 +24,7 @@ export function buildShareSummary(state: {
           : state.officialSchedule?.window === 'after'
             ? (locale === 'zh' ? `在未来 ${state.hours} 小时之后` : `after ${state.hours}h`)
             : state.officialSchedule?.window === 'grace'
-              ? (locale === 'zh' ? '预告已过，仍在执行宽限期' : 'target passed, still in execution grace')
+              ? (locale === 'zh' ? '官方预告执行中' : 'official schedule executing')
             : state.officialSchedule?.window === 'elapsed'
               ? (locale === 'zh' ? '预告时间已过，等待确认' : 'target passed, confirmation pending')
               : (locale === 'zh' ? '时间待确认' : 'time pending confirmation');

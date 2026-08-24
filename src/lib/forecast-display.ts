@@ -77,7 +77,7 @@ export function formatOfficialScheduleTarget(scheduledAt: number | null, locale:
   })}`;
 }
 
-/** A compact current-time anchor for a future target or its execution grace period. */
+/** A compact current-time anchor for a future official target. */
 export function formatOfficialScheduleCountdown(
   scheduledAt: number | null,
   now: number,
@@ -85,22 +85,7 @@ export function formatOfficialScheduleCountdown(
 ): string | null {
   if (typeof scheduledAt !== 'number' || !Number.isFinite(scheduledAt)) return null;
   const totalMinutes = Math.ceil((scheduledAt - now) / 60_000);
-  if (totalMinutes <= 0) {
-    const minutesAfter = Math.ceil((now - scheduledAt) / 60_000);
-    if (minutesAfter * 60_000 > OFFICIAL_SCHEDULE_GRACE_MS) return null;
-    const remainingMinutes = Math.max(0, Math.floor((OFFICIAL_SCHEDULE_GRACE_MS - minutesAfter * 60_000) / 60_000));
-    const afterHours = Math.floor(minutesAfter / 60);
-    const afterMinutes = minutesAfter % 60;
-    const remainingHours = Math.floor(remainingMinutes / 60);
-    const remainingRemainder = remainingMinutes % 60;
-    const after = locale === 'zh'
-      ? `${afterHours > 0 ? `${afterHours}小时` : ''}${afterMinutes > 0 ? `${afterMinutes}分钟` : ''}` || '0分钟'
-      : `${afterHours > 0 ? `${afterHours}h ` : ''}${afterMinutes > 0 ? `${afterMinutes}m` : ''}`.trim() || '0m';
-    const remaining = locale === 'zh'
-      ? `${remainingHours > 0 ? `${remainingHours}小时` : ''}${remainingRemainder > 0 ? `${remainingRemainder}分钟` : ''}` || '0分钟'
-      : `${remainingHours > 0 ? `${remainingHours}h ` : ''}${remainingRemainder > 0 ? `${remainingRemainder}m` : ''}`.trim() || '0m';
-    return locale === 'zh' ? `预告后 ${after} · 宽限剩余 ${remaining}` : `${after} after target · ${remaining} grace left`;
-  }
+  if (totalMinutes <= 0) return null;
   const days = Math.floor(totalMinutes / (24 * 60));
   const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
   const minutes = totalMinutes % 60;
