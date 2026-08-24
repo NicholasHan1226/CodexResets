@@ -1,4 +1,4 @@
-import type { DeliveryLedger, DeliveryMetrics, Env, PublicResetHistory, ResetEvent, ResetRecordRow, RunReport } from './types';
+import type { DeliveryLedger, DeliveryMetrics, Env, PublicResetHistory, ResetEvent, ResetRecordRow, RunReport, SignalsPayload } from './types';
 import {
   scrapeTweets,
   detectResetEvents,
@@ -18,13 +18,15 @@ import {
   privRetractAutomatedReset,
 } from './privileged';
 import { buildSignalsSnapshot, getStatusEvidence } from './signals';
-import { notifyAll, sendCalibrationAlert, sendHealthAlert } from './notify';
+import { notifyAll, notifyForecastPrealert, sendCalibrationAlert, sendHealthAlert, type ForecastPrealert } from './notify';
 import { FORECAST_RELEASE_STATUS_KEY, getForecastCalibration, recordForecastSnapshot, type ForecastCalibration } from './forecast';
 import { refreshOfficialCodexDiscovery } from './discovery';
 import { recordSubscriptionMetric } from './operational-metrics';
 import { RESET_HISTORY } from '../../src/lib/reset-data';
 import { intervalDays, median, mergeResetEpisodes } from '../../src/lib/reset-episodes';
 import type { ResetRecord } from '../../src/types/reset';
+import { probabilityWithin, selectForecastModel } from '../../src/lib/forecast-model';
+import { getPlanningProbability, getPrimaryForecast } from '../../src/lib/forecast-display';
 
 const HOUR = 3600 * 1000;
 // Seed with the newest bundled reset so the snapshot works before the DB
@@ -41,6 +43,8 @@ const DIRECT_SOURCE_FAILURE_ALERT_AT = 3;
 const DELIVERY_METRIC_TTL_SECONDS = 31 * 24 * 60 * 60;
 const FORECAST_CALIBRATION_ALERT_TTL_SECONDS = 120 * 24 * 60 * 60;
 const FORECAST_RELEASE_STATUS_TTL_SECONDS = 2 * 60 * 60;
+const FORECAST_PREALERT_HOURS = 24;
+const FORECAST_PREALERT_THRESHOLD = 0.7;
 
 /**
  * Route every trigger through one globally addressed Durable Object. This
@@ -68,6 +72,7 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
     candidates: 0,
     inserted: 0,
     notifiedEmails: 0,
+    forecastPrealertEmails: 0,
     notifiedPush: 0,
     errors: [],
   };
@@ -262,6 +267,19 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
   snapshot.sources.database = records.length > 0 ? 'live' : 'fallback';
   await env.CACHE.put('signals:latest', JSON.stringify(snapshot), { expirationTtl: 7 * 24 * HOUR / 1000 });
 
+  // 6a. A single email-only forecast notice is useful when the next 24 hours
+  // cross the public 70% planning threshold. It is separate from confirmed
+  // reset delivery and runs only with a current direct source plus no active
+  // incident, so a stale model never pages subscribers.
+  if (scrape.sourceKind === 'direct' && statusEvidence.state !== 'incident') {
+    const prealert = getForecastPrealert(records, snapshot.signals, latestResetTs, recordNow);
+    if (prealert) {
+      const outcome = await notifyForecastPrealert(env, prealert, deliveryLedger);
+      report.forecastPrealertEmails = (report.forecastPrealertEmails || 0) + outcome.emails;
+      report.errors.push(...outcome.errors);
+    }
+  }
+
   // 7. Health report and a rate-limited operational email when the pipeline
   // cannot collect or process a healthy snapshot.
   if (shouldSendHealthAlert(report) && env.HEALTH_ALERT_EMAIL && env.RESEND_API_KEY) {
@@ -375,11 +393,59 @@ async function updateDeliveryMetrics(env: Env, report: RunReport): Promise<void>
     autoRetracted: (previous.autoRetracted || 0) + (report.autoRetracted || 0),
     statusHeld: (previous.statusHeld || 0) + (report.autoHeldByStatus || 0),
     emails: (previous.emails || 0) + report.notifiedEmails,
+    forecastPrealertEmails: (previous.forecastPrealertEmails || 0) + (report.forecastPrealertEmails || 0),
     pushes: (previous.pushes || 0) + report.notifiedPush,
     prunedPushEndpoints: (previous.prunedPushEndpoints || 0) + (report.prunedPushEndpoints || 0),
     errors: (previous.errors || 0) + report.errors.length,
   };
   await env.CACHE.put(key, JSON.stringify(next), { expirationTtl: DELIVERY_METRIC_TTL_SECONDS });
+}
+
+/**
+ * Mirror the dashboard's 24-hour model and planning-likelihood calculation
+ * before mail is sent. The campaign id is tied to the last confirmed reset,
+ * so any number of subsequent cron runs can deliver at most one pre-alert per
+ * subscriber until the next confirmed reset starts a new cycle.
+ */
+export function getForecastPrealert(
+  records: ResetRecordRow[],
+  signals: SignalsPayload['signals'],
+  latestResetTs: number,
+  now = Date.now(),
+): ForecastPrealert | null {
+  const observed: ResetRecord[] = records
+    .filter((record) => record.verified && record.auto_state !== 'retracted')
+    .flatMap((record) => {
+      const timestamp = Date.parse(record.reset_date);
+      if (!Number.isFinite(timestamp) || timestamp > now) return [];
+      return [{
+        id: record.id,
+        date: new Date(timestamp).toISOString().slice(0, 10),
+        timestamp,
+        reason: 'verified reset',
+        verified: true,
+      }];
+    });
+  const canonicalHistory = mergeResetEpisodes([...observed, ...RESET_HISTORY]);
+  if (canonicalHistory.length < 4 || !Number.isFinite(latestResetTs) || latestResetTs <= 0) return null;
+
+  const selection = selectForecastModel(canonicalHistory);
+  const modelProbability = probabilityWithin(canonicalHistory, selection.model, now, FORECAST_PREALERT_HOURS);
+  const primaryForecast = getPrimaryForecast(signals, FORECAST_PREALERT_HOURS, now);
+  const planningProbability = getPlanningProbability(modelProbability, signals, primaryForecast);
+  if (planningProbability < FORECAST_PREALERT_THRESHOLD) return null;
+
+  const officialSchedule = primaryForecast.kind === 'official-schedule'
+    && (primaryForecast.window === 'within' || primaryForecast.window === 'grace')
+    ? signals.find((signal) => signal.source === 'tibopost' && signal.status === 'active')
+    : undefined;
+  return {
+    id: `forecast-prealert-24h:${latestResetTs}`,
+    evaluatedAt: now,
+    modelProbability,
+    planningProbability,
+    officialEvidenceUrl: officialSchedule?.sourceUrl || null,
+  };
 }
 
 /**

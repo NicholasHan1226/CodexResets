@@ -120,7 +120,7 @@ export function ResetAlertsPanel() {
         {t('subscribe.description')}
       </p>
 
-      {/* Alerts are sent after a reset is confirmed, never at a forecast threshold. */}
+      {/* Email sends one 24-hour forecast notice at 70%, then a separate confirmed-reset alert. */}
       <div className="mt-4 max-w-xl border border-border/40 bg-muted/20 transition-colors focus-within:border-primary/50">
         {/* Command echo */}
         <div className="border-b border-border/30 px-3 py-2 font-mono text-[11px] leading-relaxed">

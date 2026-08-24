@@ -67,15 +67,17 @@ recipient, and never reads subscribers or runs the pipeline.
 When configured, the authenticated official X API is the only direct-account
 source permitted to create, confirm, or deliver an automated alert or raise an
 active public reset signal. A direct official post scheduling a future reset is
-shown as a short-lived active planning signal only: it never enters reset history
-or sends an alert until a separate post confirms the reset has landed. RSS/Nitter
-and news feeds remain discovery-only
-operational context. Strong notices from
+shown as a short-lived active planning signal only: it never enters reset history.
+When the current direct source is healthy, no relevant official incident is
+active, and the dashboard's next-24-hour planning likelihood first reaches
+70%, the Worker sends one email-only forecast notice per reset cycle. It is
+explicitly labelled as a forecast and never as a confirmed reset. RSS/Nitter
+and news feeds remain discovery-only operational context. Strong notices from
 the configured target account are automatically recorded, held for one
 scheduled interval, and then confirmed and delivered. A later direct-source
 correction within the stabilization window automatically retracts the matching
 pending notice. Notices older than 48 hours and all degraded discovery never
-create an email alert.
+create a forecast or confirmed-reset email alert.
 Confirmed alert emails and browser Push messages identify the reset type from
 the official announcement wording (banked, direct usage-limit, quota, or
 credits). Emails include the escaped announcement excerpt plus a link only
@@ -225,13 +227,16 @@ all migrations in `supabase/migrations/` before release.
 Resend remains the email delivery provider. Moving the database does not
 change its API key, verified sender domain, or mail routing.
 
-Confirmed-alert fan-out uses the existing globally serialized pipeline
-coordinator. It records a 31-day keyed digest for each successfully delivered
-recipient, never the email address or Push endpoint itself. A temporary
-failure therefore retries only the missing recipient on the next automatic
-pipeline run. Each run is deliberately bounded to 50 emails and 50 Push
-endpoints per channel; any remainder continues automatically on later runs
-without needing a separate queue service at the current subscriber scale.
+Forecast and confirmed-alert fan-out use the existing globally serialized
+pipeline coordinator. The forecast path is email-only: it sends once when the
+next-24-hour planning likelihood reaches 70%, and its campaign identity is
+tied to the last confirmed reset so it cannot repeat in the same reset cycle.
+It records a 31-day keyed digest for each successfully delivered recipient,
+never the email address or Push endpoint itself. A temporary failure therefore
+retries only the missing recipient on the next automatic pipeline run. Each
+run is deliberately bounded to 50 emails and 50 Push endpoints per channel;
+any remainder continues automatically on later runs without needing a separate
+queue service at the current subscriber scale.
 
 ## Delivery
 

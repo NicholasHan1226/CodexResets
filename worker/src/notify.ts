@@ -32,6 +32,17 @@ interface ResetNotificationDetails {
   evidenceExcerpt: string | null;
 }
 
+/** A forecast email is deliberately distinct from a confirmed-reset alert. */
+export interface ForecastPrealert {
+  /** Stable for one reset cycle, so a threshold crossing can only alert once. */
+  id: string;
+  evaluatedAt: number;
+  modelProbability: number;
+  planningProbability: number;
+  /** Included only when the current 24-hour forecast has direct official support. */
+  officialEvidenceUrl: string | null;
+}
+
 export function isExpiredPushEndpoint(status: number): boolean {
   return status === 404 || status === 410;
 }
@@ -134,6 +145,51 @@ export async function notifyAll(env: Env, event: ResetEvent & { id: string }, de
   };
 }
 
+/**
+ * Send the one optional, email-only forecast notice for a reset cycle. Push
+ * stays reserved for confirmed resets, so a browser permission never creates
+ * a second noisy pre-alert channel.
+ */
+export async function notifyForecastPrealert(
+  env: Env,
+  prealert: ForecastPrealert,
+  deliveryLedger?: DeliveryLedger,
+): Promise<Pick<NotifyResult, 'emails' | 'errors' | 'pending'>> {
+  const errors: string[] = [];
+  if (!hasPrivilegedAccess(env)) {
+    return { emails: 0, errors: ['forecast pre-alert skipped: no privileged DB access'], pending: false };
+  }
+
+  let emails: SubscriptionRow[] = [];
+  try {
+    emails = await privListEmails(env);
+  } catch (err) {
+    errors.push(`fetch emails: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  const safePrealert: ForecastPrealert = {
+    ...prealert,
+    officialEvidenceUrl: officialEvidenceUrl(prealert.officialEvidenceUrl || ''),
+  };
+  const emailCandidates = await pendingRecipients(emails, 'email', safePrealert.id, (row) => row.email, deliveryLedger);
+  const emailBatch = emailCandidates.slice(0, MAX_DELIVERIES_PER_CHANNEL_RUN);
+  const emailResults = await settleInBatches(emailBatch, (candidate) => sendForecastPrealertEmail(env, candidate.row.email, safePrealert));
+  const sentEmails = emailResults.filter((result) => result.status === 'fulfilled' && result.value).length;
+  for (let index = 0; index < emailResults.length; index++) {
+    const result = emailResults[index];
+    if (result.status === 'fulfilled' && result.value && deliveryLedger) {
+      await deliveryLedger.markDelivered(safePrealert.id, 'email', emailBatch[index].recipient);
+    }
+    if (result.status === 'rejected') errors.push(`forecast pre-alert email: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+  }
+
+  return {
+    emails: sentEmails,
+    errors,
+    pending: emailCandidates.length > emailBatch.length,
+  };
+}
+
 interface PendingRecipient<T> {
   row: T;
   recipient: string;
@@ -193,11 +249,43 @@ async function sendEmail(env: Env, email: string, event: ResetEvent & { id: stri
   return true;
 }
 
+async function sendForecastPrealertEmail(env: Env, email: string, prealert: ForecastPrealert): Promise<boolean> {
+  if (!env.RESEND_API_KEY) throw new Error('Resend email delivery is not configured');
+  const expiresAt = Math.floor(prealert.evaluatedAt / 1000) + UNSUBSCRIBE_TTL_SECONDS;
+  const token = env.UNSUBSCRIBE_SECRET ? await signToken(`${email.toLowerCase()}.${expiresAt}`, env.UNSUBSCRIBE_SECRET) : '';
+  const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&x=${expiresAt}&t=${token}`;
+  const probability = Math.round(prealert.planningProbability * 100);
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${env.RESEND_API_KEY}`,
+      'content-type': 'application/json',
+      'idempotency-key': await forecastEmailIdempotencyKey(prealert.id, email),
+    },
+    body: JSON.stringify({
+      from: env.RESEND_FROM,
+      to: [email],
+      subject: `Codex reset forecast: ${probability}% within 24h / 未来 24 小时重置预告：${probability}%`,
+      headers: { 'List-Unsubscribe': `<${unsubUrl}>` },
+      html: forecastPrealertEmailHtml(env, prealert, unsubUrl),
+    }),
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
+  return true;
+}
+
 /** Keep the provider-visible idempotency key deterministic without exposing an email address. */
 async function resetEmailIdempotencyKey(resetId: string, email: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.trim().toLowerCase()));
   const fingerprint = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
   return `reset/${resetId}/email/${fingerprint}`;
+}
+
+async function forecastEmailIdempotencyKey(prealertId: string, email: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.trim().toLowerCase()));
+  const fingerprint = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `forecast/${prealertId}/email/${fingerprint}`;
 }
 
 /** Send an explicit opt-in confirmation before an address enters the alert list. */
@@ -289,6 +377,27 @@ function emailHtml(env: Env, resetTime: string, unsubUrl: string, details: Reset
 </body></html>`;
 }
 
+function forecastPrealertEmailHtml(env: Env, prealert: ForecastPrealert, unsubUrl: string): string {
+  const probability = `${Math.round(prealert.planningProbability * 100)}%`;
+  const modelProbability = `${Math.round(prealert.modelProbability * 100)}%`;
+  const officialSupport = prealert.officialEvidenceUrl
+    ? `<p style="margin:0 0 16px;font-size:14px;color:#3d4250">A current official schedule supports this forecast. / 当前官方预告支持此判断。<br /><a href="${escapeHtml(prealert.officialEvidenceUrl)}" style="color:#0b7d62">View official announcement / 查看官方公告</a></p>`
+    : '';
+  return `<!doctype html>
+<html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
+  <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
+    <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#10a37f">❯ codex resets</p>
+    <h1 style="margin:0 0 12px;font-size:20px">Reset forecast / 重置预告</h1>
+    <p style="margin:0 0 12px;font-size:14px;color:#3d4250">The current planning likelihood of a Codex reset within 24 hours is <strong>${probability}</strong>. / 未来 24 小时内发生 Codex 重置的当前综合判断为 <strong>${probability}</strong>。</p>
+    <p style="margin:0 0 16px;font-size:13px;color:#667085">Historical model: ${modelProbability}. This is a forecast, not a confirmed reset. / 历史模型：${modelProbability}。这是预告，不代表重置已确认。</p>
+    ${officialSupport}
+    <a href="${env.SITE_URL}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open dashboard / 打开仪表盘</a>
+    <hr style="margin:20px 0 12px;border:none;border-top:1px solid #e4e6ea" />
+    <p style="margin:0;font-size:11px;color:#9aa0ac">You subscribed at codexresets.cc · <a href="${unsubUrl}" style="color:#9aa0ac">Unsubscribe / 退订</a></p>
+  </div>
+</body></html>`;
+}
+
 /** Bilingual alerts always include China Standard Time as well as UTC. */
 function formatResetTime(timestamp: number): string {
   const date = new Date(timestamp);
@@ -306,7 +415,7 @@ function confirmationHtml(confirmUrl: string): string {
   <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
     <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#10a37f">❯ codex resets</p>
     <h1 style="margin:0 0 12px;font-size:20px">Confirm your subscription / 确认订阅</h1>
-    <p style="margin:0 0 16px;font-size:14px;color:#3d4250">Confirm this address to receive Codex reset alerts. If you did not request this, ignore this email. / 确认后即可接收 Codex 重置提醒；若非本人操作，请忽略。</p>
+    <p style="margin:0 0 16px;font-size:14px;color:#3d4250">Confirm this address to receive one 24-hour forecast notice when it reaches 70%, plus confirmed Codex reset alerts. If you did not request this, ignore this email. / 确认后即可在未来 24 小时综合判断达到 70% 时收到一次预告，并接收已确认的 Codex 重置提醒；若非本人操作，请忽略。</p>
     <a href="${confirmUrl}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Confirm subscription / 确认订阅</a>
     <p style="margin:20px 0 0;font-size:11px;color:#9aa0ac">This confirmation link expires in 24 hours. / 链接 24 小时内有效。</p>
   </div>

@@ -1,4 +1,6 @@
-import type { ResetSignal } from '@/types/reset';
+// Relative import keeps this exact display calculation usable by the Worker
+// as well as the Vite browser bundle.
+import type { ResetSignal } from '../types/reset';
 
 const HOUR_MS = 60 * 60 * 1000;
 export const OFFICIAL_SCHEDULE_GRACE_MS = 6 * HOUR_MS;

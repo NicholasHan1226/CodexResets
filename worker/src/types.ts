@@ -130,6 +130,8 @@ export interface RunReport {
   candidateSamples?: { tier: 'strong' | 'weak'; ts: string; link: string; text: string }[];
   inserted: number;
   notifiedEmails: number;
+  /** Email-only 24-hour forecast notices delivered before a reset is confirmed. */
+  forecastPrealertEmails?: number;
   notifiedPush: number;
   /** Invalid 404/410 browser endpoints pruned while delivering a real alert. */
   prunedPushEndpoints?: number;
@@ -150,6 +152,7 @@ export interface DeliveryMetrics {
   autoRetracted: number;
   statusHeld: number;
   emails: number;
+  forecastPrealertEmails: number;
   pushes: number;
   /** Invalid 404/410 endpoints pruned after a real reset delivery. */
   prunedPushEndpoints: number;

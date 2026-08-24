@@ -85,6 +85,11 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
 
 ### Automated reset delivery
 
+- When the direct source is healthy, no relevant official incident is active,
+  and the dashboard's next-24-hour planning likelihood first reaches 70%, the
+  Worker sends one email-only forecast notice per reset cycle. Its identity is
+  anchored to the last confirmed reset, it is clearly not a confirmation, and
+  browser Push remains reserved for confirmed resets.
 - A strong announcement from a direct target-account source enters an
   `observed` state for one cron interval (30 minutes). The Worker then confirms
   and notifies automatically; no Supabase dashboard action is required. The
