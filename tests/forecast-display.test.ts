@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPrimaryForecast } from '@/lib/forecast-display';
+import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPlanningProbability, getPrimaryForecast } from '@/lib/forecast-display';
 import type { ResetSignal } from '@/types/reset';
 
 const now = Date.parse('2026-08-24T00:00:00.000Z');
@@ -20,6 +20,18 @@ describe('primary forecast display', () => {
     expect(getPrimaryForecast([scheduledSignal], 48, now)).toEqual({
       kind: 'official-schedule', scheduledAt: scheduledSignal.scheduledAt, window: 'within',
     });
+  });
+
+  it('raises the planning likelihood only when an official target falls inside the selected window', () => {
+    const after24h = getPrimaryForecast([scheduledSignal], 24, now);
+    const within48h = getPrimaryForecast([scheduledSignal], 48, now);
+    expect(getPlanningProbability(0.24, [scheduledSignal], after24h)).toBe(0.24);
+    expect(getPlanningProbability(0.24, [scheduledSignal], within48h)).toBeCloseTo(0.848, 3);
+  });
+
+  it('does not retain an official boost after the stated target has elapsed', () => {
+    const elapsed = getPrimaryForecast([{ ...scheduledSignal, scheduledAt: now - 60_000 }], 24, now);
+    expect(getPlanningProbability(0.24, [scheduledSignal], elapsed)).toBe(0.24);
   });
 
   it('falls back to the calibrated model only without an active official schedule', () => {

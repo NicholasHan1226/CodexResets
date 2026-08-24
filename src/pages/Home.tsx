@@ -13,7 +13,7 @@ import { buildShareSummary, shareUrl, copyToClipboard } from "@/lib/export-share
 import { useI18n } from "@/contexts/I18nContext";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { shouldShowResetCalendar } from "@/lib/reset-data";
-import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPrimaryForecast } from "@/lib/forecast-display";
+import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPlanningProbability, getPrimaryForecast } from "@/lib/forecast-display";
 
 export default function Home() {
   const { prediction, isLive, signalsLoading, refresh } = usePrediction();
@@ -44,7 +44,8 @@ export default function Home() {
   const showHistoricalTiming = !officialSchedule;
 
   const handleShare = async () => {
-    const pct = Math.round((timeframe === 24 ? prediction.prob24h : prediction.prob48h) * 100);
+    const modelProbability = timeframe === 24 ? prediction.prob24h : prediction.prob48h;
+    const pct = Math.round(getPlanningProbability(modelProbability, prediction.signals, primaryForecast) * 100);
     const text = buildShareSummary({
       pct,
       hours: timeframe,

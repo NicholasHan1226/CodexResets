@@ -35,6 +35,30 @@ export function getPrimaryForecast(
   };
 }
 
+/**
+ * Produces the visitor-facing planning likelihood. A direct official target
+ * can strengthen a window only while it is active and falls inside that exact
+ * window. The history model remains untouched for calibration and scoring.
+ */
+export function getPlanningProbability(
+  historyProbability: number,
+  signals: ResetSignal[],
+  primaryForecast: PrimaryForecast,
+): number {
+  const base = Math.min(1, Math.max(0, historyProbability));
+  if (primaryForecast.kind !== 'official-schedule' || primaryForecast.window !== 'within') return base;
+
+  const officialStrength = signals.find(
+    (signal) => signal.source === 'tibopost'
+      && signal.status === 'active'
+      && signal.description === 'signals.resetScheduled',
+  )?.value;
+  if (typeof officialStrength !== 'number' || !Number.isFinite(officialStrength)) return base;
+
+  const support = Math.min(1, Math.max(0, officialStrength));
+  return 1 - (1 - base) * (1 - support);
+}
+
 /** Formats an official target in the visitor's local timezone. */
 export function formatOfficialScheduleTarget(scheduledAt: number | null, locale: 'en' | 'zh'): string | null {
   if (typeof scheduledAt !== 'number' || !Number.isFinite(scheduledAt)) return null;

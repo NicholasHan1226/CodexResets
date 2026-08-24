@@ -133,14 +133,19 @@ part of the browser or Worker probability model. Legacy private snapshots that
 contained one are excluded from calibration and formal release scoring.
 When a direct official post schedules a future reset, the dashboard keeps the
 visitor-facing history-calibrated probability number and curve visible, and
-shows the official timing alongside them as a separate strong signal. It states
+shows the official timing alongside them as a separate strong signal. When the
+target is active and inside the chosen horizon, a clearly labelled planning
+likelihood combines the history-model value with that direct signal; the
+history model itself remains visible and unchanged. It states
 whether that target is inside the selected 24/48-hour window (or says that the
 time remains unconfirmed) and shows the remaining time from the visitor's
 current clock. If a stated target passes before a separate reset confirmation,
 the dashboard says exactly that and waits for confirmation; it never continues
 to present the past time as upcoming. The history-only model stays in
-calibration only, so an announced schedule never contaminates forecast scoring
-or becomes an invented combined percentage.
+calibration only, so an announced schedule never contaminates forecast scoring.
+The planning likelihood is a transparent, live decision aid rather than a new
+calibrated model metric; it never raises a window whose scheduled target is
+outside it, unknown, or already elapsed.
 An OpenAI-owned Codex changelog is checked as discovery context only; it can
 never create a candidate, raise a forecast, confirm a reset, or send an alert.
 

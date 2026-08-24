@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
 import { ProbabilityDisplay } from '@/sections/ProbabilityDisplay';
-import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, type PrimaryForecast } from '@/lib/forecast-display';
+import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPlanningProbability, type PrimaryForecast } from '@/lib/forecast-display';
 import {
   buildShareSummary,
   shareUrl,
@@ -24,12 +24,14 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
   const [copied, setCopied] = useState(false);
   const pct24 = Math.round(prediction.prob24h * 100);
   const pct48 = Math.round(prediction.prob48h * 100);
-  const pct = timeframe === 24 ? pct24 : pct48;
+  const modelPct = timeframe === 24 ? pct24 : pct48;
 
   const lastResetDate = prediction.lastReset ? new Date(prediction.lastReset) : null;
   const daysSince = prediction.daysSinceLastReset;
   const officialSignal = prediction.signals.find((signal) => signal.source === 'tibopost');
   const hasScheduledReset = primaryForecast.kind === 'official-schedule';
+  const pct = Math.round(getPlanningProbability(modelPct / 100, prediction.signals, primaryForecast) * 100);
+  const isOfficialBoosted = pct !== modelPct;
   // The wording tracks probability bands: a middle range should not read as
   // either a dismissal or a guarantee. A direct official schedule is a
   // strong live input, while the independently calibrated history model stays
@@ -126,6 +128,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
       <div className="mt-10">
         <ProbabilityDisplay
           pct={pct}
+          modelPct={isOfficialBoosted ? modelPct : undefined}
           timeframe={timeframe}
           onTimeframeChange={onTimeframeChange}
           officialSchedule={hasScheduledReset

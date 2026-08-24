@@ -4,6 +4,8 @@ import { useRef, type KeyboardEvent } from 'react';
 interface ProbabilityDisplayProps {
   /** Probability 0-100 */
   pct: number;
+  /** Underlying history-only value when a current official target raises the planning likelihood. */
+  modelPct?: number;
   timeframe: 24 | 48;
   onTimeframeChange: (tf: 24 | 48) => void;
   officialSchedule?: {
@@ -20,7 +22,7 @@ const BAR_WIDTH = 30;
  * schedule is displayed as a separate strong input so it informs the answer
  * without being silently converted into an uncalibrated percentage.
  */
-export function ProbabilityDisplay({ pct, timeframe, onTimeframeChange, officialSchedule }: ProbabilityDisplayProps) {
+export function ProbabilityDisplay({ pct, modelPct, timeframe, onTimeframeChange, officialSchedule }: ProbabilityDisplayProps) {
   const { t } = useI18n();
   const tabRefs = useRef<Partial<Record<24 | 48, HTMLButtonElement>>>({});
 
@@ -40,7 +42,7 @@ export function ProbabilityDisplay({ pct, timeframe, onTimeframeChange, official
     <div>
       <div className="flex items-center justify-between">
         <span className="text-[11px] text-muted-foreground/70 uppercase tracking-widest">
-          {t(officialSchedule ? 'hero.modelWithinHours' : 'hero.probLabel', { n: timeframe })}
+          {t(modelPct !== undefined ? 'hero.compositeWithinHours' : officialSchedule ? 'hero.modelWithinHours' : 'hero.probLabel', { n: timeframe })}
         </span>
         {/* Timeframe toggle */}
         <div className="flex items-center rounded-sm border border-border/50 bg-background/50 p-0.5 font-mono text-sm" role="tablist" aria-label="Timeframe">
@@ -81,6 +83,7 @@ export function ProbabilityDisplay({ pct, timeframe, onTimeframeChange, official
         </p>
         <p className="mt-3 text-sm text-muted-foreground">
           {t('hero.withinHours', { n: timeframe })}
+          {modelPct !== undefined && <span className="text-muted-foreground/60"> · {t('hero.modelBaseline', { n: modelPct })}</span>}
         </p>
 
         {officialSchedule && (
