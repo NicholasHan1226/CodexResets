@@ -42,9 +42,10 @@ export default function Home() {
   // A scheduled target keeps the deeper timing-distribution section out of
   // the way, while the primary model probability and curve stay visible.
   const showHistoricalTiming = !officialSchedule;
+  const modelProbability = timeframe === 24 ? prediction.prob24h : prediction.prob48h;
+  const hasOfficialSupport = getPlanningProbability(modelProbability, prediction.signals, primaryForecast) !== modelProbability;
 
   const handleShare = async () => {
-    const modelProbability = timeframe === 24 ? prediction.prob24h : prediction.prob48h;
     const pct = Math.round(getPlanningProbability(modelProbability, prediction.signals, primaryForecast) * 100);
     const text = buildShareSummary({
       pct,
@@ -82,7 +83,7 @@ export default function Home() {
           <hr className="my-10 border-border/30" />
 
           <div id="curve" className="scroll-mt-16">
-            <ProbabilityCurve curve={prediction.curve} hours={timeframe} />
+            <ProbabilityCurve curve={prediction.curve} hours={timeframe} hasOfficialSupport={hasOfficialSupport} />
           </div>
 
           <hr className="my-10 border-border/30" />

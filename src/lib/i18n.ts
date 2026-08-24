@@ -121,6 +121,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Probability Curve
     'curve.title': 'PROBABILITY PULSE',
+    'curve.historyModel': 'history model',
     'curve.scheduleTitle': 'OFFICIAL TIMING',
     'curve.scheduleTarget': 'Official target: {time}',
     'curve.scheduleNow': 'Now: {time}',
@@ -427,6 +428,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Probability Curve
     'curve.title': '概率脉搏',
+    'curve.historyModel': '历史模型',
     'curve.scheduleTitle': '官方时间',
     'curve.scheduleTarget': '官方预告时间：{time}',
     'curve.scheduleNow': '现在：{time}',

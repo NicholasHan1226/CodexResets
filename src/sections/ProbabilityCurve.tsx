@@ -6,6 +6,8 @@ interface ProbabilityCurveProps {
   curve: ProbabilityPoint[];
   /** When set, only show points within the next N hours from now */
   hours?: number;
+  /** A direct official target is reflected in the headline, not this historical model curve. */
+  hasOfficialSupport?: boolean;
 }
 
 const HOUR = 3600 * 1000;
@@ -66,7 +68,7 @@ function smoothLine(pts: Pt[]): string {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
-export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
+export function ProbabilityCurve({ curve, hours, hasOfficialSupport = false }: ProbabilityCurveProps) {
   const { t } = useI18n();
   const [containerRef, { width, height }] = useElementSize<HTMLDivElement>();
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -215,6 +217,9 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
         <h2 className="text-lg font-semibold text-foreground">
           <span className="mr-2 font-mono font-normal text-primary">❯</span>
           {t("curve.title")}
+          {hasOfficialSupport && (
+            <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">{t("curve.historyModel")}</span>
+          )}
           {hours && (
             <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
               {t("curve.window", { n: hours })}
