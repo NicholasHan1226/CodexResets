@@ -20,10 +20,11 @@ as a general data-ingestion or notification interface.
 
 - `POST /api/subscribe/email` — accepts a small JSON body with `email` and a
   Turnstile token. It is IP-rate-limited and starts double opt-in only.
-- `GET /api/subscribe/confirm?t=...` — consumes a short-lived confirmation
-  token and activates the address.
-- `GET /api/unsubscribe?e=...&x=...&t=...` — consumes an expiry-bound signed
-  unsubscribe link.
+- `GET /api/subscribe/confirm?t=...` — shows an explicit confirmation action;
+  its short-lived token activates the address only on `POST`.
+- `GET /api/unsubscribe?e=...&x=...&t=...` — shows an explicit unsubscribe
+  action. Signed `POST` performs it; mailbox one-click POSTs receive an empty
+  success response, while the browser form receives a visible receipt.
 - `POST /api/subscribe/push` — accepts a bounded browser Push subscription for
   a supported Web Push authority; it applies an IP quota and sends a delivery
   test without following redirects.

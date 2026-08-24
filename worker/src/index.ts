@@ -58,7 +58,7 @@ export default {
           return await handleUnsubscribePush(request, env);
         case '/api/unsubscribe':
           if (request.method === 'GET') return await handleUnsubscribeEmail(url, env);
-          if (request.method === 'POST') return await handleUnsubscribeEmailPost(url, env);
+          if (request.method === 'POST') return await handleUnsubscribeEmailPost(request, url, env);
           return json({ error: 'method not allowed' }, 405);
         case '/api/webhooks/resend':
           if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);

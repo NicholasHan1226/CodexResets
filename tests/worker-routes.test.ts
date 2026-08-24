@@ -1329,17 +1329,34 @@ describe('pipeline read endpoints', () => {
       expect(fetchMock).not.toHaveBeenCalled();
 
       const confirmed = await handleUnsubscribeEmailPost(
+        new Request(`https://api.example.test/api/unsubscribe?e=reader@example.test&x=${expiresAt}&t=${token}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: 'List-Unsubscribe=One-Click',
+        }),
         new URL(`https://api.example.test/api/unsubscribe?e=reader@example.test&x=${expiresAt}&t=${token}`),
         { ...emailEnv(), UNSUBSCRIBE_SECRET: 'unsubscribe-test-secret' },
       );
       expect(confirmed.status).toBe(200);
       await expect(confirmed.text()).resolves.toBe('');
+
+      const browserConfirmation = await handleUnsubscribeEmailPost(
+        new Request(`https://api.example.test/api/unsubscribe?e=reader@example.test&x=${expiresAt}&t=${token}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: 'source=browser',
+        }),
+        new URL(`https://api.example.test/api/unsubscribe?e=reader@example.test&x=${expiresAt}&t=${token}`),
+        { ...emailEnv(), UNSUBSCRIBE_SECRET: 'unsubscribe-test-secret' },
+      );
+      expect(browserConfirmation.status).toBe(200);
+      await expect(browserConfirmation.text()).resolves.toContain('has been unsubscribed');
       const expired = await handleUnsubscribeEmail(
         new URL(`https://api.example.test/api/unsubscribe?e=reader@example.test&x=${expiresAt - 120}&t=${token}`),
         { ...emailEnv(), UNSUBSCRIBE_SECRET: 'unsubscribe-test-secret' },
       );
       expect(expired.status).toBe(400);
-      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     } finally {
       vi.unstubAllGlobals();
     }

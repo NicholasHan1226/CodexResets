@@ -273,7 +273,8 @@ export async function handleUnsubscribeEmail(url: URL, env: Env): Promise<Respon
 }
 
 /** POST /api/unsubscribe?e=...&t=... — perform a signed one-click unsubscribe. */
-export async function handleUnsubscribeEmailPost(url: URL, env: Env): Promise<Response> {
+export async function handleUnsubscribeEmailPost(request: Request, url: URL, env: Env): Promise<Response> {
+  const browserConfirmation = await isBrowserUnsubscribeForm(request);
   const email = (url.searchParams.get('e') || '').toLowerCase().trim();
   const token = url.searchParams.get('t') || '';
   const expiresAt = Number(url.searchParams.get('x'));
@@ -284,11 +285,17 @@ export async function handleUnsubscribeEmailPost(url: URL, env: Env): Promise<Re
   if (!ok) return html('', 403);
 
   const res = await privDeleteEmail(env, email);
-  if (!res.ok) return html('', 502);
+  if (!res.ok) {
+    return browserConfirmation
+      ? html(unsubPage('We could not process this unsubscribe request. Please try again later.', false), 502)
+      : html('', 502);
+  }
   await recordSubscriptionMetric(env, 'email_unsubscribed').catch(() => {});
   // Mailbox providers call this endpoint from List-Unsubscribe-Post and expect
-  // an empty success response. Browser visitors see the GET confirmation page.
-  return html('', 200);
+  // an empty success response. A regular browser form gets a visible receipt.
+  return browserConfirmation
+    ? html(unsubPage(`<b>${escapeHtml(email)}</b> has been unsubscribed. You will no longer receive reset alerts.`, true))
+    : html('', 200);
 }
 
 /** POST /api/webhooks/resend — signed bounce and complaint suppression. */
@@ -508,7 +515,7 @@ function unsubPage(message: string, ok: boolean, action?: { action: string; labe
   <div style="text-align:center;padding:24px">
     <p style="font-family:Menlo,monospace;color:${ok ? '#10a37f' : '#ef4444'};font-size:13px">❯ codex resets</p>
     <p style="font-size:16px;margin:12px 0 20px">${message}</p>
-    ${action ? `<form method="post" action="${escapeHtml(action.action)}" style="margin:0 0 20px"><button type="submit" style="border:0;border-radius:6px;background:#10a37f;color:#07110e;padding:10px 14px;font-weight:600;cursor:pointer">${escapeHtml(action.label)}</button></form>` : ''}
+    ${action ? `<form method="post" action="${escapeHtml(action.action)}" style="margin:0 0 20px"><input type="hidden" name="source" value="browser"><button type="submit" style="border:0;border-radius:6px;background:#10a37f;color:#07110e;padding:10px 14px;font-weight:600;cursor:pointer">${escapeHtml(action.label)}</button></form>` : ''}
     <a href="https://codexresets.cc" style="color:#10a37f;font-size:13px;text-decoration:none">← Back to dashboard</a>
   </div></body></html>`;
 }
@@ -710,6 +717,19 @@ async function readJsonWithin<T>(request: Request, maxBytes: number): Promise<T 
     return JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(raw)) as T;
   } catch {
     return undefined;
+  }
+}
+
+/** A browser form needs a visible receipt; RFC 8058 mailbox POSTs must stay blank. */
+async function isBrowserUnsubscribeForm(request: Request): Promise<boolean> {
+  const contentType = request.headers.get('content-type') || '';
+  if (!contentType.toLowerCase().startsWith('application/x-www-form-urlencoded')) return false;
+  const raw = await readBodyWithin(request, SUBSCRIPTION_BODY_MAX_BYTES);
+  if (!raw) return false;
+  try {
+    return new URLSearchParams(new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(raw)).get('source') === 'browser';
+  } catch {
+    return false;
   }
 }
 
