@@ -262,6 +262,9 @@ describe('pipeline read endpoints', () => {
       link: 'https://x.com/thsottiaux/status/2091412393368945027',
       ts: now - 60 * 60 * 1000,
     };
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(now));
+    try {
     const snapshot = await buildSignalsSnapshot(
       envWith({}),
       { ok: true, sourceKind: 'direct', tweets: [scheduled] },
@@ -296,9 +299,7 @@ describe('pipeline read endpoints', () => {
     expect(degradedSnapshot.signals[0]).toMatchObject({ status: 'idle' });
     expect(degradedSnapshot.signals[0].description).not.toMatch(/^signals\.resetSchedule/);
 
-    vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-24T22:01:00.000Z'));
-    try {
       const elapsedSnapshot = await buildSignalsSnapshot(
         envWith({}),
         { ok: true, sourceKind: 'direct', tweets: [scheduled] },
