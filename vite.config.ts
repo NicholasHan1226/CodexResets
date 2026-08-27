@@ -4,7 +4,7 @@ import { defineConfig } from "vite"
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: './',
+  base: '/',
   plugins: [react()],
   server: {
     port: Number(process.env.DEPLOY_RUN_PORT) || 5000,
@@ -21,6 +21,10 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        about: path.resolve(__dirname, 'about/index.html'),
+      },
       output: {
         manualChunks: {
           // Eager vendor chunks only. Data access stays behind the Worker, so

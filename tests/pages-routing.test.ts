@@ -7,11 +7,11 @@ const publicDir = resolve(process.cwd(), 'public');
 describe('Cloudflare Pages routing', () => {
   it('serves a real not-found document while preserving the React about route', () => {
     const notFoundPath = resolve(publicDir, '404.html');
-    const redirectsPath = resolve(publicDir, '_redirects');
+    const aboutEntryPath = resolve(process.cwd(), 'about', 'index.html');
 
     expect(existsSync(notFoundPath)).toBe(true);
-    expect(existsSync(redirectsPath)).toBe(true);
+    expect(existsSync(aboutEntryPath)).toBe(true);
     expect(readFileSync(notFoundPath, 'utf8')).toContain('Page not found');
-    expect(readFileSync(redirectsPath, 'utf8')).toMatch(/^\/about\/?\s+\/index\.html\s+200$/m);
+    expect(readFileSync(aboutEntryPath, 'utf8')).toContain('/src/main.tsx');
   });
 });

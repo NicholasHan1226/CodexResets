@@ -1,4 +1,0 @@
-# Keep the single client-rendered informational route available after Pages
-# stops applying its global SPA fallback to unknown paths.
-/about /index.html 200
-/about/ /index.html 200
