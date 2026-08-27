@@ -5,9 +5,8 @@ import type { ResetPrediction, ResetRecord } from "@/types/reset";
 
 /**
  * Hook that manages the reset prediction state.
- * Fetches real signals from public sources (Tibo tweets, OpenAI status page)
- * and reset history from Supabase.
- * Falls back to the bundled, local model if live inputs are unavailable.
+ * Fetches the Worker-produced signals and verified reset history together.
+ * It never renders a locally simulated forecast when the live inputs fail.
  * Refreshes data every 5 minutes; an explicit user refresh bypasses the
  * short in-memory snapshot cache so it always asks the Worker for its latest
  * already-generated result.
@@ -19,6 +18,7 @@ export function usePrediction() {
   const [resetRecords, setResetRecords] = useState<ResetRecord[]>([]);
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [usingRealData, setUsingRealData] = useState(false);
+  const [dataUnavailable, setDataUnavailable] = useState(false);
   // A manual refresh may overlap the initial/periodic refresh. Only the most
   // recently started request is allowed to update the dashboard state.
   const latestRefreshId = useRef(0);
@@ -30,14 +30,19 @@ export function usePrediction() {
     setSignalsLoading(true);
     
     try {
-      const { signals, hasRealData, generatedAt, records: snapshotRecords } = await getDashboardInputs(generatePrediction().signals, force);
-      // The Worker supplies real verified history with a fresh snapshot. If
-      // it is unavailable, use the local baseline immediately rather than
-      // opening a second cross-origin database request on the visitor path.
-      const records = snapshotRecords ?? [];
+      const { signals, hasRealData, generatedAt, records: snapshotRecords } = await getDashboardInputs(force);
       if (refreshId !== latestRefreshId.current) return;
+      if (!hasRealData || !signals || !snapshotRecords) {
+        setPrediction(null);
+        setResetRecords([]);
+        setUsingRealData(false);
+        setDataUnavailable(true);
+        return;
+      }
+      const records = snapshotRecords;
       setResetRecords(records);
       setUsingRealData(hasRealData);
+      setDataUnavailable(false);
 
       // Signals remain informational; probabilities are derived from the
       // forward-looking reset history only.
@@ -48,14 +53,10 @@ export function usePrediction() {
     } catch (error) {
       console.warn('Error refreshing prediction:', error);
       if (refreshId !== latestRefreshId.current) return;
-      // Fall back to the bundled baseline — pass an explicit empty history so
-      // a failed refresh cannot keep rendering a stale Worker snapshot from a
-      // previous successful request.
-      // Timestamp it honestly so the header's "updated Xm ago" reflects this
-      // refresh, not a stale generation time.
-      const data = generatePrediction([]);
-      setPrediction({ ...data, generatedAt: Date.now() });
+      setPrediction(null);
+      setResetRecords([]);
       setUsingRealData(false);
+      setDataUnavailable(true);
     } finally {
       if (refreshId === latestRefreshId.current) setSignalsLoading(false);
     }
@@ -80,6 +81,7 @@ export function usePrediction() {
     isLive,
     signalsLoading,
     usingRealData,
+    dataUnavailable,
     refresh,
   };
 }

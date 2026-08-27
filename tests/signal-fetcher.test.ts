@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchOpenAIStatus, fetchPipelineSignals, fetchTiboTweets, isCompletePipelineSnapshot, isFreshPipelineSnapshot, PIPELINE_SNAPSHOT_MAX_AGE_MS } from '../src/lib/signal-fetcher';
+import { fetchOpenAIStatus, fetchPipelineSignals, fetchTiboTweets, getDashboardInputs, isCompletePipelineSnapshot, isFreshPipelineSnapshot, PIPELINE_SNAPSHOT_MAX_AGE_MS } from '../src/lib/signal-fetcher';
 
 describe('browser signal fallbacks', () => {
   afterEach(() => {
@@ -38,17 +38,16 @@ describe('browser signal fallbacks', () => {
     expect(isFreshPipelineSnapshot(now + 5 * 60 * 1000 + 1, now)).toBe(false);
   });
 
-  it('requires all canonical Worker signal sources before presenting a snapshot as live', () => {
+  it('requires all three independent Worker signal sources before presenting a snapshot as live', () => {
     const now = Date.now();
     const signals = [
       { source: 'tibopost', label: 'Tibo', description: 'signals.tiboUnavailable', status: 'idle' as const, value: 0.1, updatedAt: now },
       { source: 'status_page', label: 'Status', description: 'signals.statusClear', status: 'idle' as const, value: 0.08, updatedAt: now },
       { source: 'cooldown', label: 'Cooldown', description: 'signals.cooldownDesc', status: 'weak' as const, value: 0.6, updatedAt: now },
-      { source: 'launch_noise', label: 'Launch', description: 'signals.launchQuiet', status: 'idle' as const, value: 0.08, updatedAt: now },
     ];
     expect(isCompletePipelineSnapshot({ generatedAt: now, signals }, now)).toBe(true);
-    expect(isCompletePipelineSnapshot({ generatedAt: now, signals: signals.slice(0, 3) }, now)).toBe(false);
-    expect(isCompletePipelineSnapshot({ generatedAt: now, signals: [...signals.slice(0, 3), { ...signals[3], source: 'cooldown', value: 2 }] }, now)).toBe(false);
+    expect(isCompletePipelineSnapshot({ generatedAt: now, signals: signals.slice(0, 2) }, now)).toBe(false);
+    expect(isCompletePipelineSnapshot({ generatedAt: now, signals: [...signals.slice(0, 2), { ...signals[2], source: 'cooldown', value: 2 }] }, now)).toBe(false);
     expect(isCompletePipelineSnapshot({
       generatedAt: now,
       signals,
@@ -58,5 +57,16 @@ describe('browser signal fallbacks', () => {
 
   it('accepts an explicit force flag for a manual pipeline refresh', async () => {
     await expect(fetchPipelineSignals(true)).resolves.toBeNull();
+  });
+
+  it('does not substitute a local forecast when the production snapshot is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('unavailable', { status: 503 })));
+
+    await expect(getDashboardInputs()).resolves.toMatchObject({
+      signals: null,
+      hasRealData: false,
+      generatedAt: null,
+      records: null,
+    });
   });
 });

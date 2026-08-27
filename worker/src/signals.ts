@@ -28,7 +28,8 @@ export interface StatusEvidence {
 }
 
 /**
- * Build the four-signal snapshot server-side, mirroring the frontend model.
+ * Build the independent-signal snapshot server-side, mirroring the frontend
+ * model. Timing context must not be duplicated as a derived launch source.
  * The browser reads this payload via /api/signals instead of attempting
  * fragile client-side scraping itself.
  */
@@ -62,18 +63,8 @@ export async function buildSignalsSnapshot(
     updatedAt: now,
   };
 
-  const launchValue = cooldownRatio >= 0.8 ? Math.min(0.4, 0.22 + (cooldownRatio - 0.8) * 0.4) : 0.08;
-  const launch: SignalSnapshot = {
-    source: 'launch_noise',
-    label: 'Launch Noise',
-    status: launchValue >= 0.3 ? 'active' : launchValue >= 0.15 ? 'weak' : 'idle',
-    value: launchValue,
-    description: launchValue >= 0.15 ? 'signals.launchActive' : 'signals.launchQuiet',
-    updatedAt: now,
-  };
-
   return {
-    signals: [tibo, statusPage, cooldown, launch],
+    signals: [tibo, statusPage, cooldown],
     generatedAt: now,
     history,
     sources: {

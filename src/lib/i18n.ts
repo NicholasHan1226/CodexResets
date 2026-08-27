@@ -76,6 +76,12 @@ const translations: Record<Locale, Record<string, string>> = {
     'error.retry': 'Try Again',
     'error.reload': 'Reload Page',
 
+    // Live-data unavailable
+    'availability.title': 'Live forecast temporarily unavailable',
+    'availability.description': 'A fresh verified snapshot is required before showing a reset probability. Please retry shortly.',
+    'availability.retry': '[retry]',
+    'availability.docs': '[method]',
+
     // Header
     'app.title': 'Codex Resets',
     'app.subtitle': 'Next reset prediction',
@@ -287,6 +293,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'about.privacyDesc': 'An email address is stored only after its recipient confirms the subscription. It is used to send reset alerts and to process unsubscribe requests; this site does not ask for an OpenAI account or personal usage data.',
     'about.privacyRetention': 'Unconfirmed email addresses expire after 24 hours. A confirmed address is deleted when you unsubscribe, or when its mail provider reports a permanent delivery failure or spam complaint.',
     'about.privacyAbuse': 'To protect the subscription form, the service temporarily keeps a hashed network address for up to 10 minutes. It is used only to limit automated requests.',
+    'about.privacyAnalytics': 'Cloudflare Web Analytics collects aggregate visit and performance metrics; it is not used to read OpenAI account or personal usage data.',
     'about.backHome': 'back to the tracker',
 
     // Footer
@@ -385,6 +392,12 @@ const translations: Record<Locale, Record<string, string>> = {
     'error.message': '发生意外错误，请尝试刷新页面。',
     'error.retry': '重试',
     'error.reload': '重新加载',
+
+    // Live-data unavailable
+    'availability.title': '实时预测暂不可用',
+    'availability.description': '只有取得最新的已验证快照后才会展示重置概率，请稍后重试。',
+    'availability.retry': '[重试]',
+    'availability.docs': '[方法]',
 
     // Header
     'app.title': 'Codex 重置预判',
@@ -597,6 +610,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'about.privacyDesc': '只有收件人完成确认后，邮箱才会写入订阅名单。邮箱仅用于发送重置提醒和处理退订；本站不会索取 OpenAI 账户或个人用量数据。',
     'about.privacyRetention': '未确认的邮箱会在 24 小时后过期。已确认的邮箱会在退订后删除；若邮箱服务商报告永久投递失败或垃圾邮件投诉，也会删除。',
     'about.privacyAbuse': '为保护订阅表单，服务会暂存经过哈希处理的网络地址，最长 10 分钟，仅用于限制自动化请求。',
+    'about.privacyAnalytics': 'Cloudflare Web Analytics 会收集汇总访问与性能指标；它不会读取 OpenAI 账户或个人用量数据。',
     'about.backHome': '返回追踪器',
 
     // Footer

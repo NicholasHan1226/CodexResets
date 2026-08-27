@@ -92,7 +92,6 @@ function generateOfflineSignals(now: Date): ResetSignal[] {
       descriptionParams: { d: daysSinceLast.toFixed(1), m: stats.medianDays.toFixed(1) },
       value: cooldownValue, status: cooldownStatus, updatedAt,
     },
-    { source: 'launch_noise', label: 'Launch Noise', description: 'signals.launchQuiet', value: 0.08, status: 'idle', updatedAt },
   ];
 }
 

@@ -48,7 +48,7 @@
 ### 信号雷达（SignalPanel）
 - 状态标签用**反色块**（reverse video）：ACTIVE=主色底深字、WARM=琥珀底深字、IDLE=暗文字无底——不活跃的元素不许抢视觉
 - 信号强度用 ASCII 条（`█`/`░`，与 Hero 概率条同一词汇）+ 百分比，颜色随状态
-- 区块头部有聚合读数行：`composite ████░░ 47% · 2/4 active`，mono 小字
+- 区块头部有聚合读数行：`composite ████░░ 47% · 2/3 active`，mono 小字
 - 排序：状态严重度优先（ACTIVE>WARM>IDLE），同档按时间倒序
 - ACTIVE 行允许 `bg-primary/5` 极浅底色（-mx-2 px-2 呼吸），其余行无底色
 - 官方预告即将重置可标为 ACTIVE，但文案必须明确为“预告”，不能伪装成已发生重置或提前触发提醒

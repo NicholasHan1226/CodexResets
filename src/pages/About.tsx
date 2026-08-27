@@ -96,6 +96,7 @@ export default function About() {
             <p>{t('about.privacyDesc')}</p>
             <p>{t('about.privacyRetention')}</p>
             <p>{t('about.privacyAbuse')}</p>
+            <p>{t('about.privacyAnalytics')}</p>
           </div>
         </section>
 

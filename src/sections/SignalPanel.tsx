@@ -25,7 +25,6 @@ const signalLabelKeys: Record<string, string> = {
   tibopost: 'signals.tibo',
   status_page: 'signals.status',
   cooldown: 'signals.cooldown',
-  launch_noise: 'signals.launch',
 };
 
 function signalStrength(composite: number): 'low' | 'medium' | 'high' {

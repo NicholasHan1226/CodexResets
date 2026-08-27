@@ -29,7 +29,7 @@ const PUSH_ENDPOINT_HOSTS = new Set([
   'web.push.apple.com',
   'wns.windows.com',
 ]);
-const PIPELINE_SIGNAL_SOURCES = new Set(['tibopost', 'status_page', 'cooldown', 'launch_noise']);
+const PIPELINE_SIGNAL_SOURCES = new Set(['tibopost', 'status_page', 'cooldown']);
 
 type PublicSignalSnapshot = {
   source?: unknown;

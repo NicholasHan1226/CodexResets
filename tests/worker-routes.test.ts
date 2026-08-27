@@ -53,7 +53,6 @@ function freshSignalSnapshot(generatedAt = Date.now()) {
       { source: 'tibopost', label: 'Tibo Posting', status: 'idle', value: 0.08, description: 'signals.lastPostDays', updatedAt: generatedAt, sourceUrl: 'https://example.test/source' },
       { source: 'status_page', label: 'OpenAI Status', status: 'idle', value: 0.08, description: 'signals.statusClear', updatedAt: generatedAt },
       { source: 'cooldown', label: 'Time Cooldown', status: 'weak', value: 0.7, description: 'signals.cooldownDesc', updatedAt: generatedAt },
-      { source: 'launch_noise', label: 'Launch Noise', status: 'idle', value: 0.08, description: 'signals.launchQuiet', updatedAt: generatedAt },
     ],
   };
 }

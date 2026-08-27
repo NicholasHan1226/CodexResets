@@ -1,9 +1,6 @@
 /**
- * Real signal fetcher — three-tier strategy:
- * 1. Pipeline snapshot (Cloudflare Worker scrapes server-side every 30min,
- *    far more reliable than browser-side attempts)
- * 2. Immediate local fallback in production; direct browser reads are kept
- *    only for local development without a configured pipeline URL.
+ * The dashboard renders only a fresh pipeline snapshot. A Worker outage is a
+ * visible unavailable state, never a locally recomputed production forecast.
  */
 
 import type { ResetRecord, ResetSignal } from '@/types/reset';
@@ -11,7 +8,7 @@ import type { ResetRecord, ResetSignal } from '@/types/reset';
 const PIPELINE_API_URL = (import.meta.env.VITE_PIPELINE_API_URL || '').replace(/\/+$/, '');
 const PIPELINE_TIMEOUT_MS = 3500;
 export const PIPELINE_SNAPSHOT_MAX_AGE_MS = 90 * 60 * 1000;
-const PIPELINE_SIGNAL_SOURCES = ['tibopost', 'status_page', 'cooldown', 'launch_noise'] as const;
+const PIPELINE_SIGNAL_SOURCES = ['tibopost', 'status_page', 'cooldown'] as const;
 const PIPELINE_SIGNAL_SOURCE_SET = new Set<string>(PIPELINE_SIGNAL_SOURCES);
 
 interface PipelineSnapshot {
@@ -27,11 +24,12 @@ interface PipelineHistoryRow {
 }
 
 export interface DashboardInputs {
-  signals: ResetSignal[];
+  /** Null when no fresh Worker snapshot is available. */
+  signals: ResetSignal[] | null;
   hasRealData: boolean;
-  /** Server snapshot creation time; null when the browser used a local fallback. */
+  /** Server snapshot creation time; null when the Worker is unavailable. */
   generatedAt: number | null;
-  /** null means the caller should use its bundled local baseline. */
+  /** null means no verified history is available for a live forecast. */
   records: ResetRecord[] | null;
 }
 
@@ -44,7 +42,7 @@ export function isFreshPipelineSnapshot(generatedAt: unknown, now = Date.now()):
 
 /**
  * A partially formed Worker response must not be presented as a LIVE model
- * beside locally generated substitutes. The pipeline owns these four sources;
+ * beside locally generated substitutes. The pipeline owns these three sources;
  * accept the snapshot only when every source is present exactly once and each
  * display value is safe to render.
  */
@@ -94,14 +92,23 @@ async function fetchPipelineSnapshot(force = false): Promise<PipelineSnapshot | 
     });
     if (!res.ok) return null;
     const data = (await res.json()) as PipelineSnapshot;
-    if (!isCompletePipelineSnapshot(data)) return null;
+    // A Pages deployment can briefly arrive before its paired Worker build.
+    // Ignore the retired derived field during that bounded rollout window so
+    // visitors keep the three independent signals rather than a false outage.
+    const snapshotInput: Partial<PipelineSnapshot> = {
+      ...data,
+      signals: Array.isArray(data.signals)
+        ? data.signals.filter((signal) => signal?.source !== 'launch_noise')
+        : data.signals,
+    };
+    if (!isCompletePipelineSnapshot(snapshotInput)) return null;
     // Snapshot is refreshed every 30min server-side; cache for 5min locally
     const snapshot: PipelineSnapshot = {
-      signals: data.signals,
-      generatedAt: data.generatedAt,
-      // Older deployed Workers do not have this field; keep the compatible
-      // direct-read fallback only for that short rollout window.
-      history: Array.isArray(data.history) ? data.history : undefined,
+      signals: snapshotInput.signals,
+      generatedAt: snapshotInput.generatedAt,
+      // Older deployed Workers do not have this field; a missing history will
+      // be handled as an unavailable forecast by the caller.
+      history: Array.isArray(snapshotInput.history) ? snapshotInput.history : undefined,
     };
     setCache(cacheKey, snapshot, 5 * 60 * 1000);
     return snapshot;
@@ -359,8 +366,9 @@ export async function fetchRealSignals(): Promise<ResetSignal[]> {
   return signals;
 }
 
-// Return the Worker snapshot when available, otherwise the local fallback.
-export async function getDashboardInputs(simulatedSignals: ResetSignal[], force = false): Promise<DashboardInputs> {
+// Return a fresh Worker snapshot only. Do not replace an unavailable pipeline
+// with bundled history or client-side proxy reads in production.
+export async function getDashboardInputs(force = false): Promise<DashboardInputs> {
   // Tier 1: server-side pipeline snapshot (most reliable)
   const pipeline = await fetchPipelineSnapshot(force);
   if (pipeline) {
@@ -372,35 +380,7 @@ export async function getDashboardInputs(simulatedSignals: ResetSignal[], force 
     };
   }
 
-  // In production, falling through to several third-party proxy/status hosts
-  // makes a Worker outage slower and less reliable on constrained networks.
-  // The local model is the honest, immediately usable fallback instead.
-  if (PIPELINE_API_URL) return { signals: simulatedSignals, hasRealData: false, generatedAt: null, records: null };
-
-  // Tier 2: direct browser fetch
-  const realSignals = await fetchRealSignals();
-  
-  if (realSignals.length === 0) {
-    // Fall back to simulated data if real fetch fails
-    return { signals: simulatedSignals, hasRealData: false, generatedAt: null, records: null };
-  }
-
-  // Merge: use real data where available, simulated for missing sources
-  const realSources = new Set(realSignals.map(s => s.source));
-  const missingSignals = simulatedSignals.filter(s => !realSources.has(s.source));
-  
-  return {
-    signals: [...realSignals, ...missingSignals], 
-    hasRealData: true,
-    generatedAt: Date.now(),
-    records: null,
-  };
-}
-
-/** Compatibility wrapper for non-dashboard callers. */
-export async function getSignalsWithFallback(simulatedSignals: ResetSignal[]): Promise<{ signals: ResetSignal[]; hasRealData: boolean }> {
-  const { signals, hasRealData } = await getDashboardInputs(simulatedSignals);
-  return { signals, hasRealData };
+  return { signals: null, hasRealData: false, generatedAt: null, records: null };
 }
 
 function parsePipelineHistory(history: PipelineHistoryRow[] | undefined, generatedAt: number): ResetRecord[] | null {

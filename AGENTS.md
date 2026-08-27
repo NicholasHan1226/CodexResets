@@ -31,8 +31,9 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   mirrors → Google News RSS degraded source for reset detection. Failed
   primary attempts remain in `attempted[]`; a populated degraded source keeps
   the run healthy.
-- `src/signals.ts`   — builds the 4-signal snapshot (tibopost / status_page /
-  cooldown / launch_noise), mirrors the frontend model
+- `src/signals.ts`   — builds the 3-source snapshot (tibopost / status_page /
+  cooldown), mirrors the frontend model. Derived timing arithmetic is never
+  exposed as a separate evidence source.
 - `src/pipeline.ts`  — orchestration: scrape → detect → direct-source
   stabilization → automatic correction/confirmation → notify → snapshot to KV
   (`signals:latest`) → health report (`health:last_run`). Every cron, webhook, and manual trigger
@@ -128,10 +129,10 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   with both overall decision accuracy and positive precision >=80%. Do not
   call an imbalanced no-reset baseline "80% accurate". Worker snapshots and
   the browser must use the same forward-looking, history-only probability.
-- When the Worker cannot be reached, production browsers stay on the local
-  prediction model instead of fanning out to external RSS/status proxies.
-  This keeps the site responsive on constrained networks. Email is the primary
-  alert channel; Web Push is optional for browsers that support it.
+- When the Worker cannot be reached, production browsers show an explicit
+  unavailable state instead of a locally recomputed prediction or third-party
+  browser-side proxy reads. Email is the primary alert channel; Web Push is
+  optional for browsers that support it.
 
 ## Project Structure
 ```
@@ -173,12 +174,12 @@ claims into those pages. Keep their links and `public/sitemap.xml` synchronized.
 ## Key Patterns
 - `usePrediction` starts with the dashboard skeleton, then resolves the fresh
   Worker snapshot (signals plus verified history) and refreshes every 5
-  minutes. When the Worker is unavailable, it uses the bundled baseline rather
-  than opening a visitor-side Supabase request.
-- Signals: production uses the pipeline snapshot
-  (`VITE_PIPELINE_API_URL/api/signals`) and falls back locally when it is
-  unavailable; direct browser fetches remain local-development-only. Worker
-  snapshot descriptions are i18n keys (`signals.*`) rendered via `t()`.
+  minutes. When the Worker is unavailable, it shows an explicit unavailable
+  state rather than opening a visitor-side Supabase request or bundled model.
+- Signals: production uses only the pipeline snapshot
+  (`VITE_PIPELINE_API_URL/api/signals`); an unavailable snapshot never becomes
+  a local forecast. Worker snapshot descriptions are i18n keys (`signals.*`)
+  rendered via `t()`.
   A snapshot older than 90 minutes (or implausibly future-dated) is unavailable,
   never `LIVE`.
 - Simulated-fallback honesty: when network sources fail, signals must say

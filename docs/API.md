@@ -43,7 +43,7 @@ as a general data-ingestion or notification interface.
 ## Data boundary
 
 The browser receives confirmed reset history from the same fresh Worker
-snapshot as its signals and falls back to its bundled baseline if that snapshot
-is unavailable. Source URLs, original announcement text, subscriptions, Push
+snapshot as its signals and shows an unavailable state if that snapshot is
+unavailable. Source URLs, original announcement text, subscriptions, Push
 endpoints, pending lifecycle rows, email delivery, and all write operations
 are Worker service-role operations.

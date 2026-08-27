@@ -33,7 +33,7 @@ whenever a guide is added or removed.
 
 The Worker runs every 30 minutes. Its public read endpoints are:
 
-- `GET /api/signals` — latest four-signal browser snapshot and a bounded,
+- `GET /api/signals` — latest three-source browser snapshot and a bounded,
   model-only verified-reset history, so the first dashboard render does not
   need a separate database round trip.
 - `GET /api/health` — coarse latest-run and snapshot freshness only; detailed
@@ -174,11 +174,11 @@ never create a candidate, raise a forecast, confirm a reset, or send an alert.
 
 The public site uses Cloudflare's global network, not a mainland China
 deployment, and does not claim a mainland-network SLA or ICP filing. When the
-Worker API is unreachable, the browser remains usable with its local prediction
-model rather than trying multiple third-party RSS and status hosts. Email is
-the primary alert channel and uses concise bilingual English/Chinese messages;
-Web Push remains optional because device, browser, and notification policies
-vary across mainland networks and mobile platforms.
+Worker API is unreachable, the browser shows an explicit unavailable state
+rather than trying multiple third-party RSS/status hosts or showing a local
+prediction. Email is the primary alert channel and uses concise bilingual
+English/Chinese messages; Web Push remains optional because device, browser,
+and notification policies vary across mainland networks and mobile platforms.
 
 The first render has no third-party font dependency: it uses the platform font
 stack, including PingFang SC and Microsoft YaHei where available. This avoids
@@ -233,8 +233,8 @@ subscription attempts per ten minutes.
 ## Database and email delivery
 
 The managed database is Supabase project `wwhypilqiognyxkpqkss`. The browser
-receives verified reset history through the Worker snapshot and falls back to
-its bundled baseline when that snapshot is unavailable; all
+receives verified reset history through the Worker snapshot and shows an
+explicit unavailable state when that snapshot is unavailable; all
 subscription, push, and pipeline writes require the Worker-only
 `SUPABASE_SERVICE_ROLE_KEY` secret in Cloudflare. Anonymous reads are limited
 to `id`, `reset_date`, and `verified` for verified reset history; source URLs,

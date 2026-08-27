@@ -12,11 +12,12 @@ import { AnchorNav } from "@/components/AnchorNav";
 import { buildShareSummary, shareUrl, copyToClipboard } from "@/lib/export-share";
 import { useI18n } from "@/contexts/I18nContext";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
+import { DashboardUnavailable } from "@/components/DashboardUnavailable";
 import { shouldShowResetCalendar } from "@/lib/reset-data";
 import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPlanningProbability, getPrimaryForecast } from "@/lib/forecast-display";
 
 export default function Home() {
-  const { prediction, isLive, signalsLoading, refresh } = usePrediction();
+  const { prediction, isLive, signalsLoading, dataUnavailable, refresh } = usePrediction();
   const { t, locale } = useI18n();
   const [timeframe, setTimeframe] = useState<24 | 48>(24);
   const [now, setNow] = useState(() => Date.now());
@@ -27,6 +28,9 @@ export default function Home() {
   }, []);
 
   if (!prediction) {
+    if (dataUnavailable) {
+      return <DashboardUnavailable onRetry={() => { void refresh(true); }} />;
+    }
     return <DashboardSkeleton />;
   }
 

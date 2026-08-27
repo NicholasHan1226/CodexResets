@@ -113,14 +113,13 @@ describe('reset episode forecasting', () => {
     expect(Date.parse(prediction.windowEnd) - Date.parse(prediction.windowStart)).toBe(6 * 60 * 60 * 1000);
   });
 
-  it('clears a prior Worker history when the browser falls back to its bundled baseline', () => {
+  it('keeps the isolated local model deterministic after a transient Worker history', () => {
     const transientRecord = record('transient-live-record', Date.parse('2026-08-23T01:00:00Z'));
     const fromWorker = generatePrediction([transientRecord]);
     expect(fromWorker.lastReset).toBe(new Date(transientRecord.timestamp).toISOString());
 
-    // This is the input the hook supplies if the next Worker request fails.
-    const fallback = generatePrediction([]);
-    expect(fallback.lastReset).toBe(new Date(RESET_HISTORY[0].timestamp).toISOString());
+    const localModel = generatePrediction([]);
+    expect(localModel.lastReset).toBe(new Date(RESET_HISTORY[0].timestamp).toISOString());
   });
 
   it('records a history-only production forecast snapshot', async () => {
