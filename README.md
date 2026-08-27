@@ -325,9 +325,15 @@ After a Pages or Worker release, verify:
 curl --fail-with-body https://codexresets.cc/api/health
 curl --fail-with-body https://codexresets.cc/api/signals
 curl -s -o /dev/null -w '%{http_code}\n' https://codexresets.cc/not-a-real-page
+curl -sSI https://codexresets.cc/ | grep -i '^strict-transport-security:'
 ```
 
 The last command must return `404`.
+
+Cloudflare sets HSTS at the zone level with a one-month `max-age`. Keep
+`includeSubDomains` and preload disabled: Resend owns the separate
+`links.codexresets.cc` tracking hostname, so it must not inherit a product
+domain policy by accident.
 
 For Pages, confirm that the deployed JavaScript references
 `https://codexresets.cc` and that the UI reflects the latest snapshot. If
