@@ -389,6 +389,25 @@ describe('pipeline read endpoints', () => {
     expect(body.signals[0].scheduledAt).toBe(scheduledAt);
   });
 
+  it('serves a legacy four-source snapshot without exposing the retired derived signal', async () => {
+    const legacy = freshSignalSnapshot();
+    legacy.signals.push({
+      source: 'launch_noise', label: 'Launch Noise', status: 'active', value: 0.4,
+      description: 'signals.launchActive', updatedAt: legacy.generatedAt,
+    });
+    const snapshot = JSON.stringify(legacy);
+
+    const response = await handleSignals(envWith({ 'signals:latest': snapshot }));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      signals: expect.not.arrayContaining([expect.objectContaining({ source: 'launch_noise' })]),
+    });
+    await expect(handleHealth(envWith({
+      'health:last_run': JSON.stringify({ startedAt: new Date().toISOString(), scrape: 'ok', errors: [] }),
+      'signals:latest': snapshot,
+    }))).resolves.toMatchObject({ status: 200 });
+  });
+
   it('rejects a malformed fresh snapshot and reports the pipeline unhealthy', async () => {
     const now = Date.now();
     const snapshot = JSON.stringify({ generatedAt: now, signals: [{ source: 'tibopost' }] });

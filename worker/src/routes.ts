@@ -58,10 +58,12 @@ export async function handleSignals(env: Env): Promise<Response> {
   const snapshotCheck = signalSnapshotCheck(snapshot, Date.now());
   if (snapshotCheck === 'stale') return json({ error: 'signal snapshot stale' }, 503);
   if (snapshotCheck !== 'ok') return json({ error: 'signal snapshot invalid' }, 503);
+  const signals = independentSignals(snapshot);
+  if (!signals) return json({ error: 'signal snapshot invalid' }, 503);
   return json({
     generatedAt: snapshot.generatedAt,
     sources: snapshot.sources,
-    signals: snapshot.signals.map((signal) => {
+    signals: signals.map((signal) => {
       const publicSignal = { ...signal };
       delete publicSignal.sourceUrl;
       if (typeof publicSignal.scheduledAt !== 'number' || !Number.isFinite(publicSignal.scheduledAt)) {
@@ -140,10 +142,11 @@ function healthChecks(report: RunReport | null, snapshot: StoredSignalSnapshot |
 function signalSnapshotCheck(snapshot: StoredSignalSnapshot, now: number): HealthCheck {
   const freshness = timestampCheck(snapshot.generatedAt, now);
   if (freshness !== 'ok') return freshness;
-  if (!Array.isArray(snapshot.signals) || snapshot.signals.length !== PIPELINE_SIGNAL_SOURCES.size) return 'failed';
+  const signals = independentSignals(snapshot);
+  if (!signals) return 'failed';
 
   const seen = new Set<string>();
-  for (const signal of snapshot.signals) {
+  for (const signal of signals) {
     if (!signal
       || typeof signal.source !== 'string' || !PIPELINE_SIGNAL_SOURCES.has(signal.source) || seen.has(signal.source)
       || typeof signal.label !== 'string' || signal.label.length === 0
@@ -159,6 +162,13 @@ function signalSnapshotCheck(snapshot: StoredSignalSnapshot, now: number): Healt
     seen.add(signal.source);
   }
   return seen.size === PIPELINE_SIGNAL_SOURCES.size ? 'ok' : 'failed';
+}
+
+/** Accept the prior derived field only long enough for a cached snapshot to be replaced. */
+function independentSignals(snapshot: StoredSignalSnapshot): PublicSignalSnapshot[] | null {
+  if (!Array.isArray(snapshot.signals)) return null;
+  const signals = snapshot.signals.filter((signal) => signal?.source !== 'launch_noise');
+  return signals.length === PIPELINE_SIGNAL_SOURCES.size ? signals : null;
 }
 
 function reportCheck(report: RunReport | null, now: number): HealthCheck {
