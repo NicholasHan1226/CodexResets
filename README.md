@@ -273,6 +273,11 @@ The Pages project is `codex-resets`. Its intended Git integration is
 That makes Cloudflare build a preview for pull requests and publish production
 after a successful build of `main`.
 
+The dashboard uses a static `/about/` entry (with `/about` canonicalizing to
+that path) and `public/404.html` for unknown routes. This prevents missing or
+scanner-generated paths from being served as the dashboard and counted as
+normal page traffic.
+
 Cloudflare Pages is the only quality gate. `quality:cloudflare` runs frontend
 lint, unit tests, the production bundle check, Worker TypeScript validation,
 and a Worker bundle dry run before assets are published. GitHub Actions is
@@ -319,7 +324,10 @@ After a Pages or Worker release, verify:
 ```bash
 curl --fail-with-body https://codexresets.cc/api/health
 curl --fail-with-body https://codexresets.cc/api/signals
+curl -s -o /dev/null -w '%{http_code}\n' https://codexresets.cc/not-a-real-page
 ```
+
+The last command must return `404`.
 
 For Pages, confirm that the deployed JavaScript references
 `https://codexresets.cc` and that the UI reflects the latest snapshot. If
