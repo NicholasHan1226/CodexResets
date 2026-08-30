@@ -106,7 +106,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
         <span className="text-foreground font-semibold">
           {t(verdictKey)}
         </span>{' '}
-        {!hasScheduledReset && (
+        {!hasScheduledReset && officialSignal?.description !== 'signals.resetAnnounced' && (
           <span className="text-muted-foreground/50">
             ({t(signalCopy)})
           </span>

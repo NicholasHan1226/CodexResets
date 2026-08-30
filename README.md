@@ -76,8 +76,9 @@ The official timeline uses an incremental post-ID watermark, bounded pagination
 (50 posts/page, at most eight pages/run), full long-post text, and directly
 fetched reply context. A seven-day private KV cache retains official evidence;
 successful empty incremental reads are healthy, but a failed or truncated page
-sequence never advances the watermark. The limit caps recovery cost at 400
-timeline posts per run; ordinary runs fetch only new posts. A pagination-limit
+sequence never advances the watermark. The limit caps recovery at 400
+timeline posts per run (reply expansions may add referenced posts to usage);
+ordinary runs fetch only new posts. A pagination-limit
 error needs investigation, not silent truncation or an automatic budget increase.
 Common announcement spellings and completed-action phrasing are supported;
 questions, denials, recurring personal reset rules and future plans are not
@@ -95,6 +96,9 @@ never send a backdated confirmed-reset alert. Normal new events retain the
 30-minute stabilization window. Confirmed notification retries expire 48 hours
 after the source post. Pending reset discoveries suppress premature forecast
 emails based on an obsolete last-reset date.
+After a completed reset, the hero continues to answer the probability of
+another future reset; it does not repeat the completed event as a future hint
+or describe the source as having no strong signal.
 When the current direct source is healthy, no relevant official incident is
 active, and the dashboard's next-24-hour planning likelihood first reaches
 70%, the Worker sends one email-only forecast notice per reset cycle. It is

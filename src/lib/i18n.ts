@@ -63,7 +63,7 @@ const translations: Record<Locale, Record<string, string>> = {
     // Planning advice (model emits only a level; copy lives here)
     'advice.wait': 'Preserve heavy tasks until the signal is clearer.',
     'advice.cautious': 'Keep some capacity for critical tasks.',
-    'advice.use_freely': 'No strong near-term signal — use normally.',
+    'advice.use_freely': 'Another reset is currently less likely — use normally.',
     'advice.approaching': 'The interval is approaching its usual range.',
     'advice.scheduled': 'An official schedule takes priority; wait for the confirmed reset alert.',
     'advice.scheduledPending': 'An official schedule exists, but its timing is not yet precise. Keep the confirmation alert on.',
@@ -382,7 +382,7 @@ const translations: Record<Locale, Record<string, string>> = {
     // Planning advice
     'advice.wait': '重任务可先保留，等待更清晰的信号。',
     'advice.cautious': '关键任务建议保留一些用量余量。',
-    'advice.use_freely': '近期没有强信号，可按正常节奏使用。',
+    'advice.use_freely': '下一次重置概率暂低，可按正常节奏使用。',
     'advice.approaching': '间隔正接近常见范围，可留意后续变化。',
     'advice.scheduled': '官方预告优先；等待重置实际确认后再接收提醒。',
     'advice.scheduledPending': '已发现官方预告，但具体时间尚未明确；请保持确认提醒开启。',
