@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ProbabilityPoint } from "@/types/reset";
 import { useI18n } from "@/contexts/I18nContext";
+import { alignTimingCurveWithOfficialSchedule } from "@/lib/forecast-display";
 
 interface ProbabilityCurveProps {
   curve: ProbabilityPoint[];
   /** When set, only show points within the next N hours from now */
-  hours?: number;
+  hours?: 24 | 48;
+  /** Combined visitor-facing probability for the selected horizon. */
+  planningProbability?: number;
+  /** A direct official target inside the selected horizon, if one exists. */
+  officialScheduleAt?: number | null;
 }
 
 const HOUR = 3600 * 1000;
@@ -66,7 +71,7 @@ function smoothLine(pts: Pt[]): string {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
-export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
+export function ProbabilityCurve({ curve, hours, planningProbability, officialScheduleAt }: ProbabilityCurveProps) {
   const { t } = useI18n();
   const [containerRef, { width, height }] = useElementSize<HTMLDivElement>();
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -82,9 +87,17 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
   const nowLocalLabel = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const tzLabel = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  const allData = curve.map((point) => {
-    return { ...point, timestamp: point.timestamp };
-  });
+  const officialBucketIndex = typeof officialScheduleAt === 'number' && Number.isFinite(officialScheduleAt)
+    && typeof hours === 'number' && officialScheduleAt > nowTimestamp && officialScheduleAt <= nowTimestamp + hours * HOUR
+    ? curve.findIndex((point) => officialScheduleAt > point.timestamp - 3 * HOUR && officialScheduleAt <= point.timestamp)
+    : -1;
+  const allData = alignTimingCurveWithOfficialSchedule(
+    curve,
+    planningProbability,
+    officialScheduleAt,
+    hours,
+    nowTimestamp,
+  ).map((point) => ({ ...point, timestamp: point.timestamp }));
 
   // Forecast samples begin three hours in the future. Add the exact current
   // moment as a zero-length forecast so the user always has a truthful visual
@@ -116,6 +129,8 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
   const peakEnd = new Date(peak.timestamp);
   const formatTime = (date: Date) => `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
   const peakTime = `${formatTime(peakStart)}–${formatTime(peakEnd)}`;
+  const hasOfficialTiming = officialBucketIndex >= 0;
+  const officialTime = hasOfficialTiming && typeof officialScheduleAt === 'number' ? formatTime(new Date(officialScheduleAt)) : null;
 
   const minTs = chartData[0].timestamp;
   const maxTs = chartData[chartData.length - 1].timestamp;
@@ -230,7 +245,7 @@ export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
           )}
         </h2>
         <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">
-          {t("curve.likeliestTime", { time: peakTime })}
+          {officialTime ? t("curve.scheduleTarget", { time: officialTime }) : t("curve.likeliestTime", { time: peakTime })}
           <span className="text-muted-foreground/50"> · {tzLabel}</span>
         </span>
       </div>

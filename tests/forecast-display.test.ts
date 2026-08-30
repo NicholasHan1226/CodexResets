@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPlanningProbability, getPrimaryForecast, OFFICIAL_SCHEDULE_GRACE_MS } from '@/lib/forecast-display';
-import type { ResetSignal } from '@/types/reset';
+import { alignTimingCurveWithOfficialSchedule, formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPlanningProbability, getPrimaryForecast, OFFICIAL_SCHEDULE_GRACE_MS } from '@/lib/forecast-display';
+import type { ProbabilityPoint, ResetSignal } from '@/types/reset';
 
 const now = Date.parse('2026-08-24T00:00:00.000Z');
 const scheduledSignal: ResetSignal = {
@@ -27,6 +27,18 @@ describe('primary forecast display', () => {
     const within48h = getPrimaryForecast([scheduledSignal], 48, now);
     expect(getPlanningProbability(0.24, [scheduledSignal], after24h)).toBe(0.24);
     expect(getPlanningProbability(0.24, [scheduledSignal], within48h)).toBeCloseTo(0.848, 3);
+  });
+
+  it('moves official planning support into the matching timing block without mutating the calibrated curve', () => {
+    const curve: ProbabilityPoint[] = [3, 6, 9, 12].map((hour) => ({
+      timestamp: now + hour * 60 * 60 * 1000,
+      date: '2026-08-24', hour, probability: 0.1,
+    }));
+    const displayed = alignTimingCurveWithOfficialSchedule(curve, 0.8, now + 4 * 60 * 60 * 1000, 24, now);
+
+    expect(displayed.map((point) => point.probability)).toEqual([0.1, 0.5, 0.1, 0.1]);
+    expect(displayed.reduce((sum, point) => sum + point.probability, 0)).toBeCloseTo(0.8);
+    expect(curve.map((point) => point.probability)).toEqual([0.1, 0.1, 0.1, 0.1]);
   });
 
   it('keeps a just-passed official target as strong evidence during its execution grace period', () => {

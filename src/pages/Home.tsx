@@ -47,9 +47,13 @@ export default function Home() {
   // the way, while the primary model probability and curve stay visible.
   const showHistoricalTiming = !officialSchedule;
   const modelProbability = timeframe === 24 ? prediction.prob24h : prediction.prob48h;
+  const planningProbability = getPlanningProbability(modelProbability, prediction.signals, primaryForecast);
+  const officialScheduleAt = primaryForecast.kind === 'official-schedule' && primaryForecast.window === 'within'
+    ? primaryForecast.scheduledAt
+    : undefined;
 
   const handleShare = async () => {
-    const pct = Math.round(getPlanningProbability(modelProbability, prediction.signals, primaryForecast) * 100);
+    const pct = Math.round(planningProbability * 100);
     const text = buildShareSummary({
       pct,
       hours: timeframe,
@@ -86,7 +90,12 @@ export default function Home() {
           <hr className="my-10 border-border/30" />
 
           <div id="curve" className="scroll-mt-16">
-            <ProbabilityCurve curve={prediction.curve} hours={timeframe} />
+            <ProbabilityCurve
+              curve={prediction.curve}
+              hours={timeframe}
+              planningProbability={planningProbability}
+              officialScheduleAt={officialScheduleAt}
+            />
           </div>
 
           <hr className="my-10 border-border/30" />

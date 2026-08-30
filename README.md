@@ -154,7 +154,10 @@ The dashboard presents exactly one percentage as its primary answer: the
 selected 24- or 48-hour probability. The timing chart is deliberately
 percentage-free; it highlights the single three-hour period with the highest
 relative likelihood inside that selected window, so visitors can see when to
-watch without mistaking a chart bucket for the overall forecast.
+watch without mistaking a chart bucket for the overall forecast. A direct
+official target inside that window takes over the highlighted timing block;
+this is a display-only alignment with the combined planning answer and never
+changes the stored historical curve or calibration.
 When a direct official post schedules a future reset, the dashboard keeps the
 visitor-facing history-calibrated probability number and curve visible, and
 shows the official timing alongside them as a separate strong signal. When the

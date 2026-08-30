@@ -1,6 +1,6 @@
 // Relative import keeps this exact display calculation usable by the Worker
 // as well as the Vite browser bundle.
-import type { ResetSignal } from '../types/reset';
+import type { ProbabilityPoint, ResetSignal } from '../types/reset';
 
 const HOUR_MS = 60 * 60 * 1000;
 export const OFFICIAL_SCHEDULE_GRACE_MS = 6 * HOUR_MS;
@@ -67,6 +67,36 @@ export function getPlanningProbability(
 
   const support = Math.min(1, Math.max(0, officialStrength));
   return 1 - (1 - base) * (1 - support);
+}
+
+/**
+ * Applies the direct official timing support to the display-only timing
+ * distribution. The persisted historical curve remains untouched for model
+ * selection and calibration.
+ */
+export function alignTimingCurveWithOfficialSchedule(
+  curve: ProbabilityPoint[],
+  planningProbability: number | undefined,
+  scheduledAt: number | null | undefined,
+  hours: 24 | 48 | undefined,
+  now = Date.now(),
+): ProbabilityPoint[] {
+  if (typeof planningProbability !== 'number' || !Number.isFinite(planningProbability)
+    || typeof scheduledAt !== 'number' || !Number.isFinite(scheduledAt)
+    || hours === undefined || scheduledAt <= now || scheduledAt > now + hours * HOUR_MS) return curve;
+
+  const bucketIndex = curve.findIndex((point) => scheduledAt > point.timestamp - 3 * HOUR_MS && scheduledAt <= point.timestamp);
+  if (bucketIndex < 0) return curve;
+
+  const modelProbability = curve
+    .filter((point) => point.timestamp <= now + hours * HOUR_MS)
+    .reduce((sum, point) => sum + point.probability, 0);
+  const lift = Math.max(0, planningProbability - modelProbability);
+  if (lift === 0) return curve;
+
+  return curve.map((point, index) => index === bucketIndex
+    ? { ...point, probability: Math.min(1, point.probability + lift) }
+    : point);
 }
 
 /** Formats an official target in the visitor's local timezone. */
