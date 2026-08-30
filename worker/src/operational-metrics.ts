@@ -6,6 +6,7 @@ const MAX_METRIC_KEYS = 500;
 export type SubscriptionMetricKind =
   | 'email_confirmation_sent'
   | 'email_confirmed'
+  | 'email_delivered'
   | 'email_bounced'
   | 'email_complained'
   | 'email_unsubscribed'
@@ -37,6 +38,8 @@ export interface SubscriptionQuality {
     confirmationSent: number;
     confirmed: number;
     confirmationRate: number | null;
+    delivered: number;
+    lastDeliveredAt: string | null;
     bounced: number;
     complained: number;
     unsubscribed: number;
@@ -70,6 +73,16 @@ export async function recordSubscriptionMetric(env: Env, kind: SubscriptionMetri
   await recordMetric(env, 'subscription', { kind, count });
 }
 
+/** Stable per provider email, even when a receipt is retried with a new webhook ID. */
+export async function recordEmailDelivered(env: Env, emailId: string, at: string, count: number): Promise<void> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(emailId));
+  const fingerprint = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  // No recipient, subject, provider ID or raw callback is persisted.
+  await env.CACHE.put(`metrics:subscription:${at.slice(0, 10)}:delivered-${fingerprint}`,
+    JSON.stringify({ at, kind: 'email_delivered', count } satisfies MetricEntry),
+    { expirationTtl: METRIC_TTL_SECONDS });
+}
+
 export async function recordXWebhookOutcome(
   env: Env,
   outcome: NonNullable<MetricEntry['outcome']>,
@@ -94,7 +107,7 @@ export async function getSubscriptionQuality(env: Env): Promise<SubscriptionQual
   const entries = await readMetricEntries(env, 'subscription');
   const quality: SubscriptionQuality = {
     sampledEvents: entries.length,
-    email: { confirmationSent: 0, confirmed: 0, confirmationRate: null, bounced: 0, complained: 0, unsubscribed: 0 },
+    email: { confirmationSent: 0, confirmed: 0, confirmationRate: null, delivered: 0, lastDeliveredAt: null, bounced: 0, complained: 0, unsubscribed: 0 },
     push: { registered: 0, testDelivered: 0, testSkipped: 0, expiredDuringTest: 0, unsubscribed: 0, prunedAfterDelivery: 0 },
   };
   for (const entry of entries) {
@@ -102,6 +115,10 @@ export async function getSubscriptionQuality(env: Env): Promise<SubscriptionQual
     switch (entry.kind as SubscriptionMetricKind) {
       case 'email_confirmation_sent': quality.email.confirmationSent += count; break;
       case 'email_confirmed': quality.email.confirmed += count; break;
+      case 'email_delivered':
+        quality.email.delivered += count;
+        if (!quality.email.lastDeliveredAt || entry.at > quality.email.lastDeliveredAt) quality.email.lastDeliveredAt = entry.at;
+        break;
       case 'email_bounced': quality.email.bounced += count; break;
       case 'email_complained': quality.email.complained += count; break;
       case 'email_unsubscribed': quality.email.unsubscribed += count; break;

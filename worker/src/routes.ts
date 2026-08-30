@@ -5,7 +5,7 @@ import { runPipeline } from './pipeline';
 import { sendPushSubscriptionTest, sendSubscriptionConfirmation, sendTestEmail } from './notify';
 import { FORECAST_RELEASE_STATUS_KEY, getForecastCalibration } from './forecast';
 import { getOfficialCodexDiscovery } from './discovery';
-import { getSubscriptionQuality, getXWebhookQuality, recordSubscriptionMetric, recordXWebhookOutcome } from './operational-metrics';
+import { getSubscriptionQuality, getXWebhookQuality, recordEmailDelivered, recordSubscriptionMetric, recordXWebhookOutcome } from './operational-metrics';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CONFIRM_TTL_SECONDS = 24 * 60 * 60;
@@ -308,7 +308,7 @@ export async function handleUnsubscribeEmailPost(request: Request, url: URL, env
     : html('', 200);
 }
 
-/** POST /api/webhooks/resend — signed bounce and complaint suppression. */
+/** POST /api/webhooks/resend — signed delivery receipts and bounce/complaint suppression. */
 export async function handleResendWebhook(request: Request, env: Env): Promise<Response> {
   if (!env.RESEND_WEBHOOK_SECRET || !hasPrivilegedAccess(env)) return json({ error: 'webhook not configured' }, 503);
   const rawBytes = await readBodyWithin(request, RESEND_WEBHOOK_MAX_BYTES);
@@ -328,13 +328,32 @@ export async function handleResendWebhook(request: Request, env: Env): Promise<R
 
   const replayKey = `resend:webhook:${id}`;
   if (await env.CACHE.get(replayKey)) return json({ ok: true, duplicate: true });
-  let event: { type?: string; data?: { to?: unknown } };
+  let event: { type?: unknown; created_at?: unknown; data?: { to?: unknown; from?: unknown; email_id?: unknown } } | null;
   try {
-    event = JSON.parse(raw) as { type?: string; data?: { to?: unknown } };
+    event = JSON.parse(raw);
   } catch {
     return json({ error: 'invalid webhook body' }, 400);
   }
-  if (event.type === 'email.bounced' || event.type === 'email.complained') {
+  if (!event || typeof event !== 'object') return json({ error: 'invalid webhook body' }, 400);
+  if (event.type === 'email.delivered') {
+    // A team-wide webhook can also receive mail for unrelated projects.
+    const sender = mailbox(event.data?.from);
+    if (!sender || sender !== mailbox(env.RESEND_FROM)) return json({ ok: true, ignored: true });
+    const emailId = event.data?.email_id;
+    const at = typeof event.created_at === 'string' ? Date.parse(event.created_at) : NaN;
+    const recipients = new Set(Array.isArray(event.data?.to)
+      ? event.data.to.flatMap((value) => { const email = mailbox(value); return email ? [email] : []; }) : []);
+    if (typeof emailId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(emailId)
+      || !Number.isFinite(at) || at > Date.now() + WEBHOOK_MAX_AGE_MS || recipients.size === 0) {
+      return json({ error: 'invalid delivery receipt' }, 400);
+    }
+    try {
+      await recordEmailDelivered(env, emailId, new Date(at).toISOString(), recipients.size);
+    } catch {
+      // Do not acknowledge a lost receipt; Resend will retry the same event.
+      return json({ error: 'delivery receipt storage unavailable' }, 503);
+    }
+  } else if (event.type === 'email.bounced' || event.type === 'email.complained') {
     const recipients = Array.isArray(event.data?.to)
       ? event.data.to.filter((value): value is string => typeof value === 'string' && EMAIL_RE.test(value)).map((value) => value.toLowerCase())
       : [];
@@ -348,6 +367,12 @@ export async function handleResendWebhook(request: Request, env: Env): Promise<R
   }
   await env.CACHE.put(replayKey, '1', { expirationTtl: WEBHOOK_REPLAY_TTL_SECONDS });
   return json({ ok: true });
+}
+
+function mailbox(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const email = (value.match(/<([^<>]+)>\s*$/)?.[1] || value).trim().toLowerCase();
+  return email.length <= 320 && EMAIL_RE.test(email) ? email : null;
 }
 
 /**

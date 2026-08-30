@@ -308,6 +308,85 @@ describe('reset ingestion regressions', () => {
     expect(sends).toBe(1);
   });
 
+  it.each(['provider-503', 'accepted-timeout', 'database-mark', 'ledger-mark'] as const)(
+    'recovers %s through the full pipeline without sending twice', async (failure) => {
+      const { env } = setup({ [timelineKey]: JSON.stringify({ checkedAt: NOW - HOUR, sinceId: '100', tweets: [], contextVersion: 1 }) });
+      env.RESEND_API_KEY = 'test-only';
+      env.UNSUBSCRIBE_SECRET = 'test-only';
+      env.RESEND_FROM = 'alerts@example.test';
+      const row: ResetRecordRow = {
+        id: 'retry-reset', reset_date: new Date(NOW - HOUR).toISOString(),
+        verified: true, automated: true, auto_state: 'confirmed', notified_at: null,
+        source_url: 'https://x.com/thsottiaux/status/100', description: 'We have reset usage limits for all paid Codex users.',
+      };
+      const delivered = new Set<string>();
+      let ledgerFailure = failure === 'ledger-mark';
+      const ledger = {
+        hasDelivered: async (id: string, channel: string, recipient: string) => delivered.has(`${id}:${channel}:${recipient}`),
+        markDelivered: async (id: string, channel: string, recipient: string) => {
+          if (ledgerFailure) { ledgerFailure = false; throw new Error('ledger unavailable'); }
+          delivered.add(`${id}:${channel}:${recipient}`);
+        },
+      };
+      const accepted = new Map<string, string>();
+      const attempts: string[] = [];
+      let providerFailure = true;
+      let markFailure = failure === 'database-mark';
+      vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new URL(String(input));
+        if (url.hostname === 'api.x.com') return Response.json({ meta: { result_count: 0 } });
+        if (url.pathname.includes('codex-changelog')) return new Response('Codex updates');
+        if (url.hostname === 'status.openai.com') return Response.json({ incidents: [] });
+        if (url.pathname.endsWith('/reset_records')) {
+          if (init?.method === 'PATCH') {
+            if (markFailure) { markFailure = false; return new Response('temporarily unavailable', { status: 503 }); }
+            Object.assign(row, JSON.parse(String(init.body)));
+            return new Response(null, { status: 204 });
+          }
+          return Response.json([row]);
+        }
+        if (url.pathname.endsWith('/subscriptions')) return Response.json([{ email: 'first@example.test' }, { email: 'second@example.test' }]);
+        if (url.pathname.endsWith('/push_subscriptions')) return Response.json([]);
+        if (url.hostname === 'api.resend.com') {
+          const body = String(init?.body);
+          const recipient = JSON.parse(body).to[0];
+          const key = new Headers(init?.headers).get('idempotency-key')!;
+          expect(key).toBeTruthy();
+          expect(init?.signal).toBeDefined();
+          attempts.push(recipient);
+          if (recipient === 'second@example.test' && providerFailure && failure === 'provider-503') {
+            providerFailure = false;
+            return new Response('unavailable', { status: 503 });
+          }
+          // Model the provider's documented idempotency contract, not actual delivery.
+          if (accepted.has(key)) expect(body).toBe(accepted.get(key));
+          else accepted.set(key, body);
+          if (recipient === 'second@example.test' && providerFailure && failure === 'accepted-timeout') {
+            providerFailure = false;
+            throw new DOMException('response lost after acceptance', 'TimeoutError');
+          }
+          return Response.json({ id: 'mock-provider-id' });
+        }
+        throw new Error(`Unexpected request: ${url.origin}${url.pathname}`);
+      }));
+      if (failure === 'ledger-mark') await expect(runPipelineOnce(env, 'test', ledger)).rejects.toThrow('ledger unavailable');
+      else expect((await runPipelineOnce(env, 'test', ledger)).errors.length).toBeGreaterThan(0);
+      expect(row.notified_at).toBeNull();
+      vi.setSystemTime(NOW + HOUR / 2);
+      expect((await runPipelineOnce(env, 'test', ledger)).errors).toEqual([]);
+      expect(row.notified_at).toBe(new Date(NOW + HOUR / 2).toISOString());
+      expect(accepted.size).toBe(2);
+      expect(attempts).toEqual(failure === 'database-mark'
+        ? ['first@example.test', 'second@example.test']
+        : failure === 'ledger-mark'
+          ? ['first@example.test', 'second@example.test', 'first@example.test', 'second@example.test']
+          : ['first@example.test', 'second@example.test', 'second@example.test']);
+      const requestCount = attempts.length;
+      expect(await runPipelineOnce(env, 'test', ledger)).toMatchObject({ notifiedEmails: 0, errors: [] });
+      expect(attempts).toHaveLength(requestCount);
+    },
+  );
+
   it('excludes past scores affected by recovered history without rewriting them as hits', async () => {
     const sample = { at: NOW - 5 * 24 * HOUR, dueAt: NOW - 3 * 24 * HOUR, model: 'weibull', prob24h: 0.9, prob48h: 0.9, resetIn24h: false, resetIn48h: false };
     const { cache, store } = setup({ 'forecast:evaluations': JSON.stringify([sample]) });

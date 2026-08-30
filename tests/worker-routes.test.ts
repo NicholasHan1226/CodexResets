@@ -1511,6 +1511,60 @@ describe('pipeline read endpoints', () => {
     }
   });
 
+  it('counts signed delivery receipts once without storing recipients or touching subscriptions', async () => {
+    const cache: Record<string, string | null> = {};
+    const env = emailEnv(cache);
+    const at = new Date().toISOString();
+    const body = JSON.stringify({ type: 'email.delivered', created_at: at, data: {
+      email_id: 'email-delivery-1', from: env.RESEND_FROM,
+      to: ['reader@example.test', 'READER@example.test'], subject: 'Private subject',
+    } });
+    const fetchMock = vi.fn(() => { throw new Error('No database or outbound calls allowed'); });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      expect((await handleResendWebhook(await resendWebhookRequest(body, 'receipt-1'), env)).status).toBe(200);
+      expect((await handleResendWebhook(await resendWebhookRequest(body, 'receipt-1'), env)).status).toBe(200);
+      // Manual provider replays may use another webhook ID for the same email.
+      expect((await handleResendWebhook(await resendWebhookRequest(body, 'receipt-2'), env)).status).toBe(200);
+      expect(await getSubscriptionQuality(env)).toMatchObject({ email: { delivered: 1, lastDeliveredAt: at } });
+      expect(JSON.stringify(cache)).not.toMatch(/reader@example|Private subject|email-delivery-1/i);
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  it('keeps delivery metrics idempotent during concurrent callbacks and retries storage failures', async () => {
+    const cache: Record<string, string | null> = {};
+    const env = emailEnv(cache);
+    const body = JSON.stringify({ type: 'email.delivered', created_at: new Date().toISOString(), data: {
+      email_id: 'email-delivery-2', from: env.RESEND_FROM, to: ['reader@example.test'],
+    } });
+    const put = env.CACHE.put;
+    env.CACHE.put = vi.fn().mockRejectedValueOnce(new Error('KV unavailable')).mockImplementation(put);
+    expect((await handleResendWebhook(await resendWebhookRequest(body, 'receipt-retry'), env)).status).toBe(503);
+    expect(cache['resend:webhook:receipt-retry']).toBeUndefined();
+    expect((await handleResendWebhook(await resendWebhookRequest(body, 'receipt-retry'), env)).status).toBe(200);
+    const requests = await Promise.all(['concurrent-1', 'concurrent-2'].map((id) => resendWebhookRequest(body, id)));
+    const responses = await Promise.all(requests.map((request) => handleResendWebhook(request, env)));
+    expect(responses.every((response) => response.status === 200)).toBe(true);
+    expect(await getSubscriptionQuality(env)).toMatchObject({ email: { delivered: 1 } });
+  });
+
+  it('does not inflate delivered counts for sent, unrelated sender, invalid or unsigned receipts', async () => {
+    const cache: Record<string, string | null> = {};
+    const env = emailEnv(cache);
+    const event = { type: 'email.delivered', created_at: new Date().toISOString(), data: {
+      email_id: 'email-delivery-3', from: env.RESEND_FROM, to: ['reader@example.test'],
+    } };
+    for (const ignored of [{ ...event, type: 'email.sent' }, { ...event, data: { ...event.data, from: 'other@example.test' } }]) {
+      expect((await handleResendWebhook(await resendWebhookRequest(JSON.stringify(ignored), crypto.randomUUID()), env)).status).toBe(200);
+    }
+    for (const invalid of [null, { ...event, created_at: 'invalid' }, { ...event, data: { ...event.data, email_id: null } }, { ...event, data: { ...event.data, to: [] } }]) {
+      expect((await handleResendWebhook(await resendWebhookRequest(JSON.stringify(invalid), crypto.randomUUID()), env)).status).toBe(400);
+    }
+    expect((await handleResendWebhook(new Request('https://api.example.test/api/webhooks/resend', { method: 'POST', body: JSON.stringify(event) }), env)).status).toBe(401);
+    expect(await getSubscriptionQuality(env)).toMatchObject({ email: { delivered: 0, lastDeliveredAt: null } });
+  });
+
   it('keeps the delivery exercise cron-protected and single-recipient', async () => {
     const env = emailEnv();
     const unauthorized = await handleTestEmail(new Request('https://api.example.test/api/test-email', {

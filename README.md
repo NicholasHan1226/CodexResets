@@ -148,8 +148,17 @@ private response also aggregates double-opt-in conversion, bounce/complaint,
 browser Push test/pruning, and signed X webhook-to-pipeline outcomes from
 append-only, non-PII event records; no email address, endpoint, or X payload is
 stored in those metrics.
-Resend `email.bounced` and `email.complained` webhooks are HMAC-verified at
-`POST /api/webhooks/resend` and delete the affected subscription.
+Resend `email.delivered`, `email.bounced` and `email.complained` webhooks are
+HMAC-verified at `POST /api/webhooks/resend` on the primary `codexresets.cc`
+domain. Bounce/complaint callbacks delete the affected subscription. Delivery
+receipts for the configured sender add only a recipient count and timestamp to
+the existing private subscription-quality metrics (`email.delivered` and
+`email.lastDeliveredAt`). A hashed provider email ID deduplicates retries and
+replays; no address, subject or raw callback is retained. A storage failure
+returns a retryable error instead of acknowledging a lost receipt. Counts start
+when the event subscription is enabled; they are not a historical delivery rate.
+Delivered means the recipient's mail server accepted it, not that the user read
+it or that it reached the inbox rather than spam. No tracking pixel is enabled.
 X Activity `post.create` events are received at
 `GET|POST /api/webhooks/x`: GET performs X's recurring CRC proof and signed
 POST deliveries only accelerate a fresh official-timeline pipeline run. They
