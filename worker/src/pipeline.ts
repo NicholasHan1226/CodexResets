@@ -247,7 +247,8 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
     report.errors.push(`forecast snapshot: ${err instanceof Error ? err.message : String(err)}`);
     await env.CACHE.put(FORECAST_RELEASE_STATUS_KEY, '0', { expirationTtl: FORECAST_RELEASE_STATUS_TTL_SECONDS }).catch(() => {});
   }
-  for (const record of records.filter(isAutomaticallyDeliverable)) {
+  // Pass the run timestamp explicitly; Array.filter's second argument is an index.
+  for (const record of records.filter((record) => isAutomaticallyDeliverable(record, recordNow))) {
     const outcome = await notifyAll(env, {
       id: record.id,
       ts: new Date(record.reset_date).getTime(),

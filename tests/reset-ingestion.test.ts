@@ -255,6 +255,59 @@ describe('reset ingestion regressions', () => {
     expect(rows).toHaveLength(1);
   });
 
+  it.each(['observed', 'confirmed'] as const)('delivers a timely %s reset through the full pipeline only once', async (state) => {
+    const { env } = setup({ [timelineKey]: JSON.stringify({ checkedAt: NOW - HOUR, sinceId: '100', tweets: [], contextVersion: 1 }) });
+    env.RESEND_API_KEY = 'test-only';
+    env.UNSUBSCRIBE_SECRET = 'test-only';
+    env.RESEND_FROM = 'alerts@example.test';
+    const recent: ResetRecordRow = {
+      id: 'recent', reset_date: new Date(NOW - HOUR).toISOString(),
+      verified: state === 'confirmed', automated: true, auto_state: state,
+      auto_confirm_after: new Date(NOW - HOUR / 2).toISOString(),
+      created_at: new Date(NOW - HOUR).toISOString(), notified_at: null,
+      source_url: 'https://x.com/thsottiaux/status/100', description: 'We have reset usage limits for all paid Codex users.',
+    };
+    const rows: ResetRecordRow[] = [
+      recent,
+      { ...recent, id: 'history', verified: true, automated: false, auto_state: 'manual' },
+      { ...recent, id: 'expired', verified: true, auto_state: 'confirmed', reset_date: new Date(NOW - 49 * HOUR).toISOString() },
+      { ...recent, id: 'sent', verified: true, auto_state: 'confirmed', notified_at: new Date(NOW - HOUR).toISOString() },
+    ];
+    let sends = 0;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      if (url.hostname === 'api.x.com') return Response.json({ meta: { result_count: 0 } });
+      if (url.pathname.includes('codex-changelog')) return new Response('Codex updates');
+      if (url.hostname === 'status.openai.com') return Response.json({ incidents: [] });
+      if (url.pathname.endsWith('/reset_records')) {
+        if (init?.method === 'PATCH') {
+          const row = rows.find((item) => `eq.${item.id}` === url.searchParams.get('id'));
+          expect(row).toBeDefined();
+          Object.assign(row!, JSON.parse(String(init.body)));
+          return new Response(null, { status: 204 });
+        }
+        return Response.json(rows);
+      }
+      if (url.pathname.endsWith('/subscriptions')) return Response.json([{ email: 'reader@example.test' }]);
+      if (url.pathname.endsWith('/push_subscriptions')) return Response.json([]);
+      if (url.hostname === 'api.resend.com') {
+        const body = JSON.parse(String(init?.body));
+        expect(body.html).toContain(recent.source_url);
+        sends++;
+        return Response.json({ id: 'mock-delivery' });
+      }
+      throw new Error(`Unexpected request: ${url.origin}${url.pathname}`);
+    }));
+    const report = await runPipelineOnce(env, 'test');
+    expect(report.errors).toEqual([]);
+    expect(report.notifiedEmails).toBe(1);
+    expect(recent).toMatchObject({ verified: true, auto_state: 'confirmed', notified_at: new Date(NOW).toISOString() });
+    expect(rows[1].notified_at).toBeNull();
+    expect(rows[2].notified_at).toBeNull();
+    expect(await runPipelineOnce(env, 'test')).toMatchObject({ notifiedEmails: 0, errors: [] });
+    expect(sends).toBe(1);
+  });
+
   it('excludes past scores affected by recovered history without rewriting them as hits', async () => {
     const sample = { at: NOW - 5 * 24 * HOUR, dueAt: NOW - 3 * 24 * HOUR, model: 'weibull', prob24h: 0.9, prob48h: 0.9, resetIn24h: false, resetIn48h: false };
     const { cache, store } = setup({ 'forecast:evaluations': JSON.stringify([sample]) });
