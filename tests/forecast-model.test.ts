@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { probabilityWithin, scoreForecastModels, scoreHighConfidenceDecisions, selectForecastModel } from '../src/lib/forecast-model';
 import { mergeResetEpisodes } from '../src/lib/reset-episodes';
-import { MIN_CALENDAR_RECORDS, RESET_HISTORY, setDynamicResetHistory, shouldShowResetCalendar } from '../src/lib/reset-data';
+import { FORECAST_INPUT_VERSION, getEffectiveHistory, MIN_CALENDAR_RECORDS, RESET_HISTORY, setDynamicResetHistory, shouldShowResetCalendar } from '../src/lib/reset-data';
+import { getTimingWindow } from '../src/lib/forecast-display';
 import { generatePrediction } from '../src/lib/prediction';
 import { getForecastCalibration, recordForecastSnapshot } from '../worker/src/forecast';
 import { ForecastLedger } from '../worker/src/forecast-ledger';
@@ -45,9 +46,9 @@ describe('reset episode forecasting', () => {
     expect(['logistic', 'weibull']).toContain(selectForecastModel(regularHistory()).model);
   });
 
-  it('keeps the reviewed baseline traceable and historical regression diagnostic-only', () => {
-    expect(RESET_HISTORY).not.toHaveLength(0);
-    expect(RESET_HISTORY.every((record) => record.verified === true && Boolean(record.source))).toBe(true);
+  it('never counts the quarantined seed as verified history or calibration evidence', () => {
+    expect(RESET_HISTORY).toHaveLength(0);
+    expect(getEffectiveHistory()).toEqual([]);
     const score = scoreHighConfidenceDecisions(RESET_HISTORY, 0.8);
     expect(score.threshold).toBe(0.8);
     expect(score.samples).toBeGreaterThanOrEqual(0);
@@ -91,7 +92,7 @@ describe('reset episode forecasting', () => {
   it('keeps the displayed 24h and 48h totals consistent with the probability curve', () => {
     const prediction = generatePrediction(regularHistory());
     const probabilityIn = (hours: number) => prediction.curve
-      .slice(0, hours / 3)
+      .filter((point) => point.timestamp <= prediction.generatedAt + hours * 3600000)
       .reduce((sum, point) => sum + point.probability, 0);
 
     // Curve points are rounded to 0.1 percentage points, so permit only the
@@ -107,10 +108,11 @@ describe('reset episode forecasting', () => {
 
     const prediction = generatePrediction(regularHistory());
     expect(prediction.generatedAt).toBe(now);
-    expect(prediction.curve[0].timestamp).toBe(now + 3 * 60 * 60 * 1000);
-    expect(prediction.curve[1].timestamp).toBe(now + 6 * 60 * 60 * 1000);
-    expect(prediction.curve.some((point) => point.timestamp - 3 * 60 * 60 * 1000 === Date.parse(prediction.windowStart))).toBe(true);
-    expect(Date.parse(prediction.windowEnd) - Date.parse(prediction.windowStart)).toBe(6 * 60 * 60 * 1000);
+    expect(prediction.curve[0].startTimestamp).toBe(now);
+    expect(prediction.curve[0].timestamp).toBe(Date.parse('2026-08-23T03:00:00Z'));
+    expect(prediction.curve[1].timestamp).toBe(Date.parse('2026-08-23T06:00:00Z'));
+    expect(prediction.curve.some((point) => point.startTimestamp === Date.parse(prediction.windowStart))).toBe(true);
+    expect(prediction.curve.some((point) => point.timestamp === Date.parse(prediction.windowEnd))).toBe(true);
   });
 
   it('keeps the isolated local model deterministic after a transient Worker history', () => {
@@ -118,8 +120,8 @@ describe('reset episode forecasting', () => {
     const fromWorker = generatePrediction([transientRecord]);
     expect(fromWorker.lastReset).toBe(new Date(transientRecord.timestamp).toISOString());
 
-    const localModel = generatePrediction([]);
-    expect(localModel.lastReset).toBe(new Date(RESET_HISTORY[0].timestamp).toISOString());
+    expect(() => generatePrediction([])).not.toThrow();
+    expect(getEffectiveHistory()).toEqual([]);
   });
 
   it('records a history-only production forecast snapshot', async () => {
@@ -176,7 +178,7 @@ describe('reset episode forecasting', () => {
     expect(JSON.parse(malformed.cache['forecast:latest'] || '{}')).toMatchObject(JSON.parse(clean.cache['forecast:latest'] || '{}'));
   });
 
-  it('starts future-only production scoring with a sparse live database', async () => {
+  it('does not replace missing live records with the quarantined seed for scoring', async () => {
     const cache: Record<string, string> = {};
     const env = {
       CACHE: {
@@ -195,12 +197,10 @@ describe('reset episode forecasting', () => {
     }];
 
     await recordForecastSnapshot(env, rows, now);
-    expect(JSON.parse(cache['forecast:pending'] || '[]')).toHaveLength(1);
+    expect(JSON.parse(cache['forecast:pending'] || '[]')).toHaveLength(0);
 
     await recordForecastSnapshot(env, rows, now + 49 * 60 * 60 * 1000);
-    expect(JSON.parse(cache['forecast:evaluations'] || '[]')).toEqual([
-      expect.objectContaining({ resetIn24h: false, resetIn48h: false }),
-    ]);
+    expect(JSON.parse(cache['forecast:evaluations'] || '[]')).toEqual([]);
   });
 
   it('keeps forecast evidence in one private durable ledger', async () => {
@@ -280,12 +280,12 @@ describe('reset episode forecasting', () => {
       'forecast:evaluations': JSON.stringify([
         {
           at: Date.parse('2026-08-20T00:00:00Z'), dueAt: Date.parse('2026-08-22T00:00:00Z'),
-          model: 'weibull', prob24h: 0.9, prob48h: 0.9, strongDirectSignal: true,
+          inputVersion: FORECAST_INPUT_VERSION, model: 'weibull', prob24h: 0.9, prob48h: 0.9, strongDirectSignal: true,
           resetIn24h: false, resetIn48h: false,
         },
         {
           at: Date.parse('2026-08-21T00:00:00Z'), dueAt: Date.parse('2026-08-23T00:00:00Z'),
-          model: 'weibull', prob24h: 0.1, prob48h: 0.1,
+          inputVersion: FORECAST_INPUT_VERSION, model: 'weibull', prob24h: 0.1, prob48h: 0.1,
           resetIn24h: false, resetIn48h: false,
         },
       ]),
@@ -309,5 +309,35 @@ describe('reset episode forecasting', () => {
     });
     expect(calibration.brier24h).toBeCloseTo(0.01);
     expect(calibration.brier48h).toBeCloseTo(0.01);
+  });
+
+  it('preserves exact daily mass and UTC peak slots across refreshes', () => {
+    vi.useFakeTimers();
+    const history = regularHistory();
+    const peaks = [];
+    for (const time of ['2026-04-30T05:00:00Z', '2026-04-30T05:30:00Z', '2026-04-30T06:00:00Z']) {
+      vi.setSystemTime(new Date(time));
+      const prediction = generatePrediction(history);
+      const selected = selectForecastModel(history);
+      for (const hours of [24, 48]) {
+        const curve = getTimingWindow(prediction.curve, hours, Date.now());
+        expect(curve.reduce((sum, point) => sum + point.probability, 0)).toBeCloseTo(probabilityWithin(history, selected.model, Date.now(), hours), 10);
+        expect(curve[0].startTimestamp).toBe(Date.now());
+        expect(curve.at(-1)?.timestamp).toBe(Date.now() + hours * 3600000);
+      }
+      const window = getTimingWindow(prediction.curve, 24, Date.now());
+      const peak = window.reduce((best, point) => point.probability > best.probability ? point : best);
+      peaks.push([peak.startTimestamp, peak.timestamp]);
+    }
+    expect(peaks[1]).toEqual(peaks[0]);
+    expect(peaks[2]).toEqual(peaks[0]);
+  });
+
+  it('retains legacy scores but excludes them from the corrected-input calibration', async () => {
+    const raw = JSON.stringify([{ at: 1, dueAt: 2, model: 'weibull', prob24h: 0.9, prob48h: 0.9, resetIn24h: true, resetIn48h: true }]);
+    const cache = { get: async () => raw, put: vi.fn() };
+    const calibration = await getForecastCalibration({ CACHE: cache } as unknown as Env);
+    expect(calibration.samples).toBe(0);
+    expect(cache.put).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 import { probabilityWithin, selectForecastModel } from '../../src/lib/forecast-model';
-import { RESET_HISTORY } from '../../src/lib/reset-data';
+import { FORECAST_INPUT_VERSION, RESET_HISTORY } from '../../src/lib/reset-data';
 import { mergeResetEpisodes } from '../../src/lib/reset-episodes';
 import type { ResetRecord } from '../../src/types/reset';
 import type { Env, ResetRecordRow } from './types';
@@ -26,6 +26,7 @@ export interface LegacyForecastState {
 }
 
 interface ForecastSample {
+  inputVersion?: string;
   at: number;
   dueAt: number;
   model: 'logistic' | 'weibull';
@@ -133,10 +134,8 @@ function hasResetBetween(records: ResetRecord[], start: number, end: number): bo
 }
 
 /**
- * The bundled, reviewed history can initialize a model before the live table
- * has four records. It is never used to settle a production forecast: every
- * scored outcome below comes only from confirmed database rows observed after
- * the forecast was made.
+ * Model and outcomes use verified production observations only. The legacy
+ * bundled seed is quarantined; it cannot fill missing observations.
  */
 function recordsForModel(observedRecords: ResetRecord[], now: number): ResetRecord[] {
   const baseline = RESET_HISTORY.filter((record) => record.timestamp <= now);
@@ -193,17 +192,6 @@ export async function recordForecastSnapshotInStore(
 ): Promise<void> {
   const observedRecords = toForecastRecords(rows, now);
   const records = recordsForModel(observedRecords, now);
-  if (records.length < 4) return;
-
-  const selection = selectForecastModel(records);
-  const snapshot: ForecastSample = {
-    at: now,
-    dueAt: now + 48 * 60 * 60 * 1000,
-    model: selection.model,
-    prob24h: probabilityWithin(records, selection.model, now, 24),
-    prob48h: probabilityWithin(records, selection.model, now, 48),
-  };
-
   const flagIncompleteHistory = <T extends ForecastSample>(sample: T): T => ({
     ...sample,
     ...(rows.some((row) => row.verified && row.automated === false
@@ -229,6 +217,20 @@ export async function recordForecastSnapshotInStore(
     await store.put(FORECAST_EVALUATIONS_KEY, JSON.stringify(evaluations), { expirationTtl: FORECAST_TTL_SECONDS });
   }
 
+  // Settle and mark existing evidence even if retraction leaves sparse history.
+  if (records.length < 4) {
+    await store.put(FORECAST_PENDING_KEY, JSON.stringify(remaining), { expirationTtl: FORECAST_TTL_SECONDS });
+    return;
+  }
+  const selection = selectForecastModel(records);
+  const snapshot: ForecastSample = {
+    inputVersion: FORECAST_INPUT_VERSION,
+    at: now,
+    dueAt: now + 48 * 60 * 60 * 1000,
+    model: selection.model,
+    prob24h: probabilityWithin(records, selection.model, now, 24),
+    prob48h: probabilityWithin(records, selection.model, now, 48),
+  };
   const day = new Date(now).toISOString().slice(0, 10);
   if (await store.get(FORECAST_SAMPLE_DAY_KEY) !== day) {
     remaining.push(snapshot);
@@ -300,7 +302,8 @@ export async function getForecastCalibrationFromStore(store: ForecastStore): Pro
  * Otherwise a same-run announcement could inflate a "future" accuracy claim.
  */
 function calibrationEvaluations(evaluations: ForecastEvaluation[]): ForecastEvaluation[] {
-  return evaluations.filter((evaluation) => !evaluation.strongDirectSignal && !evaluation.historyIncomplete);
+  return evaluations.filter((evaluation) => evaluation.inputVersion === FORECAST_INPUT_VERSION
+    && !evaluation.strongDirectSignal && !evaluation.historyIncomplete);
 }
 
 function forecastDecisionAccuracy(evaluations: ForecastEvaluation[]): ForecastDecisionAccuracy {

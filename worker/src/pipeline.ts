@@ -84,6 +84,9 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
   report.scrape = scrape.ok ? 'ok' : 'failed';
   report.scrapeInstance = scrape.instance;
   report.tweetsSeen = scrape.tweets.length;
+  report.contextPending = scrape.contextPending || 0;
+  report.contextUnavailable = scrape.contextUnavailable || 0;
+  if (report.contextUnavailable) report.errors.push(`official reply context unavailable after bounded recovery: ${report.contextUnavailable}`);
   if (!scrape.ok && scrape.error) report.errors.push(`scrape: ${scrape.error}`);
   // Secondary official discovery is deliberately isolated from candidate and
   // alert flows. A changelog page can provide context, never confirmation.

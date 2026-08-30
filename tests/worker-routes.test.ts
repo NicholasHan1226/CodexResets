@@ -741,7 +741,11 @@ describe('pipeline read endpoints', () => {
 
   it('sends one email-only 24-hour forecast notice per reset cycle after the 70% threshold', async () => {
     const now = Date.parse('2026-08-24T00:00:00.000Z');
-    const candidate = getForecastPrealert([], [{
+    const history: ResetRecordRow[] = Array.from({ length: 4 }, (_, index) => ({
+      id: `prealert-history-${index}`, reset_date: new Date(now - (index + 1) * 4 * 86400000).toISOString(),
+      verified: true, auto_state: 'confirmed', source_url: null, description: null,
+    }));
+    const candidate = getForecastPrealert(history, [{
       source: 'tibopost',
       label: 'Tibo Posting',
       status: 'active',

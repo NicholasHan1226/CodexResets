@@ -35,6 +35,8 @@ export interface ResetSignal {
 }
 
 export interface ProbabilityPoint {
+  /** Explicit bucket start; legacy points default to three hours before end. */
+  startTimestamp?: number;
   /** Exact end of this forward-looking probability bucket in epoch milliseconds. */
   timestamp: number;
   /** ISO date string */

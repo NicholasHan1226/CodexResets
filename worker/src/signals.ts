@@ -129,10 +129,17 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
     && (!confirmedTweet || t.ts > confirmedTweet.ts));
   const hoursSinceScheduledReset = ageInHours(scheduledResetTweet);
   const scheduledAt = scheduledResetTweet ? parseScheduledResetAt(scheduledResetTweet.text, scheduledResetTweet.ts) : undefined;
+  const targetElapsed = typeof scheduledAt === 'number' && scheduledAt <= now;
+  const elapsedWithinGrace = !targetElapsed
+    || now - scheduledAt <= SCHEDULED_RESET_ELAPSED_GRACE_HOURS * HOUR;
+  const scheduleIsFresh = typeof scheduledAt === 'number'
+    ? elapsedWithinGrace
+    : hoursSinceScheduledReset !== null && hoursSinceScheduledReset < UNTIMED_SCHEDULED_SIGNAL_TTL_HOURS;
 
   if (
     hoursSinceResetMention !== null &&
     hoursSinceResetMention < 24 &&
+    !(hoursSinceScheduledReset !== null && scheduleIsFresh) &&
     latestResetTweet &&
     isResetTweet(latestResetTweet)
   ) {
@@ -146,12 +153,6 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
       sourceUrl: latestResetTweet.link,
     };
   }
-  const targetElapsed = typeof scheduledAt === 'number' && scheduledAt <= now;
-  const elapsedWithinGrace = !targetElapsed
-    || now - scheduledAt <= SCHEDULED_RESET_ELAPSED_GRACE_HOURS * HOUR;
-  const scheduleIsFresh = typeof scheduledAt === 'number'
-    ? elapsedWithinGrace
-    : hoursSinceScheduledReset !== null && hoursSinceScheduledReset < UNTIMED_SCHEDULED_SIGNAL_TTL_HOURS;
   if (hoursSinceScheduledReset !== null
     && scheduleIsFresh) {
     return {

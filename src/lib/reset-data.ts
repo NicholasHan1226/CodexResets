@@ -1,25 +1,17 @@
 /**
- * Reviewed Codex reset history from public announcements by @thsottiaux.
+ * Canonical reset history from verified production observations.
  */
 
 import type { ResetRecord } from '../types/reset';
 import { intervalDays, median, mergeResetEpisodes } from './reset-episodes';
 
 /**
- * Reviewed public baseline. Every row includes a direct announcement URL.
- * It initializes the model only while the production database is sparse;
- * production-confirmed records are merged on top.
+ * The old bundled seed mixed future plans with completion records and used
+ * unsupported event times. Keep it out of all model and display inputs.
+ * Source URLs remain in docs/history-baseline-audit.md for later verification.
  */
-export const RESET_HISTORY: ResetRecord[] = [
-  { id: "1", date: "2026-08-15", timestamp: new Date("2026-08-15T18:00:00Z").getTime(), reason: "Usage included in subscription is fantastic", source: "https://x.com/thsottiaux/status/2088763063495450791", verified: true },
-  { id: "2", date: "2026-08-13", timestamp: new Date("2026-08-13T17:01:00Z").getTime(), reason: "Crossed 15M users, enjoy a nice reset", source: "https://x.com/thsottiaux/status/2087706104814023111", verified: true },
-  { id: "3", date: "2026-08-12", timestamp: new Date("2026-08-12T16:00:00Z").getTime(), reason: "Little surprise tomorrow - 15M users milestone", source: "https://x.com/thsottiaux/status/2087423996115681767", verified: true },
-  { id: "4", date: "2026-08-11", timestamp: new Date("2026-08-11T17:00:00Z").getTime(), reason: "Usage limits reset for all paid users", source: "https://x.com/thsottiaux/status/2086972933566857393", verified: true },
-  { id: "5", date: "2026-08-11", timestamp: new Date("2026-08-11T09:01:00Z").getTime(), reason: "Reset completed as promised", source: "https://x.com/thsottiaux/status/2086972802457063486", verified: true },
-  { id: "6", date: "2026-08-08", timestamp: new Date("2026-08-08T18:00:00Z").getTime(), reason: "Performative reset on Monday", source: "https://x.com/thsottiaux/status/2086189414292865249", verified: true },
-  { id: "7", date: "2026-08-08", timestamp: new Date("2026-08-08T17:00:00Z").getTime(), reason: "GPT-5.6 Sol celebration reset", source: "https://x.com/thsottiaux/status/2086188036493344823", verified: true },
-  { id: "8", date: "2026-08-01", timestamp: new Date("2026-08-01T18:00:00Z").getTime(), reason: "Week of efficiency celebration", source: "https://x.com/thsottiaux/status/2083395449814229287", verified: true },
-];
+export const RESET_HISTORY: ResetRecord[] = [];
+export const FORECAST_INPUT_VERSION = 'verified-production-v1';
 
 // Allow extending the reviewed baseline with fresher Worker-confirmed records.
 // Panels and forecasting use the canonical episode series so multiple posts

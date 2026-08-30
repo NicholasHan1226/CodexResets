@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ProbabilityPoint } from "@/types/reset";
 import { useI18n } from "@/contexts/I18nContext";
-import { alignTimingCurveWithOfficialSchedule } from "@/lib/forecast-display";
+import { alignTimingCurveWithOfficialSchedule, formatTimingRange, getTimingWindow, timingBucketStart } from "@/lib/forecast-display";
 
 interface ProbabilityCurveProps {
   curve: ProbabilityPoint[];
@@ -26,7 +26,7 @@ const C = {
 };
 
 // Plot padding — NOW pill lives in the top band, tick labels in the bottom band
-const PAD = { top: 30, right: 10, bottom: 24, left: 38 };
+const PAD = { top: 30, right: 10, bottom: 36, left: 38 };
 
 interface Pt {
   x: number;
@@ -61,9 +61,9 @@ function smoothLine(pts: Pt[]): string {
     const p2 = pts[i + 1];
     const p3 = pts[Math.min(pts.length - 1, i + 2)];
     const c1x = p1.x + (p2.x - p0.x) / 6;
-    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c1y = clamp(p1.y + (p2.y - p0.y) / 6, Math.min(p1.y, p2.y), Math.max(p1.y, p2.y));
     const c2x = p2.x - (p3.x - p1.x) / 6;
-    const c2y = p2.y - (p3.y - p1.y) / 6;
+    const c2y = clamp(p2.y - (p3.y - p1.y) / 6, Math.min(p1.y, p2.y), Math.max(p1.y, p2.y));
     d += ` C ${c1x} ${c1y} ${c2x} ${c2y} ${p2.x} ${p2.y}`;
   }
   return d;
@@ -72,7 +72,7 @@ function smoothLine(pts: Pt[]): string {
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
 export function ProbabilityCurve({ curve, hours, planningProbability, officialScheduleAt }: ProbabilityCurveProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [containerRef, { width, height }] = useElementSize<HTMLDivElement>();
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
@@ -87,12 +87,13 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
   const nowLocalLabel = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const tzLabel = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+  const windowData = getTimingWindow(curve, hours ?? 168, nowTimestamp);
   const officialBucketIndex = typeof officialScheduleAt === 'number' && Number.isFinite(officialScheduleAt)
     && typeof hours === 'number' && officialScheduleAt > nowTimestamp && officialScheduleAt <= nowTimestamp + hours * HOUR
-    ? curve.findIndex((point) => officialScheduleAt > point.timestamp - 3 * HOUR && officialScheduleAt <= point.timestamp)
+    ? windowData.findIndex((point) => officialScheduleAt > timingBucketStart(point) && officialScheduleAt <= point.timestamp)
     : -1;
   const allData = alignTimingCurveWithOfficialSchedule(
-    curve,
+    windowData,
     planningProbability,
     officialScheduleAt,
     hours,
@@ -108,33 +109,23 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
     probability: 0,
     timestamp: nowTimestamp,
   };
-  const chartPoints = [nowAnchor, ...allData];
-
-  // Filter to the selected forward-looking window while retaining the exact
-  // now anchor. This avoids losing the current-time marker between 3h samples.
-  const chartData = hours
-    ? chartPoints.filter(
-        (p) => p.timestamp >= nowTimestamp - 4 * HOUR && p.timestamp <= nowTimestamp + hours * HOUR
-      )
-    : chartPoints;
+  const chartData = [nowAnchor, ...allData];
 
   if (chartData.length === 0) return null;
 
   const forecastData = chartData.slice(1);
-  const peak = forecastData.reduce(
+  const peak = officialBucketIndex >= 0 ? forecastData[officialBucketIndex] : forecastData.reduce(
     (max, point) => (point.probability > max.probability ? point : max),
     forecastData[0] ?? chartData[0]
   );
-  const peakStart = new Date(peak.timestamp - 3 * HOUR);
-  const peakEnd = new Date(peak.timestamp);
-  const formatTime = (date: Date) => `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-  const peakTime = `${formatTime(peakStart)}–${formatTime(peakEnd)}`;
+  const peakTime = formatTimingRange(timingBucketStart(peak), peak.timestamp);
   const hasOfficialTiming = officialBucketIndex >= 0;
-  const officialTime = hasOfficialTiming && typeof officialScheduleAt === 'number' ? formatTime(new Date(officialScheduleAt)) : null;
+  const officialTime = hasOfficialTiming && typeof officialScheduleAt === 'number'
+    ? new Date(officialScheduleAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-GB', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : null;
 
   const minTs = chartData[0].timestamp;
   const maxTs = chartData[chartData.length - 1].timestamp;
-  const range = maxTs - minTs;
+  const range = Math.max(1, maxTs - minTs);
   const isNowInRange = nowTimestamp >= minTs && nowTimestamp <= maxTs;
 
   // Interpolated probability at the exact current moment — the dot sits on the curve
@@ -154,18 +145,18 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
   const x = (ts: number) => PAD.left + ((ts - minTs) / range) * plotW;
 
   // Nice ceiling: round the data max up to a clean 5% step with headroom
-  const rawMax = Math.max(peak.probability, probAtNow, 0.05);
+  const rawMax = Math.max(...chartData.map((point) => point.probability), probAtNow, 0.05);
   const yMax = Math.max(0.1, Math.ceil(((rawMax * 1.15) / 0.05)) * 0.05);
   const y = (p: number) => PAD.top + (1 - p / yMax) * plotH;
 
   const pts: Pt[] = chartData.map((p) => ({ x: x(p.timestamp), y: y(p.probability) }));
   const linePath = smoothLine(pts);
   const areaPath = `${linePath} L ${pts[pts.length - 1].x} ${PAD.top + plotH} L ${pts[0].x} ${PAD.top + plotH} Z`;
-  const peakStartX = x(Math.max(minTs, peak.timestamp - 3 * HOUR));
+  const peakStartX = x(Math.max(minTs, timingBucketStart(peak)));
   const peakEndX = x(peak.timestamp);
 
   // --- Ticks ---------------------------------------------------------------
-  const step = range <= 26 * HOUR ? 6 * HOUR : range <= 50 * HOUR ? 12 * HOUR : 24 * HOUR;
+  const step = range <= 26 * HOUR ? 6 * HOUR : range <= 50 * HOUR ? (width < 500 ? 24 : 12) * HOUR : 24 * HOUR;
   const xTicks: number[] = [];
   for (let ts = Math.ceil(minTs / step) * step; ts <= maxTs; ts += step) xTicks.push(ts);
 
@@ -175,9 +166,7 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
 
   const formatXTick = (ts: number) => {
     const d = new Date(ts);
-    return hours
-      ? `${String(d.getHours()).padStart(2, "0")}:00`
-      : `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   };
 
   // --- NOW geometry ----------------------------------------------------------
@@ -244,7 +233,7 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
             </span>
           )}
         </h2>
-        <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">
+        <span className="font-mono text-xs text-muted-foreground">
           {officialTime ? t("curve.scheduleTarget", { time: officialTime }) : t("curve.likeliestTime", { time: peakTime })}
           <span className="text-muted-foreground/50"> · {tzLabel}</span>
         </span>
@@ -297,13 +286,16 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
                 <text
                   key={ts}
                   x={clamp(x(ts), PAD.left + 14, width - PAD.right - 14)}
-                  y={height - 7}
+                  y={height - 20}
                   textAnchor="middle"
                   fontSize={10}
                   fontFamily={MONO}
                   fill={C.dim}
                 >
-                  {formatXTick(ts)}
+                  <tspan x={clamp(x(ts), PAD.left + 14, width - PAD.right - 14)}>{formatXTick(ts)}</tspan>
+                  <tspan x={clamp(x(ts), PAD.left + 14, width - PAD.right - 14)} dy={13} opacity={0.7}>
+                    {new Date(ts).getMonth() + 1}/{new Date(ts).getDate()}
+                  </tspan>
                 </text>
               ))}
 
@@ -403,21 +395,21 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
             <div
               className="pointer-events-none absolute z-10 rounded-md border border-border bg-card px-3 py-2 shadow-lg"
               style={{
-                left: clamp(pts[hoverIdx ?? 0].x, 64, width - 64),
+                width: Math.min(216, width - 16),
+                left: clamp(pts[hoverIdx ?? 0].x, Math.min(108, width / 2), Math.max(width / 2, width - 108)),
                 top: Math.max(0, pts[hoverIdx ?? 0].y - 14),
                 transform: "translate(-50%, -100%)",
               }}
             >
               <p className="text-xs text-muted-foreground">
-                {hoverLocal.getFullYear()}-{String(hoverLocal.getMonth() + 1).padStart(2, "0")}-
-                {String(hoverLocal.getDate()).padStart(2, "0")} {formatTime(new Date(hoverPoint.timestamp - 3 * HOUR))}–{formatTime(hoverLocal)}
+                {formatTimingRange(timingBucketStart(hoverPoint), hoverPoint.timestamp)}
               </p>
               {hoveredIsPeak && <p className="font-mono text-sm font-semibold text-primary">{t("curve.highestLikelihood")}</p>}
             </div>
           )}
           <p id="curve-explorer-status" className="sr-only" aria-live="polite">
             {hoverPoint && hoverLocal && hoverIdx !== null && hoverIdx > 0
-              ? `${hoverLocal.getFullYear()}-${String(hoverLocal.getMonth() + 1).padStart(2, "0")}-${String(hoverLocal.getDate()).padStart(2, "0")} ${formatTime(new Date(hoverPoint.timestamp - 3 * HOUR))}–${formatTime(hoverLocal)}${hoveredIsPeak ? `, ${t("curve.highestLikelihood")}` : ''}`
+              ? `${formatTimingRange(timingBucketStart(hoverPoint), hoverPoint.timestamp)}${hoveredIsPeak ? `, ${t("curve.highestLikelihood")}` : ''}`
               : hoverIdx === 0 ? `${t("curve.now")} · ${t("curve.fromNow")}` : ''}
           </p>
         </div>

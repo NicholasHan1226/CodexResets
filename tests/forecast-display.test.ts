@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alignTimingCurveWithOfficialSchedule, formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPlanningProbability, getPrimaryForecast, OFFICIAL_SCHEDULE_GRACE_MS } from '@/lib/forecast-display';
+import { alignTimingCurveWithOfficialSchedule, formatOfficialScheduleCountdown, formatOfficialScheduleTarget, formatTimingRange, getTimingWindow, getPlanningProbability, getPrimaryForecast, OFFICIAL_SCHEDULE_GRACE_MS } from '@/lib/forecast-display';
 import type { ProbabilityPoint, ResetSignal } from '@/types/reset';
 
 const now = Date.parse('2026-08-24T00:00:00.000Z');
@@ -10,6 +10,25 @@ const scheduledSignal: ResetSignal = {
 };
 
 describe('primary forecast display', () => {
+  it('clips elapsed and final buckets without reviving the past or losing partial mass', () => {
+    const hour = 3600000;
+    const curve: ProbabilityPoint[] = Array.from({ length: 18 }, (_, index) => ({
+      startTimestamp: now + (index * 3 - 3) * hour, timestamp: now + index * 3 * hour,
+      date: '', hour: 0, probability: 0.03,
+    }));
+    const displayed = getTimingWindow(curve, 24, now + hour);
+    expect(displayed[0].startTimestamp).toBe(now + hour);
+    expect(displayed.at(-1)?.timestamp).toBe(now + 25 * hour);
+    expect(displayed.reduce((sum, point) => sum + point.probability, 0)).toBeCloseTo(0.24, 12);
+    expect(displayed.every((point) => point.timestamp > point.startTimestamp!)).toBe(true);
+  });
+
+  it('shows both dates for a cross-midnight timing range', () => {
+    const start = new Date(2026, 7, 30, 23, 0).getTime();
+    const end = new Date(2026, 7, 31, 2, 0).getTime();
+    expect(formatTimingRange(start, end)).toBe('08/30 23:00–08/31 02:00');
+    expect(formatTimingRange(end, end + 3 * 3600000)).toBe('08/31 02:00–05:00');
+  });
   it('does not present a history-only probability when an official target is after 24h', () => {
     expect(getPrimaryForecast([scheduledSignal], 24, now)).toEqual({
       kind: 'official-schedule', scheduledAt: scheduledSignal.scheduledAt, window: 'after',

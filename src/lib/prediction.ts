@@ -12,18 +12,27 @@ function generateCurve(
   model: ReturnType<typeof selectForecastModel>['model'],
 ): ProbabilityPoint[] {
   const rawPoints: ProbabilityPoint[] = [];
+  const start = now.getTime();
+  const end = start + 7 * 24 * HOUR_MS;
+  const boundaries = new Set<number>([end]);
+  // Wall-clock UTC buckets do not drift with each refresh. Split at the exact
+  // rolling daily cutoffs too, so the 24h/48h masses remain unchanged.
+  for (let at = (Math.floor(start / (3 * HOUR_MS)) + 1) * 3 * HOUR_MS; at < end; at += 3 * HOUR_MS) boundaries.add(at);
+  for (let day = 1; day < 7; day++) boundaries.add(start + day * 24 * HOUR_MS);
   let priorCumulative = 0;
-
-  for (let horizonHours = 3; horizonHours <= 7 * 24; horizonHours += 3) {
-    const cumulative = probabilityWithin(history, model, now.getTime(), horizonHours);
-    const pointAt = new Date(now.getTime() + horizonHours * HOUR_MS);
+  let priorAt = start;
+  for (const at of [...boundaries].sort((a, b) => a - b)) {
+    const cumulative = probabilityWithin(history, model, start, (at - start) / HOUR_MS);
+    const pointAt = new Date(at);
     rawPoints.push({
+      startTimestamp: priorAt,
       timestamp: pointAt.getTime(),
       date: pointAt.toISOString().slice(0, 10),
       hour: pointAt.getUTCHours(),
-      probability: Math.round(Math.max(0, cumulative - priorCumulative) * 1000) / 1000,
+      probability: Math.max(0, cumulative - priorCumulative),
     });
     priorCumulative = Math.max(priorCumulative, cumulative);
+    priorAt = at;
   }
 
   // Keep each day's probability mass intact while using canonical historical
@@ -32,14 +41,15 @@ function generateCurve(
   for (const record of history) hourlyCounts[Math.floor(new Date(record.timestamp).getUTCHours() / 3)] += 1;
   const averageCount = hourlyCounts.reduce((sum, count) => sum + count, 0) / hourlyCounts.length;
 
-  return rawPoints.map((point, index) => {
-    const dayStart = Math.floor(index / 8) * 8;
-    const dayPoints = rawPoints.slice(dayStart, dayStart + 8);
+  const dayOf = (point: ProbabilityPoint) => Math.floor((point.startTimestamp! - start) / (24 * HOUR_MS));
+  const weightOf = (point: ProbabilityPoint) => hourlyCounts[Math.floor(new Date(point.startTimestamp!).getUTCHours() / 3)] / averageCount;
+  return rawPoints.map((point) => {
+    const dayPoints = rawPoints.filter((item) => dayOf(item) === dayOf(point));
     const baseTotal = dayPoints.reduce((sum, item) => sum + item.probability, 0);
-    const weightedTotal = dayPoints.reduce((sum, item) => sum + item.probability * (hourlyCounts[Math.floor(item.hour / 3)] / averageCount), 0);
-    const weight = hourlyCounts[Math.floor(point.hour / 3)] / averageCount;
+    const weightedTotal = dayPoints.reduce((sum, item) => sum + item.probability * weightOf(item), 0);
+    const weight = weightOf(point);
     const probability = weightedTotal > 0 ? point.probability * weight * (baseTotal / weightedTotal) : point.probability;
-    return { ...point, probability: Math.round(probability * 1000) / 1000 };
+    return { ...point, probability };
   });
 }
 
@@ -53,13 +63,13 @@ function findResetWindow(curve: ProbabilityPoint[]): { start: string; end: strin
       bestStart = index;
     }
   }
-  const start = curve[bestStart] || { timestamp: Date.now() + 3 * HOUR_MS };
+  const start: ProbabilityPoint = curve[bestStart] || { timestamp: Date.now() + 3 * HOUR_MS, date: '', hour: 0, probability: 0 };
   // Each point holds probability mass for the three hours ending at its
   // timestamp. A two-point peak therefore begins at the start of the first
   // bucket, not its end; otherwise the advertised six-hour window is shifted
   // three hours later than the curve the visitor is reading.
-  const startDate = new Date(start.timestamp - 3 * HOUR_MS);
-  const endDate = new Date(startDate.getTime() + 6 * HOUR_MS);
+  const startDate = new Date(start.startTimestamp ?? start.timestamp - 3 * HOUR_MS);
+  const endDate = new Date(curve[bestStart + 1]?.timestamp ?? start.timestamp);
   return {
     start: startDate.toISOString(),
     end: endDate.toISOString(),
@@ -78,7 +88,7 @@ function generateAdvice(probability: number, daysSince: number, medianDays: numb
 function generateOfflineSignals(now: Date): ResetSignal[] {
   const stats = computeIntervalStats();
   const lastReset = getEffectiveHistory()[0];
-  const daysSinceLast = (now.getTime() - lastReset.timestamp) / (24 * HOUR_MS);
+  const daysSinceLast = lastReset ? Math.max(0, (now.getTime() - lastReset.timestamp) / (24 * HOUR_MS)) : 0;
   const cooldownRatio = stats.medianDays > 0 ? daysSinceLast / stats.medianDays : 0;
   const cooldownValue = Math.min(1, cooldownRatio);
   const cooldownStatus: ResetSignal['status'] = cooldownRatio >= 1.2 ? 'active' : cooldownRatio >= 0.7 ? 'weak' : 'idle';
@@ -129,10 +139,10 @@ export function generatePrediction(records?: ResetRecord[], liveSignals?: ResetS
     daysSinceLastReset: Math.round(daysSince * 10) / 10,
     medianIntervalDays: Math.round(stats.medianDays * 10) / 10,
     advice: {
-      24: generateAdvice(prob24h, daysSince, stats.medianDays),
-      48: generateAdvice(prob48h, daysSince, stats.medianDays),
+      24: generateAdvice(Math.round(prob24h * 100) / 100, daysSince, stats.medianDays),
+      48: generateAdvice(Math.round(prob48h * 100) / 100, daysSince, stats.medianDays),
     },
-    modelVersion: `v4-episode-${selection.model}`,
+    modelVersion: `v5-production-${selection.model}`,
     generatedAt: now.getTime(),
   };
 }

@@ -5,6 +5,36 @@ import type { ProbabilityPoint, ResetSignal } from '../types/reset';
 const HOUR_MS = 60 * 60 * 1000;
 export const OFFICIAL_SCHEDULE_GRACE_MS = 6 * HOUR_MS;
 
+export const timingBucketStart = (point: ProbabilityPoint): number => point.startTimestamp ?? point.timestamp - 3 * HOUR_MS;
+
+/** Clip elapsed/partial buckets and join daily-cutoff splits within one UTC slot. */
+export function getTimingWindow(curve: ProbabilityPoint[], hours: number, now = Date.now()): ProbabilityPoint[] {
+  const result: ProbabilityPoint[] = [];
+  for (const point of curve) {
+    const start = timingBucketStart(point);
+    const clippedStart = Math.max(now, start);
+    const end = Math.min(now + hours * HOUR_MS, point.timestamp);
+    if (end <= clippedStart || point.timestamp <= start) continue;
+    const probability = point.probability * (end - clippedStart) / (point.timestamp - start);
+    const previous = result.at(-1);
+    if (previous && previous.timestamp === clippedStart
+      && Math.floor(timingBucketStart(previous) / (3 * HOUR_MS)) === Math.floor(clippedStart / (3 * HOUR_MS))) {
+      previous.timestamp = end;
+      previous.probability += probability;
+    } else result.push({ ...point, startTimestamp: clippedStart, timestamp: end, probability });
+  }
+  return result;
+}
+
+/** Dates disambiguate the same clock time on successive forecast days. */
+export function formatTimingRange(start: number, end: number): string {
+  const a = new Date(start);
+  const b = new Date(end);
+  const day = (date: Date) => `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
+  const time = (date: Date) => `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  return `${day(a)} ${time(a)}–${a.toDateString() === b.toDateString() ? '' : `${day(b)} `}${time(b)}`;
+}
+
 export type PrimaryForecast =
   | { kind: 'model' }
   | { kind: 'official-schedule'; scheduledAt: number | null; window: 'within' | 'after' | 'pending' | 'grace' | 'elapsed' };
@@ -85,11 +115,10 @@ export function alignTimingCurveWithOfficialSchedule(
     || typeof scheduledAt !== 'number' || !Number.isFinite(scheduledAt)
     || hours === undefined || scheduledAt <= now || scheduledAt > now + hours * HOUR_MS) return curve;
 
-  const bucketIndex = curve.findIndex((point) => scheduledAt > point.timestamp - 3 * HOUR_MS && scheduledAt <= point.timestamp);
+  const bucketIndex = curve.findIndex((point) => scheduledAt > timingBucketStart(point) && scheduledAt <= point.timestamp);
   if (bucketIndex < 0) return curve;
 
-  const modelProbability = curve
-    .filter((point) => point.timestamp <= now + hours * HOUR_MS)
+  const modelProbability = getTimingWindow(curve, hours, now)
     .reduce((sum, point) => sum + point.probability, 0);
   const lift = Math.max(0, planningProbability - modelProbability);
   if (lift === 0) return curve;

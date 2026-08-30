@@ -84,7 +84,19 @@ Common announcement spellings and completed-action phrasing are supported;
 questions, denials, recurring personal reset rules and future plans are not
 confirmations. An affirmative reply needs an explicit global-reset parent
 report; unrelated community wording cannot confirm an event. Community parent
-text and identities are not archived.
+text and identities are not archived. Personal/support cases, selected-user
+resets and test/staging environments are excluded from global confirmation.
+A newer, still-active official future schedule takes priority over an older
+completed reset when producing the planning signal. Explicit today/tomorrow,
+ISO-date and weekday targets support PST/PDT/PT, EST/EDT/ET and UTC/GMT;
+ambiguous or nonexistent daylight-saving times remain untimed.
+
+Missing reply/quote parents are retried independently of the timeline watermark.
+Each run can make at most one extra lookup of 20 official replies (plus provider
+expansions), with three attempts per unresolved reply. Exhaustion is reported
+in existing operational health, not silently treated as confirmation. Cached
+legacy replies receive one bounded history-only recovery; they cannot create
+backdated subscriber alerts. Ordinary runs without pending context add no lookup.
 
 The first seven-day catch-up and notices older than 48 hours are history-only.
 Unambiguous direct official evidence without a matching retraction repairs the
@@ -154,8 +166,10 @@ samples are available. Direct-source reset announcements are used only for the
 Worker's automatic stabilization, correction, and notification rules; they do
 not alter the future-facing probability.
 The browser forecast and the Worker's cooldown signal both use this same
-canonical episode series, including the reviewed baseline while the live table
-is sparse. The annual reset calendar stays hidden until at least 12 reviewed
+canonical episode series from verified production records only. The old bundled
+seed was quarantined after its completion status and exact times failed audit;
+see [the baseline audit](docs/history-baseline-audit.md). An empty live history
+shows unavailable rather than substituting that seed. The annual reset calendar stays hidden until at least 12 reviewed
 episodes exist, so early visitors see the denser reset timeline instead of a
 mostly empty year grid.
 The Worker also retains one non-PII forecast snapshot per UTC day and resolves
@@ -180,7 +194,11 @@ contained one are excluded from calibration and formal release scoring.
 When history is recovered after a prediction, affected pending/evaluated
 samples are retained with `historyIncomplete=true` and excluded from calibration
 and release scoring; past scores are not rewritten into successful predictions.
-New forward snapshots can use the corrected history. Backfills create no
+New forward snapshots can use the corrected history. Only snapshots tagged
+`inputVersion=verified-production-v1` qualify for the corrected-input calibration;
+legacy snapshots remain stored and are not upgraded or replayed. New samples
+require four verified episodes; existing samples can still settle with sparse
+history. Backfills create no
 synthetic forecasts or historical decision samples.
 The dashboard presents exactly one percentage as its primary answer: the
 selected 24- or 48-hour probability. The timing chart is deliberately
@@ -189,7 +207,12 @@ relative likelihood inside that selected window, so visitors can see when to
 watch without mistaking a chart bucket for the overall forecast. A direct
 official target inside that window takes over the highlighted timing block;
 this is a display-only alignment with the combined planning answer and never
-changes the stored historical curve or calibration.
+changes the stored historical curve or calibration. Timing slots use fixed
+three-hour UTC boundaries (displayed in the visitor's timezone), weighted by
+the bucket's start rather than end. Partial first/last slots are clipped to the
+selected horizon. Internal splits preserve the exact rolling 24/48-hour totals;
+the chart rejoins splits within a single UTC slot. Dates distinguish repeated
+clock times and cross-midnight windows. Refreshing cannot shift slot boundaries.
 When a direct official post schedules a future reset, the dashboard keeps the
 visitor-facing history-calibrated probability number and curve visible, and
 shows the official timing alongside them as a separate strong signal. When the

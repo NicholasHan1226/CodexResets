@@ -9,6 +9,8 @@ const OFFICIAL_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 const OFFICIAL_PAGE_SIZE = 50;
 const MAX_OFFICIAL_PAGES = 8;
 const MAX_CACHED_POSTS = 1000;
+const MAX_CONTEXT_REPLIES = 20;
+const MAX_CONTEXT_ATTEMPTS = 3;
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 
@@ -25,6 +27,8 @@ const NITTER_INSTANCES = [
 interface XApiResult {
   tweets: Tweet[];
   error?: string;
+  contextPending?: number;
+  contextUnavailable?: number;
 }
 
 interface XPost {
@@ -49,6 +53,49 @@ interface TimelineCache {
   sinceId?: string;
   checkedAt: number;
   tweets: Tweet[];
+  contextVersion?: 1;
+  pendingReplies?: { id: string; attempts: number; historyOnly: boolean }[];
+}
+
+const X_FIELDS = 'author_id,created_at,note_tweet,referenced_tweets';
+async function fetchOfficialPage(url: URL, headers: Record<string, string>): Promise<Response> {
+  url.searchParams.set('tweet.fields', X_FIELDS);
+  url.searchParams.set('expansions', 'referenced_tweets.id');
+  let response = await fetch(url.toString(), { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+  if (response.status === 400) {
+    await response.body?.cancel();
+    url.searchParams.delete('tweet.fields');
+    url.searchParams.set('post.fields', 'author_id,created_at,note_post,referenced_posts');
+    url.searchParams.set('expansions', 'referenced_posts.id');
+    response = await fetch(url.toString(), { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+  }
+  return response;
+}
+
+function needsReplyContext(text: string): boolean {
+  return isAffirmativeResetReply(text) || /\b(?:button\b.*\bpressed|reset\s+(?:has\s+)?landed)\b/i.test(text);
+}
+
+function contextualizePost(post: XPost, parents: XPost[], userId: string, account: string, historyOnly: boolean): { tweet: Tweet; missingContext: boolean } {
+  const text = post.note_tweet?.text || post.note_post?.text || post.text || '';
+  const ts = Date.parse(post.created_at || '');
+  const refs = post.referenced_tweets || post.referenced_posts || [];
+  const parentId = refs.find((ref) => ref.type === 'replied_to' || ref.type === 'quoted')?.id;
+  const parent = parents.find((item) => item.id === parentId);
+  const parentText = parent?.note_tweet?.text || parent?.note_post?.text || parent?.text;
+  const parentTs = Date.parse(parent?.created_at || '');
+  const parentComplete = Boolean(parentText && parent?.author_id && Number.isFinite(parentTs));
+  const parentIsTimely = parentComplete && parentTs <= ts && ts - parentTs <= 48 * 3600_000;
+  return {
+    tweet: {
+      text, ts, link: `https://x.com/${account}/status/${post.id}`, historyOnly,
+      ...(parentIsTimely && parent?.author_id === userId ? { officialParentText: parentText } : {}),
+      // Community text and identities never enter the private evidence cache.
+      ...(parentIsTimely && parentText && isGlobalResetReport(parentText)
+        && isAffirmativeResetReply(text) ? { replyConfirmsGlobalReset: true } : {}),
+    },
+    missingContext: Boolean(parentId && !parentComplete && needsReplyContext(text) && !isResetAnnouncement(text)),
+  };
 }
 
 /**
@@ -65,7 +112,8 @@ export async function scrapeTweets(env: Env): Promise<ScrapeResult> {
 
   const official = await scrapeOfficialXTimeline(env);
   if (!official.error && env.X_BEARER_TOKEN) {
-    return { ok: true, instance: 'x-api', sourceKind: 'direct', tweets: official.tweets, attempted };
+    return { ok: true, instance: 'x-api', sourceKind: 'direct', tweets: official.tweets, attempted,
+      contextPending: official.contextPending, contextUnavailable: official.contextUnavailable };
   }
   if (official.error) attempted.push(official.error);
 
@@ -171,27 +219,26 @@ async function scrapeOfficialXTimeline(env: Env): Promise<XApiResult> {
         && now - parsed.checkedAt < OFFICIAL_LOOKBACK_MS && parsed.checkedAt <= now) cached = parsed;
     }
     const collected: Tweet[] = [];
+    const pending = new Map((cached?.pendingReplies || []).map((reply) => [reply.id, reply]));
+    let contextUnavailable = 0;
+    // One-time upgrade of the old cache: recover only context-dependent
+    // official replies, history-only, without rereading the entire timeline.
+    if (cached && cached.contextVersion !== 1) {
+      for (const tweet of cached.tweets.filter((item) => needsReplyContext(item.text) && !isResetTweet(item))) {
+        const id = tweet.link.match(/\/status\/(\d+)$/)?.[1];
+        if (id) pending.set(id, { id, attempts: 0, historyOnly: true });
+      }
+    }
     let nextToken: string | undefined;
     let newestId = cached?.sinceId;
     for (let page = 0; page < MAX_OFFICIAL_PAGES; page++) {
       const url: URL = new URL(`https://api.x.com/2/users/${encodeURIComponent(userId)}/tweets`);
       url.searchParams.set('max_results', String(OFFICIAL_PAGE_SIZE));
       url.searchParams.set('exclude', 'retweets');
-      // X's v2 API retains tweet field names on deployed accounts; accept the
-      // renamed post fields too when that API version is in use.
-      url.searchParams.set('tweet.fields', 'author_id,created_at,note_tweet,referenced_tweets');
-      url.searchParams.set('expansions', 'referenced_tweets.id');
       if (cached?.sinceId) url.searchParams.set('since_id', cached.sinceId);
       else url.searchParams.set('start_time', new Date(now - OFFICIAL_LOOKBACK_MS).toISOString());
       if (nextToken) url.searchParams.set('pagination_token', nextToken);
-      let timeline: Response = await fetch(url.toString(), { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-      if (timeline.status === 400) {
-        await timeline.body?.cancel();
-        url.searchParams.delete('tweet.fields');
-        url.searchParams.set('post.fields', 'author_id,created_at,note_post,referenced_posts');
-        url.searchParams.set('expansions', 'referenced_posts.id');
-        timeline = await fetch(url.toString(), { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-      }
+      const timeline = await fetchOfficialPage(url, headers);
       if (!timeline.ok) return { tweets: [], error: `x-api timeline: HTTP ${timeline.status}` };
       const body: XPage | null = await readJsonWithin<XPage>(timeline, MAX_OFFICIAL_JSON_BYTES);
       if (!body || (!Array.isArray(body.data) && !body.meta) || (body.errors?.length && !body.data)) {
@@ -207,19 +254,10 @@ async function scrapeOfficialXTimeline(env: Env): Promise<XApiResult> {
         if (post.author_id && post.author_id !== userId) continue;
         const refs = post.referenced_tweets || post.referenced_posts || [];
         if (refs.some((ref) => ref.type === 'retweeted')) continue;
-        const parent = parents.find((item) => item.id === refs.find((ref) => ref.type === 'replied_to')?.id);
-        const parentText = parent?.note_tweet?.text || parent?.note_post?.text || parent?.text;
-        const parentTs = Date.parse(parent?.created_at || '');
-        const parentIsTimely = Number.isFinite(parentTs) && parentTs <= ts && ts - parentTs <= 48 * 3600_000;
-        collected.push({
-          text, ts, link: `https://x.com/${env.TARGET_ACCOUNT}/status/${post.id}`,
-          historyOnly: !cached || now - ts > 48 * 3600_000,
-          ...(parentText && parentIsTimely && parent?.author_id === userId ? { officialParentText: parentText } : {}),
-          // Do not archive community identities/text. Only an explicit target
-          // affirmation of a global report can carry this narrow evidence bit.
-          ...(parentText && parentIsTimely && isGlobalResetReport(parentText)
-            && isAffirmativeResetReply(text) ? { replyConfirmsGlobalReset: true } : {}),
-        });
+        const { tweet, missingContext } = contextualizePost(post, parents, userId, env.TARGET_ACCOUNT, !cached || now - ts > 48 * 3600_000);
+        collected.push(tweet);
+        if (missingContext) pending.set(post.id, pending.get(post.id) || { id: post.id, attempts: 0, historyOnly: Boolean(tweet.historyOnly) });
+        else pending.delete(post.id);
         if (/^\d+$/.test(post.id) && (!newestId || BigInt(post.id) > BigInt(newestId))) newestId = post.id;
       }
       nextToken = body.meta?.next_token;
@@ -227,12 +265,46 @@ async function scrapeOfficialXTimeline(env: Env): Promise<XApiResult> {
     }
     // Never advance a watermark after a failed/truncated page sequence.
     if (nextToken) return { tweets: [], error: 'x-api timeline: pagination bound reached; watermark retained' };
+    // The timeline watermark may advance because unresolved replies have an
+    // explicit bounded retry queue. One extra batch, <=20 official post IDs,
+    // <=3 attempts each; a deleted/protected parent never blocks the feed.
+    const retries = [...pending.values()].slice(0, MAX_CONTEXT_REPLIES);
+    for (const overflow of [...pending.values()].slice(MAX_CONTEXT_REPLIES)) {
+      pending.delete(overflow.id);
+      contextUnavailable++;
+    }
+    if (retries.length) {
+      let retryBody: XPage | null = null;
+      try {
+        const url = new URL('https://api.x.com/2/tweets');
+        url.searchParams.set('ids', retries.map((item) => item.id).join(','));
+        const response = await fetchOfficialPage(url, headers);
+        if (response.ok) retryBody = await readJsonWithin<XPage>(response, MAX_OFFICIAL_JSON_BYTES);
+        else await response.body?.cancel();
+      } catch { /* unresolved IDs remain in the bounded retry queue */ }
+      for (const retry of retries) {
+        const post = retryBody?.data?.find((item) => item.id === retry.id && item.author_id === userId);
+        if (post?.text && Number.isFinite(Date.parse(post.created_at || '')) && Date.parse(post.created_at!) <= now) {
+          const result = contextualizePost(post, [...(retryBody?.includes?.tweets || []), ...(retryBody?.includes?.posts || [])], userId, env.TARGET_ACCOUNT,
+            retry.historyOnly || now - Date.parse(post.created_at!) > 48 * 3600_000);
+          if (!result.missingContext) {
+            collected.push(result.tweet);
+            pending.delete(retry.id);
+            continue;
+          }
+        }
+        if (retry.attempts + 1 >= MAX_CONTEXT_ATTEMPTS) {
+          pending.delete(retry.id);
+          contextUnavailable++;
+        } else pending.set(retry.id, { ...retry, attempts: retry.attempts + 1 });
+      }
+    }
     const tweets = [...new Map([...(cached?.tweets || []), ...collected].map((tweet) => [tweet.link, tweet])).values()]
       .filter((tweet) => tweet.ts >= now - OFFICIAL_LOOKBACK_MS && tweet.ts <= now)
       .sort((a, b) => b.ts - a.ts);
     if (tweets.length > MAX_CACHED_POSTS) return { tweets: [], error: 'x-api timeline: cache bound reached; watermark retained' };
-    await env.CACHE.put(timelineKey, JSON.stringify({ sinceId: newestId, checkedAt: now, tweets }), { expirationTtl: 8 * 24 * 3600 });
-    return { tweets };
+    await env.CACHE.put(timelineKey, JSON.stringify({ sinceId: newestId, checkedAt: now, tweets, contextVersion: 1, pendingReplies: [...pending.values()] }), { expirationTtl: 8 * 24 * 3600 });
+    return { tweets, contextPending: pending.size, contextUnavailable };
   } catch (error) {
     return { tweets: [], error: `x-api: ${error instanceof Error ? error.message : String(error)}` };
   }
@@ -320,15 +392,22 @@ export const CONTEXT_RE = /(?:\bcodex\b|\bchatgpt\s+work\b|\busage\b|rate\s+limi
 // Announcement-style phrasing must assert that a reset became available.
 // Precision matters more than recall: weak mentions remain visible in health,
 // whereas a false inserted reset distorts the model for several days.
-export const ANNOUNCE_RE = /(?:\b(?:usage(?:\s+limits?)?|rate\s+limits?|quota|credits?)\s+(?:(?:are|is|were|was|have|has|been|just|now)\s+)*reset\b|\b(?:i|we)(?:'ve)?\s+(?:(?:have|has|are|am|just|now)\s+)*reset(?:t?ing)?\s+(?:(?:the|all|your|everyone's|codex)\s+)*(?:usage|rate\s+limits?|quota|credits?)\b|\b(?:banked\s+)?reset\s+(?:(?:has|have|been|was|is|just|now)\s+)*(?:landed|arrived|propagated|rolled\s+out|gone\s+live|went\s+live|live)\b|\b(?:added|credited|given)\b[^.!?\n]{0,80}\bbanked\s+reset\b|\b(?:brand\s+)?new\s+usage\s+for\s+(?:all\s+)?(?:paid\s+)?(?:chatgpt\s+work|codex)\b)/i;
+export const ANNOUNCE_RE = /(?:\b(?:usage(?:\s+limits?)?|(?:codex|rate)\s+limits?|quota|credits?)\s+(?:(?:are|is|were|was|have|has|been|just|now)\s+)*reset\b|\b(?:i|we)(?:'ve)?\s+(?:(?:have|has|are|am|just|now)\s+)*reset(?:t?ing)?\s+(?:(?:the|all|your|everyone's|codex)\s+)*(?:usage|limits?|rate\s+limits?|quota|credits?)\b|\b(?:banked\s+)?reset\s+(?:(?:has|have|been|was|is|just|now)\s+)*(?:landed|arrived|propagated|rolled\s+out|gone\s+live|went\s+live|live)\b|\b(?:added|credited|given)\b[^.!?\n]{0,80}\bbanked\s+resets?\b|\b(?:brand\s+)?new\s+usage\s+for\s+(?:all\s+)?(?:paid\s+)?(?:chatgpt\s+work|codex)\b)/i;
 const NON_EXECUTION_RE = /\b(?:not|never|hasn't|haven't|isn't|wasn't|didn't|don't|won't|will|would|could|might|maybe|if|tomorrow|going\s+to|plan\s+to|scheduled\s+to|expected\s+to|hope|wish)\b/i;
 const QUESTION_RE = /(?:\?|^\s*(?:when|will|would|can|does|do|how)\b)/i;
 // A future-tense official post is useful public planning evidence, but is
 // deliberately distinct from ANNOUNCE_RE: it must never create a reset
 // record or delivery candidate before the reset has actually landed.
-const SCHEDULED_RESET_RE = /\breset\s+(?:will|shall|is\s+(?:going\s+to|scheduled\s+to|expected\s+to))\s+(?:land|arrive|roll(?:\s+out)?|go\s+live)\b/i;
+const SCHEDULED_RESET_RE = /(?:\breset\s+(?:will|shall|is\s+(?:going\s+to|scheduled\s+to|expected\s+to))\s+(?:land|arrive|roll(?:\s+out)?|go\s+live)\b|\b(?:i|we)(?:'ll|\s+(?:will|shall|are\s+going\s+to))\s+reset\b|\b(?:usage|limits?|quota)\b[^.!?\n]{0,40}\bwill\s+be\s+reset\b)/i;
+// Official authors also discuss individual support cases and test runs. Those
+// assertions must never become a global reset, even when the verbs match.
+const LIMITED_SCOPE_RE = /(?:\b(?:test(?:ing)?|staging|sandbox|development|internal)\s+(?:environment|accounts?|users?|only|run)|\b(?:in|on)\s+(?:our\s+|the\s+)?(?:test|staging|sandbox)\b|\b(?:one|a\s+single|a|an|some|few|several|selected|specific|individual|my|your|this|that)\s+(?:(?:affected|codex|test|paid)\s+)*(?:accounts?|users?|customers?)\b|\b(?:only|just)\s+(?:for\s+)?(?:pro|plus|free|team|enterprise)\b)/i;
+
+function assertionSentences(text: string): string[] {
+  return text.replace(/[’‘]/g, "'").replace(/\b([ap])\.m\./gi, '$1m').split(/(?<=[.!?])\s+|\n+/);
+}
 const RETRACTION_RE = /(?:\b(?:correction|incorrect|mistake|false\s+alarm)\b.{0,80}\b(?:reset|rollout|quota|limit)|\b(?:reset|rollout|quota|limit).{0,80}\b(?:was\s+not|wasn't|has\s+not|hasn't|did\s+not|didn't|delayed|postponed|rolled\s+back|reverted|cancelled)\b)/i;
-const BANKED_RESET_RE = /\bbanked\s+reset\b/i;
+const BANKED_RESET_RE = /\bbanked\s+resets?\b/i;
 const LIMIT_RESET_RE = /(?:usage|rate)\s+limits?/i;
 const QUOTA_RESET_RE = /\bquota\b/i;
 const CREDIT_RESET_RE = /\bcredits?\b/i;
@@ -338,20 +417,23 @@ export function isResetAnnouncement(text: string): boolean {
   if (!CONTEXT_RE.test(normalized) || isResetRetraction(normalized)) return false;
   // Judge the assertion sentence, not punctuation or future plans in the
   // rest of a long post. A later FAQ must not cancel an actual announcement.
-  return normalized.split(/(?<=[.!?])\s+|\n+/).some((sentence) => (
+  return assertionSentences(normalized).some((sentence) => (
     ANNOUNCE_RE.test(sentence) && !QUESTION_RE.test(sentence) && !NON_EXECUTION_RE.test(sentence)
+      && !LIMITED_SCOPE_RE.test(sentence)
       && !/\b(?:every\s+(?:week|day|month)|usually|normally|typically)\b/i.test(sentence)
   ));
 }
 
 function isAffirmativeResetReply(text: string): boolean {
   return /^(?:@\w+\s+)*(?:ah\s+)?(?:yes|yeah|yep|correct|indeed)\b/i.test(text.trim())
+    && !LIMITED_SCOPE_RE.test(text)
     && !/\?|\b(?:not|no|tomorrow|will|maybe|but)\b/i.test(text);
 }
 
 function isGlobalResetReport(text: string): boolean {
   return CONTEXT_RE.test(text) && /\b(?:all|everyone|paid\s+users)\b/i.test(text)
     && RESET_RE.test(text) && /\b(?:reset|back\s+to\s+100%)\b/i.test(text)
+    && !LIMITED_SCOPE_RE.test(text) && !QUESTION_RE.test(text)
     && !/\b(?:will|tomorrow|might|not|hasn't)\b/i.test(text);
 }
 
@@ -359,25 +441,30 @@ export function isResetTweet(tweet: Tweet): boolean {
   if (isResetAnnouncement(tweet.text)) return true;
   if (tweet.replyConfirmsGlobalReset && isAffirmativeResetReply(tweet.text)) return true;
   return Boolean(tweet.officialParentText && CONTEXT_RE.test(tweet.officialParentText)
+    && !LIMITED_SCOPE_RE.test(tweet.officialParentText) && !LIMITED_SCOPE_RE.test(tweet.text)
     && /\b(?:button\s+(?:was\s+|has\s+been\s+)?(?:already\s+)?pressed|reset\s+(?:has\s+)?landed)\b/i.test(tweet.text)
     && !/\?|\b(?:not|will|hasn't|never)\b/i.test(tweet.text));
 }
 
 /** A future-tense reset schedule is a signal only, never an event candidate. */
 export function isScheduledResetAnnouncement(text: string): boolean {
-  return SCHEDULED_RESET_RE.test(text) && !QUESTION_RE.test(text);
+  return assertionSentences(text).some((sentence) => SCHEDULED_RESET_RE.test(sentence)
+    && (CONTEXT_RE.test(text) || /^\s*reset\s/i.test(sentence))
+    && !QUESTION_RE.test(sentence) && !LIMITED_SCOPE_RE.test(sentence)
+    && !/\b(?:not|never|won't|might|maybe|if|cancelled|canceled|postponed)\b/i.test(sentence));
 }
 
 /**
- * Parse the narrow, explicit form used in direct announcements such as
- * "Reset will land around 14pm PST tomorrow."  A schedule is only surfaced
- * when both its day and timezone are explicit; ambiguous wording stays a
- * schedule signal without inventing a target time.
+ * Parse explicit relative/calendar days with an explicit timezone. PT/ET
+ * follow daylight saving; literal PST/PDT retain their stated fixed offset.
+ * Missing or ambiguous days/zones remain untimed, never guessed.
  */
 export function parseScheduledResetAt(text: string, postedAt: number): number | undefined {
-  if (!isScheduledResetAnnouncement(text) || !/\btomorrow\b/i.test(text) || !Number.isFinite(postedAt)) return undefined;
+  if (!Number.isFinite(postedAt)) return undefined;
+  const sentence = assertionSentences(text).find(isScheduledResetAnnouncement);
+  if (!sentence) return undefined;
 
-  const match = text.match(/\b(?:at|around|by)\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?\s*(PST|PDT)\b/i);
+  const match = sentence.match(/\b(?:at|around|by)\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?\s*(PST|PDT|PT|EST|EDT|ET|UTC|GMT)\b/i);
   if (!match) return undefined;
 
   const hourInput = Number(match[1]);
@@ -398,16 +485,40 @@ export function parseScheduledResetAt(text: string, postedAt: number): number | 
     : meridiem === 'pm'
       ? (hourInput % 12) + 12
       : hourInput % 12;
-  const offsetHours = match[4].toUpperCase() === 'PDT' ? -7 : -8;
-  const sourceLocal = new Date(postedAt + offsetHours * 60 * 60 * 1000);
-  const targetLocalDate = new Date(Date.UTC(
-    sourceLocal.getUTCFullYear(),
-    sourceLocal.getUTCMonth(),
-    sourceLocal.getUTCDate() + 1,
-    hour,
-    minute,
-  ));
-  return targetLocalDate.getTime() - offsetHours * 60 * 60 * 1000;
+  if (meridiem && (hourInput === 0 || (hourInput > 12 && meridiem !== 'pm'))) return undefined;
+  const zone = match[4].toUpperCase();
+  const offsetMap: Record<string, number> = { PST: -8, PDT: -7, EST: -5, EDT: -4, UTC: 0, GMT: 0 };
+  const ianaZone = zone === 'PT' ? 'America/Los_Angeles' : zone === 'ET' ? 'America/New_York' : null;
+  const localParts = (at: number) => {
+    if (!ianaZone) {
+      const date = new Date(at + offsetMap[zone] * 3600_000);
+      return [date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate(), date.getUTCHours(), date.getUTCMinutes()];
+    }
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: ianaZone, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(at);
+    return ['year', 'month', 'day', 'hour', 'minute'].map((key) => Number(parts.find((part) => part.type === key)?.value));
+  };
+  const [year, month, day] = localParts(postedAt);
+  let targetDay = Date.UTC(year, month - 1, day);
+  const explicitDate = sentence.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
+  if (explicitDate) {
+    targetDay = Date.UTC(Number(explicitDate[1]), Number(explicitDate[2]) - 1, Number(explicitDate[3]));
+    if (new Date(targetDay).toISOString().slice(0, 10) !== explicitDate[0]) return undefined;
+  } else if (/\btomorrow\b/i.test(sentence)) targetDay += 86400_000;
+  else if (!/\btoday\b/i.test(sentence)) {
+    const weekday = sentence.match(/\b(?:on\s+|next\s+)(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b/i);
+    if (!weekday) return undefined;
+    const dayIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(weekday[1].toLowerCase());
+    const delta = (dayIndex - new Date(targetDay).getUTCDay() + 7) % 7;
+    // "next Monday" on Monday is next week; bare "on Monday" is today.
+    targetDay += (delta || (/next/i.test(weekday[0]) ? 7 : 0)) * 86400_000;
+  }
+  const localTarget = targetDay + (hour * 60 + minute) * 60_000;
+  const offsets = ianaZone ? (zone === 'PT' ? [-8, -7] : [-5, -4]) : [offsetMap[zone]];
+  const matches = offsets.map((offset) => localTarget - offset * 3600_000).filter((at) => {
+    const [y, m, d, h, min] = localParts(at);
+    return Date.UTC(y, m - 1, d, h, min) === localTarget;
+  });
+  return matches.length === 1 ? matches[0] : undefined;
 }
 
 /** A later direct-source correction prevents pending automated delivery. */

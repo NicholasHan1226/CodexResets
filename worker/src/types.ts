@@ -42,6 +42,8 @@ export interface ScrapeResult {
   tweets: Tweet[];
   error?: string;
   attempted?: string[];
+  contextPending?: number;
+  contextUnavailable?: number;
 }
 
 export interface ResetEvent {
@@ -118,6 +120,8 @@ export interface RunReport {
   /** An official Codex/rate-limit incident pauses automated confirmation. */
   statusGate?: 'clear' | 'hold' | 'unavailable';
   tweetsSeen: number;
+  contextPending?: number;
+  contextUnavailable?: number;
   candidates: number;
   /** Automatically discovered records entering the stabilization window. */
   pendingInserted?: number;

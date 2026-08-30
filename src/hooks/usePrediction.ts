@@ -32,7 +32,7 @@ export function usePrediction() {
     try {
       const { signals, hasRealData, generatedAt, records: snapshotRecords } = await getDashboardInputs(force);
       if (refreshId !== latestRefreshId.current) return;
-      if (!hasRealData || !signals || !snapshotRecords) {
+      if (!hasRealData || !signals || !snapshotRecords || snapshotRecords.length === 0) {
         setPrediction(null);
         setResetRecords([]);
         setUsingRealData(false);
