@@ -150,6 +150,11 @@ time-ordered model selection.
 Direct reset announcements are already-observed information, so they are not
 part of the browser or Worker probability model. Legacy private snapshots that
 contained one are excluded from calibration and formal release scoring.
+The dashboard presents exactly one percentage as its primary answer: the
+selected 24- or 48-hour probability. The timing chart is deliberately
+percentage-free; it highlights the single three-hour period with the highest
+relative likelihood inside that selected window, so visitors can see when to
+watch without mistaking a chart bucket for the overall forecast.
 When a direct official post schedules a future reset, the dashboard keeps the
 visitor-facing history-calibrated probability number and curve visible, and
 shows the official timing alongside them as a separate strong signal. When the

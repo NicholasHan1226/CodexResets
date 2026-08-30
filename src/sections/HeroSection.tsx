@@ -70,19 +70,6 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
       })
     : null;
 
-  const windowStart = prediction.windowStart ? new Date(prediction.windowStart) : null;
-  const windowStr = windowStart
-    ? windowStart.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
-        month: 'short',
-        day: 'numeric',
-      }) +
-      ' ' +
-      windowStart.toLocaleTimeString(locale === 'zh' ? 'zh-CN' : 'en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      })
-    : null;
   const scheduledTargetStr = hasScheduledReset
     ? formatOfficialScheduleTarget(primaryForecast.scheduledAt, locale)
     : null;
@@ -151,13 +138,6 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
           {t('hero.medianGap')}{' '}
           <span className="text-foreground">{prediction.medianIntervalDays.toFixed(1)}d</span>
         </span>
-        {windowStr && (
-          <span className="inline-block whitespace-nowrap">
-            <span className="mr-2 text-border">·</span>
-            {t('hero.windowShort')}{' '}
-            <span className="text-foreground">{windowStr}</span>
-          </span>
-        )}
       </p>
 
       {/* Advice */}

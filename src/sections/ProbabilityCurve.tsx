@@ -6,8 +6,6 @@ interface ProbabilityCurveProps {
   curve: ProbabilityPoint[];
   /** When set, only show points within the next N hours from now */
   hours?: number;
-  /** A direct official target is reflected in the headline, not this historical model curve. */
-  hasOfficialSupport?: boolean;
 }
 
 const HOUR = 3600 * 1000;
@@ -68,7 +66,7 @@ function smoothLine(pts: Pt[]): string {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
-export function ProbabilityCurve({ curve, hours, hasOfficialSupport = false }: ProbabilityCurveProps) {
+export function ProbabilityCurve({ curve, hours }: ProbabilityCurveProps) {
   const { t } = useI18n();
   const [containerRef, { width, height }] = useElementSize<HTMLDivElement>();
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -109,10 +107,15 @@ export function ProbabilityCurve({ curve, hours, hasOfficialSupport = false }: P
 
   if (chartData.length === 0) return null;
 
-  const peak = chartData.reduce(
+  const forecastData = chartData.slice(1);
+  const peak = forecastData.reduce(
     (max, point) => (point.probability > max.probability ? point : max),
-    chartData[0]
+    forecastData[0] ?? chartData[0]
   );
+  const peakStart = new Date(peak.timestamp - 3 * HOUR);
+  const peakEnd = new Date(peak.timestamp);
+  const formatTime = (date: Date) => `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  const peakTime = `${formatTime(peakStart)}–${formatTime(peakEnd)}`;
 
   const minTs = chartData[0].timestamp;
   const maxTs = chartData[chartData.length - 1].timestamp;
@@ -143,6 +146,8 @@ export function ProbabilityCurve({ curve, hours, hasOfficialSupport = false }: P
   const pts: Pt[] = chartData.map((p) => ({ x: x(p.timestamp), y: y(p.probability) }));
   const linePath = smoothLine(pts);
   const areaPath = `${linePath} L ${pts[pts.length - 1].x} ${PAD.top + plotH} L ${pts[0].x} ${PAD.top + plotH} Z`;
+  const peakStartX = x(Math.max(minTs, peak.timestamp - 3 * HOUR));
+  const peakEndX = x(peak.timestamp);
 
   // --- Ticks ---------------------------------------------------------------
   const step = range <= 26 * HOUR ? 6 * HOUR : range <= 50 * HOUR ? 12 * HOUR : 24 * HOUR;
@@ -210,6 +215,7 @@ export function ProbabilityCurve({ curve, hours, hasOfficialSupport = false }: P
 
   const hoverPoint = hoverIdx !== null ? chartData[hoverIdx] : null;
   const hoverLocal = hoverPoint ? new Date(hoverPoint.timestamp) : null;
+  const hoveredIsPeak = hoverPoint?.timestamp === peak.timestamp;
 
   return (
     <section aria-label="Probability curve" className="max-w-4xl">
@@ -217,9 +223,6 @@ export function ProbabilityCurve({ curve, hours, hasOfficialSupport = false }: P
         <h2 className="text-lg font-semibold text-foreground">
           <span className="mr-2 font-mono font-normal text-primary">❯</span>
           {t("curve.title")}
-          {hasOfficialSupport && (
-            <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">{t("curve.historyModel")}</span>
-          )}
           {hours && (
             <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
               {t("curve.window", { n: hours })}
@@ -227,7 +230,7 @@ export function ProbabilityCurve({ curve, hours, hasOfficialSupport = false }: P
           )}
         </h2>
         <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">
-          {t("curve.peakWindow")}: {Math.round(peak.probability * 100)}%
+          {t("curve.likeliestTime", { time: peakTime })}
           <span className="text-muted-foreground/50"> · {tzLabel}</span>
         </span>
       </div>
@@ -258,7 +261,8 @@ export function ProbabilityCurve({ curve, hours, hasOfficialSupport = false }: P
                 </linearGradient>
               </defs>
 
-              {/* Horizontal gridlines + y labels */}
+              {/* The hero owns the overall 24h/48h probability. This chart is
+                  intentionally a timing distribution, not a second percentage readout. */}
               {yTicks.map((v) => (
                 <g key={v}>
                   <line
@@ -270,16 +274,6 @@ export function ProbabilityCurve({ curve, hours, hasOfficialSupport = false }: P
                     strokeWidth={1}
                     strokeOpacity={v === 0 ? 1 : 0.55}
                   />
-                  <text
-                    x={PAD.left - 8}
-                    y={y(v) + 3.5}
-                    textAnchor="end"
-                    fontSize={10}
-                    fontFamily={MONO}
-                    fill={C.dim}
-                  >
-                    {Math.round(v * 100)}%
-                  </text>
                 </g>
               ))}
 
@@ -298,16 +292,14 @@ export function ProbabilityCurve({ curve, hours, hasOfficialSupport = false }: P
                 </text>
               ))}
 
-              {/* Peak dashed line */}
-              <line
-                x1={PAD.left}
-                x2={width - PAD.right}
-                y1={y(peak.probability)}
-                y2={y(peak.probability)}
-                stroke={C.green}
-                strokeWidth={1}
-                strokeDasharray="3 3"
-                strokeOpacity={0.4}
+              {/* The highlighted band answers the only chart question: when is likeliest? */}
+              <rect
+                x={peakStartX}
+                y={PAD.top}
+                width={Math.max(1, peakEndX - peakStartX)}
+                height={plotH}
+                fill={C.green}
+                fillOpacity={0.1}
               />
 
               {/* Area + line */}
@@ -320,6 +312,7 @@ export function ProbabilityCurve({ curve, hours, hasOfficialSupport = false }: P
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />
+              <circle cx={x(peak.timestamp)} cy={y(peak.probability)} r={4} fill={C.green} stroke={C.bg} strokeWidth={2} />
 
               {/* Hover crosshair */}
               {hoverIdx !== null && pts[hoverIdx] && (
@@ -402,17 +395,14 @@ export function ProbabilityCurve({ curve, hours, hasOfficialSupport = false }: P
             >
               <p className="text-xs text-muted-foreground">
                 {hoverLocal.getFullYear()}-{String(hoverLocal.getMonth() + 1).padStart(2, "0")}-
-                {String(hoverLocal.getDate()).padStart(2, "0")}{" "}
-                {String(hoverLocal.getHours()).padStart(2, "0")}:00
+                {String(hoverLocal.getDate()).padStart(2, "0")} {formatTime(new Date(hoverPoint.timestamp - 3 * HOUR))}–{formatTime(hoverLocal)}
               </p>
-              <p className="font-mono text-sm font-semibold text-primary">
-                {Math.round(hoverPoint.probability * 100)}%
-              </p>
+              {hoveredIsPeak && <p className="font-mono text-sm font-semibold text-primary">{t("curve.highestLikelihood")}</p>}
             </div>
           )}
           <p id="curve-explorer-status" className="sr-only" aria-live="polite">
             {hoverPoint && hoverLocal && hoverIdx !== null && hoverIdx > 0
-              ? `${hoverLocal.getFullYear()}-${String(hoverLocal.getMonth() + 1).padStart(2, "0")}-${String(hoverLocal.getDate()).padStart(2, "0")} ${String(hoverLocal.getHours()).padStart(2, "0")}:00, ${Math.round(hoverPoint.probability * 100)}%`
+              ? `${hoverLocal.getFullYear()}-${String(hoverLocal.getMonth() + 1).padStart(2, "0")}-${String(hoverLocal.getDate()).padStart(2, "0")} ${formatTime(new Date(hoverPoint.timestamp - 3 * HOUR))}–${formatTime(hoverLocal)}${hoveredIsPeak ? `, ${t("curve.highestLikelihood")}` : ''}`
               : hoverIdx === 0 ? `${t("curve.now")} · ${t("curve.fromNow")}` : ''}
           </p>
         </div>
