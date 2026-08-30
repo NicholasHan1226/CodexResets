@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { renderEmail } from '../worker/src/email-template';
+import { renderEmail, type EmailLocale } from '../worker/src/email-template';
 import { buildTestEmail, notifyAll, notifyForecastPrealert, notifyScheduledExecution, sendCalibrationAlert, sendHealthAlert, sendSubscriptionConfirmation, sendTestEmail } from '../worker/src/notify';
 import { handleTestEmail } from '../worker/src/routes';
 import type { Env } from '../worker/src/types';
@@ -17,7 +17,7 @@ const at = Date.parse('2026-08-30T12:00:00Z');
 const evidence = 'https://x.com/thsottiaux/status/123456789';
 type Mail = { subject: string; html: string; text: string; to: string[]; headers?: Record<string, string> };
 
-function captureMail() {
+function captureMail(locale: EmailLocale = null) {
   const messages: Mail[] = [];
   const mock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -25,7 +25,7 @@ function captureMail() {
       messages.push(JSON.parse(String(init?.body)) as Mail);
       return Response.json({ id: 'local-preview-only' });
     }
-    if (url === 'https://db.example.test/rest/v1/subscriptions?select=email&is_active=eq.true') return Response.json([{ email: 'reader@example.test' }]);
+    if (url === 'https://db.example.test/rest/v1/subscriptions?select=email,locale&is_active=eq.true') return Response.json([{ email: 'reader@example.test', locale }]);
     if (url === 'https://db.example.test/rest/v1/push_subscriptions?select=endpoint,p256dh,auth') return Response.json([]);
     throw new Error('Unmocked request: ' + url);
   });
@@ -36,6 +36,43 @@ function captureMail() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('branded email presentation', () => {
+  it.each(['zh', 'en', null] as const)('renders subscriber messages, subjects and test previews in %s', async (locale) => {
+    const { messages } = captureMail(locale);
+    await sendTestEmail(env, 'reader@example.test', locale);
+    await sendSubscriptionConfirmation(env, 'reader@example.test', 'fixture-only', locale);
+    await notifyAll(env, { id: 'locale-reset', ts: at, text: 'The banked reset has landed for all paid Codex users.', link: evidence });
+    await notifyForecastPrealert(env, { id: 'locale-forecast', evaluatedAt: at, planningProbability: 0.85, modelProbability: 0.42, officialEvidenceUrl: evidence });
+    await notifyScheduledExecution(env, { id: 'locale-scheduled', scheduledAt: at, officialEvidenceUrl: evidence });
+    expect(messages).toHaveLength(5);
+    const names = ['test', 'confirmation', 'reset', 'forecast', 'scheduled'];
+    for (const [index, mail] of messages.entries()) {
+      expect(mail.html).toContain(`lang="${locale === 'en' ? 'en' : 'zh-CN'}"`);
+      if (locale === 'en') {
+        expect(mail.subject + mail.html + mail.text).not.toMatch(/[\u3400-\u9fff]/);
+      } else if (locale === 'zh') {
+        expect(mail.subject).toMatch(/[\u3400-\u9fff]/);
+        expect(mail.html).not.toContain('lang="en"');
+        expect(mail.text).not.toMatch(/Open dashboard|Confirm subscription|Historical model|Unsubscribe|Planning likelihood|Scheduled time/);
+      } else {
+        expect(mail.subject).toMatch(/[\u3400-\u9fff]/);
+        expect(mail.html).toContain('lang="en"');
+      }
+      if (index >= 2) {
+        const url = new URL(mail.headers!['List-Unsubscribe'].slice(1, -1));
+        expect(url.searchParams.get('lang')).toBe(locale);
+        expect(mail.text).toContain(url.href);
+      }
+      if (process.env.CODEX_EMAIL_PREVIEW_DIR) {
+        await writeFile(join(process.env.CODEX_EMAIL_PREVIEW_DIR, `${names[index]}-${locale || 'bilingual'}.html`), mail.html);
+      }
+    }
+    expect(messages[0]).toMatchObject(buildTestEmail(env, locale));
+    expect(messages[1].html).toContain('api/subscribe/confirm?t=fixture-only' + (locale ? `&amp;lang=${locale}` : ''));
+    expect(messages[2].text).toContain('Asia/Shanghai (UTC+8)');
+    expect(messages[3].text).toContain('85%');
+    expect(messages[3].text).toContain('42%');
+  });
+
   it('uses the same HTML and text renderer for all seven actual sending paths', async () => {
     const { messages } = captureMail();
     await sendTestEmail(env, 'reader@example.test');

@@ -1,4 +1,5 @@
 import type { DeliveryMetrics, Env, HealthCheck, HealthChecks, RunReport } from './types';
+import { emailCopy, emailLocale, emailLanguageQuery, type Copy, type EmailLocale } from './email-template';
 import { json, html, escapeHtml, readJsonWithin as readResponseJsonWithin, timingSafeEqual, verifyToken } from './util';
 import { hasPrivilegedAccess, privUpsertPush, privDeletePush, privDeleteEmail, privActivateEmail } from './privileged';
 import { runPipeline } from './pipeline';
@@ -264,47 +265,49 @@ export async function handleUnsubscribePush(request: Request, env: Env): Promise
 
 /** GET /api/unsubscribe?e=...&t=... — show an explicit email-unsubscribe confirmation. */
 export async function handleUnsubscribeEmail(url: URL, env: Env): Promise<Response> {
+  const locale = emailLocale(url.searchParams.get('lang'));
   const email = (url.searchParams.get('e') || '').toLowerCase().trim();
   const token = url.searchParams.get('t') || '';
   const expiresAt = Number(url.searchParams.get('x'));
   const validEmail = EMAIL_RE.test(email);
-  if (!validEmail || !token || !isValidUnsubscribeExpiry(expiresAt)) return html(unsubPage('Invalid or expired unsubscribe link.', false), 400);
+  if (!validEmail || !token || !isValidUnsubscribeExpiry(expiresAt)) return html(unsubPage(INVALID_UNSUBSCRIBE, false, locale), 400);
   if (!env.UNSUBSCRIBE_SECRET || !hasPrivilegedAccess(env)) {
-    return html(unsubPage('Server not configured.', false), 503);
+    return html(unsubPage(SUBSCRIPTION_UNAVAILABLE, false, locale), 503);
   }
   const ok = await verifyToken(`${email}.${expiresAt}`, token, env.UNSUBSCRIBE_SECRET);
-  if (!ok) return html(unsubPage('Invalid or expired unsubscribe link.', false), 403);
+  if (!ok) return html(unsubPage(INVALID_UNSUBSCRIBE, false, locale), 403);
 
-  const action = `/api/unsubscribe?e=${encodeURIComponent(email)}&x=${expiresAt}&t=${encodeURIComponent(token)}`;
-  return html(unsubPage(`Stop reset alerts for <b>${escapeHtml(email)}</b>?`, true, {
+  const action = `/api/unsubscribe?e=${encodeURIComponent(email)}&x=${expiresAt}&t=${encodeURIComponent(token)}${emailLanguageQuery(locale)}`;
+  return html(unsubPage({ zh: `停止向 ${email} 发送重置提醒？`, en: `Stop reset alerts for ${email}?` }, true, locale, {
     action,
-    label: 'Unsubscribe',
+    label: { zh: '确认退订', en: 'Unsubscribe' },
   }));
 }
 
 /** POST /api/unsubscribe?e=...&t=... — perform a signed one-click unsubscribe. */
 export async function handleUnsubscribeEmailPost(request: Request, url: URL, env: Env): Promise<Response> {
   const browserConfirmation = await isBrowserUnsubscribeForm(request);
+  const locale = emailLocale(url.searchParams.get('lang'));
   const email = (url.searchParams.get('e') || '').toLowerCase().trim();
   const token = url.searchParams.get('t') || '';
   const expiresAt = Number(url.searchParams.get('x'));
   const validEmail = EMAIL_RE.test(email);
-  if (!validEmail || !token || !isValidUnsubscribeExpiry(expiresAt)) return html('', 400);
-  if (!env.UNSUBSCRIBE_SECRET || !hasPrivilegedAccess(env)) return html('', 503);
+  if (!validEmail || !token || !isValidUnsubscribeExpiry(expiresAt)) return html(browserConfirmation ? unsubPage(INVALID_UNSUBSCRIBE, false, locale) : '', 400);
+  if (!env.UNSUBSCRIBE_SECRET || !hasPrivilegedAccess(env)) return html(browserConfirmation ? unsubPage(SUBSCRIPTION_UNAVAILABLE, false, locale) : '', 503);
   const ok = await verifyToken(`${email}.${expiresAt}`, token, env.UNSUBSCRIBE_SECRET);
-  if (!ok) return html('', 403);
+  if (!ok) return html(browserConfirmation ? unsubPage(INVALID_UNSUBSCRIBE, false, locale) : '', 403);
 
   const res = await privDeleteEmail(env, email);
   if (!res.ok) {
     return browserConfirmation
-      ? html(unsubPage('We could not process this unsubscribe request. Please try again later.', false), 502)
+      ? html(unsubPage({ zh: '暂时无法处理退订，请稍后重试。', en: 'We could not process this unsubscribe request. Please try again later.' }, false, locale), 502)
       : html('', 502);
   }
   await recordSubscriptionMetric(env, 'email_unsubscribed').catch(() => {});
   // Mailbox providers call this endpoint from List-Unsubscribe-Post and expect
   // an empty success response. A regular browser form gets a visible receipt.
   return browserConfirmation
-    ? html(unsubPage(`<b>${escapeHtml(email)}</b> has been unsubscribed. You will no longer receive reset alerts.`, true))
+    ? html(unsubPage({ zh: `${email} 已退订，不会再收到重置提醒。`, en: `${email} has been unsubscribed. You will no longer receive reset alerts.` }, true, locale))
     : html('', 200);
 }
 
@@ -452,10 +455,12 @@ function isFreshXPost(createdAt: string): boolean {
 
 /** POST /api/subscribe/email — begin a double opt-in email subscription. */
 export async function handleSubscribeEmail(request: Request, env: Env): Promise<Response> {
-  const parsed = await readJsonWithin<{ email?: string; turnstileToken?: string }>(request, SUBSCRIPTION_BODY_MAX_BYTES);
+  const parsed = await readJsonWithin<{ email?: string; turnstileToken?: string; locale?: unknown }>(request, SUBSCRIPTION_BODY_MAX_BYTES);
   if (parsed === null) return json({ error: 'payload too large' }, 413);
   if (!parsed) return json({ error: 'invalid json' }, 400);
   const body = parsed;
+  const locale = emailLocale(body.locale);
+  if (body.locale != null && !locale) return json({ error: 'unsupported language' }, 400);
   const email = typeof body.email === 'string' ? body.email.toLowerCase().trim() : '';
   if (!EMAIL_RE.test(email) || email.length > 320) return json({ error: 'invalid email' }, 400);
   if (!env.RESEND_API_KEY) return json({ error: 'email delivery is not configured' }, 503);
@@ -474,10 +479,10 @@ export async function handleSubscribeEmail(request: Request, env: Env): Promise<
   if (await env.CACHE.get(cooldownKey)) return json({ ok: true, status: 'pending' });
 
   const token = crypto.randomUUID();
-  await env.CACHE.put(`subscribe:confirm:${token}`, JSON.stringify({ email }), { expirationTtl: CONFIRM_TTL_SECONDS });
+  await env.CACHE.put(`subscribe:confirm:${token}`, JSON.stringify({ email, ...(locale ? { locale } : {}) }), { expirationTtl: CONFIRM_TTL_SECONDS });
   await env.CACHE.put(cooldownKey, '1', { expirationTtl: REQUEST_COOLDOWN_SECONDS });
   try {
-    await sendSubscriptionConfirmation(env, email, token);
+    await sendSubscriptionConfirmation(env, email, token, locale);
   } catch (err) {
     await env.CACHE.delete(`subscribe:confirm:${token}`);
     await env.CACHE.delete(cooldownKey);
@@ -490,34 +495,38 @@ export async function handleSubscribeEmail(request: Request, env: Env): Promise<
 /** GET /api/subscribe/confirm?t=... — show an explicit double-opt-in confirmation. */
 export async function handleConfirmEmail(url: URL, env: Env): Promise<Response> {
   const token = url.searchParams.get('t') || '';
-  if (!/^[0-9a-f-]{36}$/i.test(token)) return html(confirmPage('Invalid or expired confirmation link.', false), 400);
+  const linkLocale = emailLocale(url.searchParams.get('lang'));
+  if (!/^[0-9a-f-]{36}$/i.test(token)) return html(confirmPage(INVALID_CONFIRMATION, false, linkLocale), 400);
 
   const key = `subscribe:confirm:${token}`;
-  const pending = parseJson<{ email?: string }>(await env.CACHE.get(key));
+  const pending = parseJson<{ email?: string; locale?: unknown }>(await env.CACHE.get(key));
+  const locale = pending ? emailLocale(pending.locale) : linkLocale;
   const email = pending?.email?.toLowerCase().trim() || '';
-  if (!EMAIL_RE.test(email)) return html(confirmPage('This confirmation link has expired.', false), 410);
+  if (!EMAIL_RE.test(email)) return html(confirmPage(EXPIRED_CONFIRMATION, false, locale), 410);
 
-  return html(confirmPage('Confirm this subscription to receive reset alerts.', true, {
-    action: `/api/subscribe/confirm?t=${encodeURIComponent(token)}`,
-    label: 'Confirm subscription',
+  return html(confirmPage({ zh: '确认订阅，接收 Codex 重置提醒。', en: 'Confirm this subscription to receive reset alerts.' }, true, locale, {
+    action: `/api/subscribe/confirm?t=${encodeURIComponent(token)}${emailLanguageQuery(locale)}`,
+    label: { zh: '确认订阅', en: 'Confirm subscription' },
   }));
 }
 
 /** POST /api/subscribe/confirm?t=... — activate an explicitly confirmed email. */
 export async function handleConfirmEmailPost(url: URL, env: Env): Promise<Response> {
   const token = url.searchParams.get('t') || '';
-  if (!/^[0-9a-f-]{36}$/i.test(token)) return html(confirmPage('Invalid or expired confirmation link.', false), 400);
+  const linkLocale = emailLocale(url.searchParams.get('lang'));
+  if (!/^[0-9a-f-]{36}$/i.test(token)) return html(confirmPage(INVALID_CONFIRMATION, false, linkLocale), 400);
 
   const key = `subscribe:confirm:${token}`;
-  const pending = parseJson<{ email?: string }>(await env.CACHE.get(key));
+  const pending = parseJson<{ email?: string; locale?: unknown }>(await env.CACHE.get(key));
+  const locale = pending ? emailLocale(pending.locale) : linkLocale;
   const email = pending?.email?.toLowerCase().trim() || '';
-  if (!EMAIL_RE.test(email)) return html(confirmPage('This confirmation link has expired.', false), 410);
-  if (!hasPrivilegedAccess(env)) return html(confirmPage('Server not configured.', false), 503);
-  const res = await privActivateEmail(env, email);
-  if (!res.ok) return html(confirmPage('We could not activate this subscription. Please try again later.', false), 502);
+  if (!EMAIL_RE.test(email)) return html(confirmPage(EXPIRED_CONFIRMATION, false, locale), 410);
+  if (!hasPrivilegedAccess(env)) return html(confirmPage(SUBSCRIPTION_UNAVAILABLE, false, locale), 503);
+  const res = await privActivateEmail(env, email, locale);
+  if (!res.ok) return html(confirmPage({ zh: '暂时无法激活订阅，请稍后重试。', en: 'We could not activate this subscription. Please try again later.' }, false, locale), 502);
   await env.CACHE.delete(key);
   await recordSubscriptionMetric(env, 'email_confirmed').catch(() => {});
-  return html(confirmPage('Subscription confirmed. You will receive reset alerts at this address.', true));
+  return html(confirmPage({ zh: '订阅已确认，后续重置提醒将发送到此邮箱。', en: 'Subscription confirmed. You will receive reset alerts at this address.' }, true, locale));
 }
 
 /** Preserve a signed webhook's receipt-to-pipeline outcome without retaining its payload. */
@@ -533,36 +542,43 @@ async function runXWebhookPipeline(env: Env): Promise<void> {
 /** POST /api/test-email — protected single-recipient delivery exercise. */
 export async function handleTestEmail(request: Request, env: Env): Promise<Response> {
   if (!isCronAuthorized(request, env)) return json({ error: 'unauthorized' }, 401);
-  let body: { email?: string };
+  let body: { email?: string; locale?: unknown };
   try {
-    body = await request.json() as { email?: string };
+    body = await request.json() as { email?: string; locale?: unknown };
   } catch {
     return json({ error: 'invalid json' }, 400);
   }
   const email = typeof body.email === 'string' ? body.email.toLowerCase().trim() : '';
   if (!EMAIL_RE.test(email) || email.length > 320) return json({ error: 'invalid email' }, 400);
-  await sendTestEmail(env, email);
+  const locale = emailLocale(body.locale);
+  if (body.locale != null && !locale) return json({ error: 'unsupported language' }, 400);
+  await sendTestEmail(env, email, locale);
   return json({ ok: true });
 }
 
-function unsubPage(message: string, ok: boolean, action?: { action: string; label: string }): string {
-  return `<!doctype html><html><body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0b0c0f;color:#f0f2f5;font-family:-apple-system,'Segoe UI',Roboto,sans-serif">
-  <div style="text-align:center;padding:24px">
-    <p style="font-family:Menlo,monospace;color:${ok ? '#10a37f' : '#ef4444'};font-size:13px">❯ codex resets</p>
-    <p style="font-size:16px;margin:12px 0 20px">${message}</p>
-    ${action ? `<form method="post" action="${escapeHtml(action.action)}" style="margin:0 0 20px"><input type="hidden" name="source" value="browser"><button type="submit" style="border:0;border-radius:6px;background:#10a37f;color:#07110e;padding:10px 14px;font-weight:600;cursor:pointer">${escapeHtml(action.label)}</button></form>` : ''}
-    <a href="https://codexresets.cc" style="color:#10a37f;font-size:13px;text-decoration:none">← Back to dashboard</a>
-  </div></body></html>`;
+const INVALID_UNSUBSCRIBE: Copy = { zh: '退订链接无效或已过期。', en: 'Invalid or expired unsubscribe link.' };
+const INVALID_CONFIRMATION: Copy = { zh: '订阅确认链接无效或已过期。', en: 'Invalid or expired confirmation link.' };
+const EXPIRED_CONFIRMATION: Copy = { zh: '订阅确认链接已过期，请返回网页重新订阅。', en: 'This confirmation link has expired.' };
+const SUBSCRIPTION_UNAVAILABLE: Copy = { zh: '订阅服务暂不可用，请稍后重试。', en: 'Server not configured.' };
+type SubscriptionAction = { action: string; label: Copy };
+
+function unsubPage(message: Copy, ok: boolean, locale: EmailLocale, action?: SubscriptionAction): string {
+  return subscriptionPage(message, ok, locale, action, true);
 }
 
-function confirmPage(message: string, ok: boolean, action?: { action: string; label: string }): string {
-  return `<!doctype html><html><body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0b0c0f;color:#f0f2f5;font-family:-apple-system,'Segoe UI',Roboto,sans-serif">
-  <div style="text-align:center;padding:24px">
+function confirmPage(message: Copy, ok: boolean, locale: EmailLocale, action?: SubscriptionAction): string {
+  return subscriptionPage(message, ok, locale, action, false);
+}
+
+function subscriptionPage(message: Copy, ok: boolean, locale: EmailLocale, action: SubscriptionAction | undefined, unsubscribe: boolean): string {
+  const copy = (value: Copy) => escapeHtml(emailCopy(value, locale, '\n'));
+  return `<!doctype html><html lang="${locale === 'en' ? 'en' : 'zh-CN'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${copy({ zh: '订阅提醒', en: 'Subscription alerts' })} · Codex Resets</title></head><body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0b0c0f;color:#f0f2f5;font-family:-apple-system,'Segoe UI','PingFang SC',sans-serif">
+  <main style="text-align:center;padding:24px;max-width:520px;box-sizing:border-box;overflow-wrap:anywhere">
     <p style="font-family:Menlo,monospace;color:${ok ? '#10a37f' : '#ef4444'};font-size:13px">❯ codex resets</p>
-    <p style="font-size:16px;margin:12px 0 20px">${message}</p>
-    ${action ? `<form method="post" action="${escapeHtml(action.action)}" style="margin:0 0 20px"><button type="submit" style="border:0;border-radius:6px;background:#10a37f;color:#07110e;padding:10px 14px;font-weight:600;cursor:pointer">${escapeHtml(action.label)}</button></form>` : ''}
-    <a href="https://codexresets.cc" style="color:#10a37f;font-size:13px;text-decoration:none">← Back to dashboard</a>
-  </div></body></html>`;
+    <p style="font-size:16px;line-height:1.8;white-space:pre-line;margin:12px 0 20px">${copy(message)}</p>
+    ${action ? `<form method="post" action="${escapeHtml(action.action)}" style="margin:0 0 20px">${unsubscribe ? '<input type="hidden" name="source" value="browser">' : ''}<button type="submit" style="border:0;border-radius:6px;background:#10a37f;color:#07110e;padding:12px 16px;min-height:44px;white-space:pre-line;font-weight:600;cursor:pointer">${copy(action.label)}</button></form>` : ''}
+    <a href="https://codexresets.cc" style="color:#10a37f;font-size:13px;white-space:pre-line;text-decoration:none">← ${copy({ zh: '返回预测页面', en: 'Back to dashboard' })}</a>
+  </main></body></html>`;
 }
 
 async function emailHash(email: string): Promise<string> {

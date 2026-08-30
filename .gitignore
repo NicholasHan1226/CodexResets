@@ -27,6 +27,7 @@ storybook-static
 # Package manager artifacts
 .pnp*
 .npm
+/supabase/.temp/
 
 # Python tooling
 .pytest_cache/

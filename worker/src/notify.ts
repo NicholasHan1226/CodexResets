@@ -5,7 +5,7 @@ import { hasPrivilegedAccess, privListEmails, privListPush, privDeletePush, type
 import { signToken, readTextWithin } from './util';
 import { classifyResetNotification, type ResetNotificationType } from './scrape';
 
-import { renderEmail, type EmailContent } from './email-template';
+import { renderEmail, emailCopy, emailLocale, emailLanguageQuery, type EmailContent, type EmailLocale } from './email-template';
 
 const UNSUBSCRIBE_TTL_SECONDS = 30 * 24 * 60 * 60;
 const OUTBOUND_TIMEOUT_MS = 8_000;
@@ -15,6 +15,7 @@ const PROVIDER_ERROR_MAX_BYTES = 8 * 1024;
 
 interface SubscriptionRow {
   email: string;
+  locale?: EmailLocale;
 }
 
 export interface NotifyResult {
@@ -116,7 +117,7 @@ export async function notifyAll(env: Env, event: ResetEvent & { id: string }, de
 
   const emailCandidates = await pendingRecipients(emails, 'email', event.id, (row) => row.email, deliveryLedger);
   const emailBatch = emailCandidates.slice(0, MAX_DELIVERIES_PER_CHANNEL_RUN);
-  const emailResults = await settleInBatches(emailBatch, (candidate) => sendEmail(env, candidate.row.email, event));
+  const emailResults = await settleInBatches(emailBatch, (candidate) => sendEmail(env, candidate.row.email, event, emailLocale(candidate.row.locale)));
   const sentEmails = emailResults.filter((r) => r.status === 'fulfilled' && r.value).length;
   for (let index = 0; index < emailResults.length; index++) {
     const r = emailResults[index];
@@ -185,7 +186,7 @@ export async function notifyForecastPrealert(
   };
   const emailCandidates = await pendingRecipients(emails, 'email', safePrealert.id, (row) => row.email, deliveryLedger);
   const emailBatch = emailCandidates.slice(0, MAX_DELIVERIES_PER_CHANNEL_RUN);
-  const emailResults = await settleInBatches(emailBatch, (candidate) => sendForecastPrealertEmail(env, candidate.row.email, safePrealert));
+  const emailResults = await settleInBatches(emailBatch, (candidate) => sendForecastPrealertEmail(env, candidate.row.email, safePrealert, emailLocale(candidate.row.locale)));
   const sentEmails = emailResults.filter((result) => result.status === 'fulfilled' && result.value).length;
   for (let index = 0; index < emailResults.length; index++) {
     const result = emailResults[index];
@@ -230,7 +231,7 @@ export async function notifyScheduledExecution(
   };
   const emailCandidates = await pendingRecipients(emails, 'email', safeNotice.id, (row) => row.email, deliveryLedger);
   const emailBatch = emailCandidates.slice(0, MAX_DELIVERIES_PER_CHANNEL_RUN);
-  const emailResults = await settleInBatches(emailBatch, (candidate) => sendScheduledExecutionEmail(env, candidate.row.email, safeNotice));
+  const emailResults = await settleInBatches(emailBatch, (candidate) => sendScheduledExecutionEmail(env, candidate.row.email, safeNotice, emailLocale(candidate.row.locale)));
   const sentEmails = emailResults.filter((result) => result.status === 'fulfilled' && result.value).length;
   for (let index = 0; index < emailResults.length; index++) {
     const result = emailResults[index];
@@ -270,7 +271,7 @@ async function pendingRecipients<T>(
 
 // --- Email (Resend HTTPS API) ----------------------------------------------
 
-async function sendEmail(env: Env, email: string, event: ResetEvent & { id: string }): Promise<boolean> {
+async function sendEmail(env: Env, email: string, event: ResetEvent & { id: string }, locale: EmailLocale): Promise<boolean> {
   // A missing mail credential is a delivery failure, not a successful no-op:
   // leaving the reset unmarked lets the next automated run recover after the
   // credential is restored.
@@ -279,7 +280,7 @@ async function sendEmail(env: Env, email: string, event: ResetEvent & { id: stri
   // checks that a repeated idempotency key has the exact same payload.
   const expiresAt = Math.floor(event.ts / 1000) + UNSUBSCRIBE_TTL_SECONDS;
   const token = env.UNSUBSCRIBE_SECRET ? await signToken(`${email.toLowerCase()}.${expiresAt}`, env.UNSUBSCRIBE_SECRET) : '';
-  const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&x=${expiresAt}&t=${token}`;
+  const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&x=${expiresAt}&t=${token}${emailLanguageQuery(locale)}`;
   const resetTime = formatResetTime(event.ts);
   const details = resetNotificationDetails(event);
 
@@ -296,9 +297,9 @@ async function sendEmail(env: Env, email: string, event: ResetEvent & { id: stri
     body: JSON.stringify({
       from: env.RESEND_FROM,
       to: [email],
-      subject: `Codex ${details.labelEn} confirmed / 已确认：${details.labelZh}`,
+      subject: locale ? emailCopy({ zh: `Codex 已确认：${details.labelZh}`, en: `Codex ${details.labelEn} confirmed` }, locale) : `Codex ${details.labelEn} confirmed / 已确认：${details.labelZh}`,
       headers: unsubscribeHeaders(unsubUrl),
-      ...resetEmail(env, resetTime, unsubUrl, details),
+      ...resetEmail(env, resetTime, unsubUrl, details, locale),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
@@ -306,11 +307,11 @@ async function sendEmail(env: Env, email: string, event: ResetEvent & { id: stri
   return true;
 }
 
-async function sendForecastPrealertEmail(env: Env, email: string, prealert: ForecastPrealert): Promise<boolean> {
+async function sendForecastPrealertEmail(env: Env, email: string, prealert: ForecastPrealert, locale: EmailLocale): Promise<boolean> {
   if (!env.RESEND_API_KEY) throw new Error('Resend email delivery is not configured');
   const expiresAt = Math.floor(prealert.evaluatedAt / 1000) + UNSUBSCRIBE_TTL_SECONDS;
   const token = env.UNSUBSCRIBE_SECRET ? await signToken(`${email.toLowerCase()}.${expiresAt}`, env.UNSUBSCRIBE_SECRET) : '';
-  const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&x=${expiresAt}&t=${token}`;
+  const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&x=${expiresAt}&t=${token}${emailLanguageQuery(locale)}`;
   const probability = Math.round(prealert.planningProbability * 100);
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -322,9 +323,9 @@ async function sendForecastPrealertEmail(env: Env, email: string, prealert: Fore
     body: JSON.stringify({
       from: env.RESEND_FROM,
       to: [email],
-      subject: `Codex reset forecast: ${probability}% within 24h / 未来 24 小时重置预告：${probability}%`,
+      subject: locale ? emailCopy({ zh: `Codex 未来 24 小时重置预告：${probability}%`, en: `Codex reset forecast: ${probability}% within 24h` }, locale) : `Codex reset forecast: ${probability}% within 24h / 未来 24 小时重置预告：${probability}%`,
       headers: unsubscribeHeaders(unsubUrl),
-      ...forecastPrealertEmail(env, prealert, unsubUrl),
+      ...forecastPrealertEmail(env, prealert, unsubUrl, locale),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
@@ -332,11 +333,11 @@ async function sendForecastPrealertEmail(env: Env, email: string, prealert: Fore
   return true;
 }
 
-async function sendScheduledExecutionEmail(env: Env, email: string, notice: ScheduledExecutionNotice): Promise<boolean> {
+async function sendScheduledExecutionEmail(env: Env, email: string, notice: ScheduledExecutionNotice, locale: EmailLocale): Promise<boolean> {
   if (!env.RESEND_API_KEY) throw new Error('Resend email delivery is not configured');
   const expiresAt = Math.floor(notice.scheduledAt / 1000) + UNSUBSCRIBE_TTL_SECONDS;
   const token = env.UNSUBSCRIBE_SECRET ? await signToken(`${email.toLowerCase()}.${expiresAt}`, env.UNSUBSCRIBE_SECRET) : '';
-  const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&x=${expiresAt}&t=${token}`;
+  const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&x=${expiresAt}&t=${token}${emailLanguageQuery(locale)}`;
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -347,9 +348,9 @@ async function sendScheduledExecutionEmail(env: Env, email: string, notice: Sche
     body: JSON.stringify({
       from: env.RESEND_FROM,
       to: [email],
-      subject: 'Codex scheduled reset is now due / Codex 预定重置现应生效',
+      subject: locale ? emailCopy({ zh: 'Codex 预定重置现应生效', en: 'Codex scheduled reset is now due' }, locale) : 'Codex scheduled reset is now due / Codex 预定重置现应生效',
       headers: unsubscribeHeaders(unsubUrl),
-      ...scheduledExecutionEmail(env, notice, unsubUrl),
+      ...scheduledExecutionEmail(env, notice, unsubUrl, locale),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
@@ -385,17 +386,17 @@ async function scheduledExecutionEmailIdempotencyKey(noticeId: string, email: st
 }
 
 /** Send an explicit opt-in confirmation before an address enters the alert list. */
-export async function sendSubscriptionConfirmation(env: Env, email: string, token: string): Promise<void> {
+export async function sendSubscriptionConfirmation(env: Env, email: string, token: string, locale: EmailLocale = null): Promise<void> {
   if (!env.RESEND_API_KEY) throw new Error('RESEND_API_KEY not configured');
-  const confirmUrl = `${workerBase(env)}/api/subscribe/confirm?t=${encodeURIComponent(token)}`;
+  const confirmUrl = `${workerBase(env)}/api/subscribe/confirm?t=${encodeURIComponent(token)}${emailLanguageQuery(locale)}`;
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
     body: JSON.stringify({
       from: env.RESEND_FROM,
       to: [email],
-      subject: 'Confirm Codex Resets subscription / 确认 Codex 重置提醒订阅',
-      ...confirmationEmail(confirmUrl),
+      subject: locale ? emailCopy({ zh: '确认 Codex 重置提醒订阅', en: 'Confirm Codex Resets subscription' }, locale) : 'Confirm Codex Resets subscription / 确认 Codex 重置提醒订阅',
+      ...confirmationEmail(confirmUrl, locale),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
@@ -403,7 +404,7 @@ export async function sendSubscriptionConfirmation(env: Env, email: string, toke
 }
 
 /** Admin-only delivery exercise; it never reads subscribers or runs the pipeline. */
-export async function sendTestEmail(env: Env, email: string): Promise<void> {
+export async function sendTestEmail(env: Env, email: string, locale: EmailLocale = null): Promise<void> {
   if (!env.RESEND_API_KEY) throw new Error('RESEND_API_KEY not configured');
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -411,7 +412,7 @@ export async function sendTestEmail(env: Env, email: string): Promise<void> {
     body: JSON.stringify({
       from: env.RESEND_FROM,
       to: [email],
-      ...buildTestEmail(env),
+      ...buildTestEmail(env, locale),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
@@ -452,48 +453,48 @@ export async function sendCalibrationAlert(env: Env, calibration: ForecastCalibr
   if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
 }
 
-function resetEmail(env: Env, resetTime: string, unsubUrl: string, details: ResetNotificationDetails): EmailContent {
+function resetEmail(env: Env, resetTime: string, unsubUrl: string, details: ResetNotificationDetails, locale: EmailLocale): EmailContent {
   return renderEmail({
-    category: 'RESET CONFIRMED',
+    category: { zh: '重置确认', en: 'RESET CONFIRMED' },
     title: { zh: '已确认：' + details.labelZh, en: details.labelEn + ' confirmed' },
     intro: { zh: '已确认 Codex 使用额度重置。查看官方公告，了解适用范围。', en: 'A confirmed Codex reset is available. Check the official announcement for scope.' },
     details: [
-      { label: '重置类型 / Reset type', value: details.labelZh + ' / ' + details.labelEn },
-      { label: '记录时间 / Recorded time', value: resetTime },
+      { label: { zh: '重置类型', en: 'Reset type' }, value: { zh: details.labelZh, en: details.labelEn } },
+      { label: { zh: '记录时间', en: 'Recorded time' }, value: resetTime },
     ],
     evidence: details.evidenceUrl ? { url: details.evidenceUrl, excerpt: details.evidenceExcerpt } : undefined,
     action: { label: DASHBOARD_LABEL, url: env.SITE_URL }, unsubscribeUrl: unsubUrl,
-  });
+  }, locale);
 }
 
-function forecastPrealertEmail(env: Env, prealert: ForecastPrealert, unsubUrl: string): EmailContent {
+function forecastPrealertEmail(env: Env, prealert: ForecastPrealert, unsubUrl: string, locale: EmailLocale): EmailContent {
   const probability = Math.round(prealert.planningProbability * 100) + '%';
   const modelProbability = Math.round(prealert.modelProbability * 100) + '%';
   return renderEmail({
-    category: '24H FORECAST',
+    category: { zh: '24 小时预告', en: '24H FORECAST' },
     title: { zh: '未来 24 小时重置预告', en: 'Your next 24 hours' },
     highlight: { value: probability, label: { zh: '未来 24 小时重置综合判断', en: 'Planning likelihood within 24 hours' } },
     intro: { zh: '这是预告，不代表重置已确认。最新概率以网页为准。', en: 'This is a forecast, not a confirmed reset. Visit the dashboard for the latest likelihood.' },
-    details: [{ label: '历史模型 / Historical model', value: modelProbability }],
+    details: [{ label: { zh: '历史模型', en: 'Historical model' }, value: modelProbability }],
     note: prealert.officialEvidenceUrl ? { zh: '当前官方预告支持此判断。', en: 'A current official schedule supports this forecast.' } : undefined,
     evidence: prealert.officialEvidenceUrl ? { url: prealert.officialEvidenceUrl } : undefined,
     action: { label: DASHBOARD_LABEL, url: env.SITE_URL }, unsubscribeUrl: unsubUrl,
-  });
+  }, locale);
 }
 
-function scheduledExecutionEmail(env: Env, notice: ScheduledExecutionNotice, unsubUrl: string): EmailContent {
+function scheduledExecutionEmail(env: Env, notice: ScheduledExecutionNotice, unsubUrl: string, locale: EmailLocale): EmailContent {
   return renderEmail({
-    category: 'OFFICIAL SCHEDULE',
+    category: { zh: '官方预告', en: 'OFFICIAL SCHEDULE' },
     title: { zh: '官方预告时间已到', en: 'Scheduled reset is now due' },
     intro: { zh: '按官方预告，Codex 额度预计现已可用。', en: 'According to the official schedule, Codex access is expected to be available now.' },
-    details: [{ label: '预告时间 / Scheduled time', value: formatResetTime(notice.scheduledAt) }],
+    details: [{ label: { zh: '预告时间', en: 'Scheduled time' }, value: formatResetTime(notice.scheduledAt) }],
     note: {
       zh: '这是基于预告的执行通知，不是独立的重置确认；后续如有确认信息，会另行提醒。' + (notice.communityCorroborated ? '多位独立公开反馈也显示额度现已可用。' : ''),
       en: 'This is an execution notice based on the official schedule, not a separate confirmation post. We will send a confirmed-reset alert if one follows.' + (notice.communityCorroborated ? ' Independent public reports also indicate that access is available.' : ''),
     },
     evidence: notice.officialEvidenceUrl ? { url: notice.officialEvidenceUrl } : undefined,
     action: { label: DASHBOARD_LABEL, url: env.SITE_URL }, unsubscribeUrl: unsubUrl,
-  });
+  }, locale);
 }
 
 /** Bilingual alerts always include China Standard Time as well as UTC. */
@@ -509,31 +510,31 @@ function formatResetTime(timestamp: number): string {
 
 const DASHBOARD_LABEL = { zh: '查看最新预测', en: 'Open dashboard' };
 
-function confirmationEmail(confirmUrl: string): EmailContent {
+function confirmationEmail(confirmUrl: string, locale: EmailLocale): EmailContent {
   return renderEmail({
-    category: 'SUBSCRIPTION',
+    category: { zh: '订阅提醒', en: 'SUBSCRIPTION' },
     title: { zh: '确认你的提醒订阅', en: 'Confirm your subscription' },
     intro: { zh: '确认后，重置预告和已确认的重置信息会发送到此邮箱。', en: 'Confirm this address to receive reset forecasts and confirmed-reset alerts.' },
     note: { zh: '未来 24 小时综合判断达到 70% 时，每个重置周期提醒一次；官方预告时间到达时也会通知。', en: 'Receive one forecast notice per reset cycle at 70% within 24 hours, plus a notice when a direct official schedule is due.' },
     action: { label: { zh: '确认订阅', en: 'Confirm subscription' }, url: confirmUrl },
     footer: { zh: '链接 24 小时内有效。若非本人操作，请忽略此邮件。', en: 'This confirmation link expires in 24 hours. If you did not request this, ignore this email.' },
-  });
+  }, locale);
 }
 
 /** Used by the protected route and any explicitly authorized manual test.
  * Build this exact subject/html/text payload instead of composing a separate mail.
  */
-export function buildTestEmail(env: Pick<Env, 'SITE_URL'>): EmailContent & { subject: string } {
+export function buildTestEmail(env: Pick<Env, 'SITE_URL'>, locale: EmailLocale = null): EmailContent & { subject: string } {
   return {
-    subject: '[Test] Codex Resets alert delivery / 提醒投递测试',
+    subject: locale ? emailCopy({ zh: '[测试] Codex Resets 提醒投递测试', en: '[Test] Codex Resets alert delivery' }, locale) : '[Test] Codex Resets alert delivery / 提醒投递测试',
     ...renderEmail({
-      category: 'DELIVERY TEST',
+      category: { zh: '投递测试', en: 'DELIVERY TEST' },
       title: { zh: '这是一封测试提醒', en: 'Test alert delivery' },
       intro: { zh: '我们正在核对邮件的投递与显示效果，无需你操作。', en: 'We are checking email delivery and presentation. No action is needed.' },
       note: { zh: '本邮件不表示发生重置，也不会修改你的订阅。', en: 'This test does not indicate a Codex reset and does not change your subscription.' },
       action: { label: DASHBOARD_LABEL, url: env.SITE_URL },
       footer: { zh: '仅用于经授权的单封投递测试。', en: 'An explicitly authorized, single-recipient delivery test.' },
-    }),
+    }, locale),
   };
 }
 

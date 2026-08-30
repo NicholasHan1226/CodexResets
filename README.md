@@ -69,7 +69,7 @@ requires `Authorization: Bearer $CRON_SECRET`, accepts exactly one JSON email
 recipient, and never reads subscribers or runs the pipeline.
 
 All seven mail types share the presentation-only renderer in
-`worker/src/email-template.ts`: branded header, Chinese/English hierarchy,
+`worker/src/email-template.ts`: branded header, localized or legacy bilingual copy,
 one primary action, and identical-content HTML/plain-text alternatives.
 Inline styles and fluid presentation tables do not require external fonts,
 images, scripts or tracking pixels. Forecasts highlight the 24-hour likelihood;
@@ -86,6 +86,30 @@ To produce local HTML/text previews, create an empty temporary directory and
 run `CODEX_EMAIL_PREVIEW_DIR=/absolute/preview-directory pnpm exec vitest run tests/email-templates.test.ts`.
 All sends in that test are intercepted; it generates seven fixture previews,
 not production evidence. Keep previews outside `public/` and the deployment.
+
+### Email language
+
+New subscriptions send the current website `locale` (`zh` or `en`) with the
+opt-in request. The pending confirmation stores it privately; only a confirmed
+opt-in saves it on `subscriptions.locale`. Subjects, HTML, plain text, buttons,
+confirmation and unsubscribe pages use that language. Official excerpts remain
+verbatim, and timestamps retain explicit UTC+8 and UTC (language is not timezone).
+Existing subscribers and older clients/tokens without a locale retain bilingual
+mail; no inference is made from an email domain, IP address or country. Unsupported
+locale values are rejected. Changing the website language alone does not change
+an existing email preference: a new opt-in and confirmation are required.
+Old confirmation tokens never erase a saved language preference. Link `lang`
+parameters affect presentation only, never opt-in data or signed authorization;
+valid confirmation pages use the locale in the pending token. Existing signed
+unsubscribe links and mailbox one-click unsubscribe continue to work.
+Operations alerts remain bilingual. Protected delivery tests accept an optional
+`locale`; `buildTestEmail(env, locale)` also supports local language previews.
+The preview test emits Chinese, English and bilingual subscriber examples.
+
+Deployment: apply `20260830134004_subscription_email_locale.sql` before releasing
+the Worker. It adds only a nullable constrained column, without modifying rows,
+RLS or grants. For rollback, revert application code and retain the column and
+saved preferences; do not drop it as part of an ordinary code rollback.
 
 When configured, the authenticated official X API is the only direct-account
 source permitted to create, confirm, or deliver an automated alert or raise an

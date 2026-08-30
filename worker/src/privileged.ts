@@ -1,5 +1,6 @@
 import type { Env } from './types';
 import { sb, sbSelect } from './supabase';
+import type { EmailLocale } from './email-template';
 
 /** Privileged DB gateway: only the Worker service-role secret may write or read private data. */
 export function hasPrivilegedAccess(env: Env): boolean {
@@ -24,8 +25,10 @@ export async function privInsertResets(env: Env, rows: ResetInsertRow[]): Promis
   }, true);
 }
 
-export async function privListEmails(env: Env): Promise<{ email: string }[]> {
-  return sbSelect(env, 'subscriptions?select=email&is_active=eq.true', true);
+export interface EmailSubscriptionRow { email: string; locale?: EmailLocale }
+
+export async function privListEmails(env: Env): Promise<EmailSubscriptionRow[]> {
+  return sbSelect(env, 'subscriptions?select=email,locale&is_active=eq.true', true);
 }
 
 export interface PushSubRow {
@@ -59,11 +62,12 @@ export async function privDeleteEmail(env: Env, email: string): Promise<Response
 }
 
 /** Idempotently activate the address after the Worker-owned double opt-in. */
-export async function privActivateEmail(env: Env, email: string): Promise<Response> {
+export async function privActivateEmail(env: Env, email: string, locale: EmailLocale = null): Promise<Response> {
   return sb(env, 'subscriptions?on_conflict=email', {
     method: 'POST',
     headers: { prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify([{ email, is_active: true, unsubscribed_at: null }]),
+    // An old confirmation token must not erase a previously saved preference.
+    body: JSON.stringify([{ email, is_active: true, unsubscribed_at: null, ...(locale ? { locale } : {}) }]),
   }, true);
 }
 

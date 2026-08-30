@@ -12,7 +12,7 @@ const statusMessageKey: Record<SubscribeStatus, string> = {
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 
 export function ResetAlertsPanel() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const [email, setEmail] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
@@ -59,7 +59,7 @@ export function ResetAlertsPanel() {
     setEmailLoading(true);
     setEmailError(false);
     try {
-      const status = await subscribeEmail(email, turnstileToken);
+      const status = await subscribeEmail(email, turnstileToken, locale);
       setEmailMessage(t(statusMessageKey[status]));
       if (status === 'invalid') {
         setEmailError(true);
