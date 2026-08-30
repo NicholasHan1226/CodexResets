@@ -2,8 +2,10 @@ import { buildPushPayload, type PushMessage, type PushSubscription, type VapidKe
 import type { DeliveryLedger, Env, ResetEvent, RunReport } from './types';
 import type { ForecastCalibration } from './forecast';
 import { hasPrivilegedAccess, privListEmails, privListPush, privDeletePush, type PushSubRow } from './privileged';
-import { signToken, escapeHtml, readTextWithin } from './util';
+import { signToken, readTextWithin } from './util';
 import { classifyResetNotification, type ResetNotificationType } from './scrape';
+
+import { renderEmail, type EmailContent } from './email-template';
 
 const UNSUBSCRIBE_TTL_SECONDS = 30 * 24 * 60 * 60;
 const OUTBOUND_TIMEOUT_MS = 8_000;
@@ -296,7 +298,7 @@ async function sendEmail(env: Env, email: string, event: ResetEvent & { id: stri
       to: [email],
       subject: `Codex ${details.labelEn} confirmed / 已确认：${details.labelZh}`,
       headers: unsubscribeHeaders(unsubUrl),
-      html: emailHtml(env, resetTime, unsubUrl, details),
+      ...resetEmail(env, resetTime, unsubUrl, details),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
@@ -322,7 +324,7 @@ async function sendForecastPrealertEmail(env: Env, email: string, prealert: Fore
       to: [email],
       subject: `Codex reset forecast: ${probability}% within 24h / 未来 24 小时重置预告：${probability}%`,
       headers: unsubscribeHeaders(unsubUrl),
-      html: forecastPrealertEmailHtml(env, prealert, unsubUrl),
+      ...forecastPrealertEmail(env, prealert, unsubUrl),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
@@ -347,7 +349,7 @@ async function sendScheduledExecutionEmail(env: Env, email: string, notice: Sche
       to: [email],
       subject: 'Codex scheduled reset is now due / Codex 预定重置现应生效',
       headers: unsubscribeHeaders(unsubUrl),
-      html: scheduledExecutionEmailHtml(env, notice, unsubUrl),
+      ...scheduledExecutionEmail(env, notice, unsubUrl),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
@@ -393,7 +395,7 @@ export async function sendSubscriptionConfirmation(env: Env, email: string, toke
       from: env.RESEND_FROM,
       to: [email],
       subject: 'Confirm Codex Resets subscription / 确认 Codex 重置提醒订阅',
-      html: confirmationHtml(confirmUrl),
+      ...confirmationEmail(confirmUrl),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
@@ -409,8 +411,7 @@ export async function sendTestEmail(env: Env, email: string): Promise<void> {
     body: JSON.stringify({
       from: env.RESEND_FROM,
       to: [email],
-      subject: '[Test] Codex Resets alert delivery / 提醒投递测试',
-      html: testEmailHtml(env),
+      ...buildTestEmail(env),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
@@ -427,7 +428,7 @@ export async function sendHealthAlert(env: Env, report: RunReport): Promise<void
       from: env.RESEND_FROM,
       to: [env.HEALTH_ALERT_EMAIL],
       subject: '[Action required] Codex Resets Worker health failed / 运行异常',
-      html: healthAlertHtml(env, report),
+      ...healthAlertEmail(env, report),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
@@ -444,75 +445,55 @@ export async function sendCalibrationAlert(env: Env, calibration: ForecastCalibr
       from: env.RESEND_FROM,
       to: [env.HEALTH_ALERT_EMAIL],
       subject: '[Review] Codex Resets forecast calibration / 预测校准复核',
-      html: calibrationAlertHtml(env, calibration),
+      ...calibrationAlertEmail(env, calibration),
     }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
 }
 
-function emailHtml(env: Env, resetTime: string, unsubUrl: string, details: ResetNotificationDetails): string {
-  const evidence = details.evidenceUrl
-    ? `<p style="margin:0 0 16px;font-size:14px;color:#3d4250"><strong>Evidence / 证据</strong><br /><a href="${escapeHtml(details.evidenceUrl)}" style="color:#0b7d62">View official announcement / 查看官方公告</a>${details.evidenceExcerpt ? `<br /><span style="display:inline-block;margin-top:6px;color:#667085">${escapeHtml(details.evidenceExcerpt)}</span>` : ''}</p>`
-    : '<p style="margin:0 0 16px;font-size:13px;color:#667085">Official announcement evidence was confirmed by the pipeline. / 管道已确认官方公告证据。</p>';
-  return `<!doctype html>
-<html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
-  <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
-    <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#10a37f">❯ codex resets</p>
-    <h1 style="margin:0 0 12px;font-size:20px">${escapeHtml(details.labelEn)} confirmed / 已确认：${escapeHtml(details.labelZh)}</h1>
-    <p style="margin:0 0 12px;font-size:14px;color:#3d4250">A confirmed Codex reset is available. / 已确认 Codex 使用额度重置。</p>
-    <p style="margin:0 0 12px;font-size:14px;color:#3d4250"><strong>Reset type / 重置类型</strong><br />${escapeHtml(details.labelEn)} / ${escapeHtml(details.labelZh)}</p>
-    <p style="margin:0 0 16px;font-family:Menlo,monospace;font-size:12px;color:#7c8494">${escapeHtml(resetTime)}</p>
-    ${evidence}
-    <a href="${env.SITE_URL}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open dashboard</a>
-    <hr style="margin:20px 0 12px;border:none;border-top:1px solid #e4e6ea" />
-    <p style="margin:0;font-size:11px;color:#9aa0ac">You subscribed at codexresets.cc · <a href="${unsubUrl}" style="color:#9aa0ac">Unsubscribe / 退订</a></p>
-  </div>
-</body></html>`;
+function resetEmail(env: Env, resetTime: string, unsubUrl: string, details: ResetNotificationDetails): EmailContent {
+  return renderEmail({
+    category: 'RESET CONFIRMED',
+    title: { zh: '已确认：' + details.labelZh, en: details.labelEn + ' confirmed' },
+    intro: { zh: '已确认 Codex 使用额度重置。查看官方公告，了解适用范围。', en: 'A confirmed Codex reset is available. Check the official announcement for scope.' },
+    details: [
+      { label: '重置类型 / Reset type', value: details.labelZh + ' / ' + details.labelEn },
+      { label: '记录时间 / Recorded time', value: resetTime },
+    ],
+    evidence: details.evidenceUrl ? { url: details.evidenceUrl, excerpt: details.evidenceExcerpt } : undefined,
+    action: { label: DASHBOARD_LABEL, url: env.SITE_URL }, unsubscribeUrl: unsubUrl,
+  });
 }
 
-function forecastPrealertEmailHtml(env: Env, prealert: ForecastPrealert, unsubUrl: string): string {
-  const probability = `${Math.round(prealert.planningProbability * 100)}%`;
-  const modelProbability = `${Math.round(prealert.modelProbability * 100)}%`;
-  const officialSupport = prealert.officialEvidenceUrl
-    ? `<p style="margin:0 0 16px;font-size:14px;color:#3d4250">A current official schedule supports this forecast. / 当前官方预告支持此判断。<br /><a href="${escapeHtml(prealert.officialEvidenceUrl)}" style="color:#0b7d62">View official announcement / 查看官方公告</a></p>`
-    : '';
-  return `<!doctype html>
-<html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
-  <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
-    <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#10a37f">❯ codex resets</p>
-    <h1 style="margin:0 0 12px;font-size:20px">Reset forecast / 重置预告</h1>
-    <p style="margin:0 0 12px;font-size:14px;color:#3d4250">The current planning likelihood of a Codex reset within 24 hours is <strong>${probability}</strong>. / 未来 24 小时内发生 Codex 重置的当前综合判断为 <strong>${probability}</strong>。</p>
-    <p style="margin:0 0 16px;font-size:13px;color:#667085">Historical model: ${modelProbability}. This is a forecast, not a confirmed reset. / 历史模型：${modelProbability}。这是预告，不代表重置已确认。</p>
-    ${officialSupport}
-    <a href="${env.SITE_URL}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open dashboard / 打开仪表盘</a>
-    <hr style="margin:20px 0 12px;border:none;border-top:1px solid #e4e6ea" />
-    <p style="margin:0;font-size:11px;color:#9aa0ac">You subscribed at codexresets.cc · <a href="${unsubUrl}" style="color:#9aa0ac">Unsubscribe / 退订</a></p>
-  </div>
-</body></html>`;
+function forecastPrealertEmail(env: Env, prealert: ForecastPrealert, unsubUrl: string): EmailContent {
+  const probability = Math.round(prealert.planningProbability * 100) + '%';
+  const modelProbability = Math.round(prealert.modelProbability * 100) + '%';
+  return renderEmail({
+    category: '24H FORECAST',
+    title: { zh: '未来 24 小时重置预告', en: 'Your next 24 hours' },
+    highlight: { value: probability, label: { zh: '未来 24 小时重置综合判断', en: 'Planning likelihood within 24 hours' } },
+    intro: { zh: '这是预告，不代表重置已确认。最新概率以网页为准。', en: 'This is a forecast, not a confirmed reset. Visit the dashboard for the latest likelihood.' },
+    details: [{ label: '历史模型 / Historical model', value: modelProbability }],
+    note: prealert.officialEvidenceUrl ? { zh: '当前官方预告支持此判断。', en: 'A current official schedule supports this forecast.' } : undefined,
+    evidence: prealert.officialEvidenceUrl ? { url: prealert.officialEvidenceUrl } : undefined,
+    action: { label: DASHBOARD_LABEL, url: env.SITE_URL }, unsubscribeUrl: unsubUrl,
+  });
 }
 
-function scheduledExecutionEmailHtml(env: Env, notice: ScheduledExecutionNotice, unsubUrl: string): string {
-  const evidence = notice.officialEvidenceUrl
-    ? `<p style="margin:0 0 16px;font-size:14px;color:#3d4250"><a href="${escapeHtml(notice.officialEvidenceUrl)}" style="color:#0b7d62">View official announcement / 查看官方公告</a></p>`
-    : '';
-  const community = notice.communityCorroborated
-    ? '<p style="margin:0 0 16px;font-size:13px;color:#667085">Independent public reports also indicate that access is available. / 多位独立公开反馈也显示额度现已可用。</p>'
-    : '';
-  return `<!doctype html>
-<html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
-  <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
-    <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#10a37f">❯ codex resets</p>
-    <h1 style="margin:0 0 12px;font-size:20px">Scheduled reset is now due / 预定重置现应生效</h1>
-    <p style="margin:0 0 12px;font-size:14px;color:#3d4250">The time stated in a direct official reset schedule has arrived. Codex access is expected to be available now. / 官方直接预告所列时间已到，Codex 额度预计现已可用。</p>
-    <p style="margin:0 0 16px;font-size:13px;color:#667085">This is an execution notice based on the official schedule, not a separate confirmation post. We will send a confirmed-reset alert if one follows. / 这是基于官方预告的执行通知，不是独立的确认帖；如后续出现确认信息，会另行发送确认提醒。</p>
-    ${community}
-    ${evidence}
-    <a href="${env.SITE_URL}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open dashboard / 打开仪表盘</a>
-    <hr style="margin:20px 0 12px;border:none;border-top:1px solid #e4e6ea" />
-    <p style="margin:0;font-size:11px;color:#9aa0ac">You subscribed at codexresets.cc · <a href="${unsubUrl}" style="color:#9aa0ac">Unsubscribe / 退订</a></p>
-  </div>
-</body></html>`;
+function scheduledExecutionEmail(env: Env, notice: ScheduledExecutionNotice, unsubUrl: string): EmailContent {
+  return renderEmail({
+    category: 'OFFICIAL SCHEDULE',
+    title: { zh: '官方预告时间已到', en: 'Scheduled reset is now due' },
+    intro: { zh: '按官方预告，Codex 额度预计现已可用。', en: 'According to the official schedule, Codex access is expected to be available now.' },
+    details: [{ label: '预告时间 / Scheduled time', value: formatResetTime(notice.scheduledAt) }],
+    note: {
+      zh: '这是基于预告的执行通知，不是独立的重置确认；后续如有确认信息，会另行提醒。' + (notice.communityCorroborated ? '多位独立公开反馈也显示额度现已可用。' : ''),
+      en: 'This is an execution notice based on the official schedule, not a separate confirmation post. We will send a confirmed-reset alert if one follows.' + (notice.communityCorroborated ? ' Independent public reports also indicate that access is available.' : ''),
+    },
+    evidence: notice.officialEvidenceUrl ? { url: notice.officialEvidenceUrl } : undefined,
+    action: { label: DASHBOARD_LABEL, url: env.SITE_URL }, unsubscribeUrl: unsubUrl,
+  });
 }
 
 /** Bilingual alerts always include China Standard Time as well as UTC. */
@@ -526,61 +507,66 @@ function formatResetTime(timestamp: number): string {
   return `Asia/Shanghai (UTC+8) ${shanghai} · UTC ${date.toUTCString()}`;
 }
 
-function confirmationHtml(confirmUrl: string): string {
-  return `<!doctype html>
-<html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
-  <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
-    <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#10a37f">❯ codex resets</p>
-    <h1 style="margin:0 0 12px;font-size:20px">Confirm your subscription / 确认订阅</h1>
-    <p style="margin:0 0 16px;font-size:14px;color:#3d4250">Confirm this address to receive one 24-hour forecast notice when it reaches 70%, a direct official schedule due-time notice, plus confirmed Codex reset alerts. If you did not request this, ignore this email. / 确认后即可在未来 24 小时综合判断达到 70% 时收到一次预告、在官方预告时间到达时收到执行通知，并接收已确认的 Codex 重置提醒；若非本人操作，请忽略。</p>
-    <a href="${confirmUrl}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Confirm subscription / 确认订阅</a>
-    <p style="margin:20px 0 0;font-size:11px;color:#9aa0ac">This confirmation link expires in 24 hours. / 链接 24 小时内有效。</p>
-  </div>
-</body></html>`;
+const DASHBOARD_LABEL = { zh: '查看最新预测', en: 'Open dashboard' };
+
+function confirmationEmail(confirmUrl: string): EmailContent {
+  return renderEmail({
+    category: 'SUBSCRIPTION',
+    title: { zh: '确认你的提醒订阅', en: 'Confirm your subscription' },
+    intro: { zh: '确认后，重置预告和已确认的重置信息会发送到此邮箱。', en: 'Confirm this address to receive reset forecasts and confirmed-reset alerts.' },
+    note: { zh: '未来 24 小时综合判断达到 70% 时，每个重置周期提醒一次；官方预告时间到达时也会通知。', en: 'Receive one forecast notice per reset cycle at 70% within 24 hours, plus a notice when a direct official schedule is due.' },
+    action: { label: { zh: '确认订阅', en: 'Confirm subscription' }, url: confirmUrl },
+    footer: { zh: '链接 24 小时内有效。若非本人操作，请忽略此邮件。', en: 'This confirmation link expires in 24 hours. If you did not request this, ignore this email.' },
+  });
 }
 
-function testEmailHtml(env: Env): string {
-  return `<!doctype html>
-<html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
-  <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
-    <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#10a37f">❯ codex resets</p>
-    <h1 style="margin:0 0 12px;font-size:20px">Test alert delivery / 提醒投递测试</h1>
-    <p style="margin:0 0 16px;font-size:14px;color:#3d4250">This test does not indicate a Codex reset and does not change your subscription. / 这是一封测试邮件，不表示发生重置，也不会修改你的订阅。</p>
-    <a href="${env.SITE_URL}" style="display:inline-block;background:#10a37f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open dashboard</a>
-  </div>
-</body></html>`;
+/** Used by the protected route and any explicitly authorized manual test.
+ * Build this exact subject/html/text payload instead of composing a separate mail.
+ */
+export function buildTestEmail(env: Pick<Env, 'SITE_URL'>): EmailContent & { subject: string } {
+  return {
+    subject: '[Test] Codex Resets alert delivery / 提醒投递测试',
+    ...renderEmail({
+      category: 'DELIVERY TEST',
+      title: { zh: '这是一封测试提醒', en: 'Test alert delivery' },
+      intro: { zh: '我们正在核对邮件的投递与显示效果，无需你操作。', en: 'We are checking email delivery and presentation. No action is needed.' },
+      note: { zh: '本邮件不表示发生重置，也不会修改你的订阅。', en: 'This test does not indicate a Codex reset and does not change your subscription.' },
+      action: { label: DASHBOARD_LABEL, url: env.SITE_URL },
+      footer: { zh: '仅用于经授权的单封投递测试。', en: 'An explicitly authorized, single-recipient delivery test.' },
+    }),
+  };
 }
 
-function healthAlertHtml(env: Env, report: RunReport): string {
-  const errors = report.errors.length > 0 ? report.errors.slice(0, 3).join('\n') : 'No diagnostic details were recorded.';
-  return `<!doctype html>
-<html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
-  <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
-    <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#d97706">! codex resets operations</p>
-    <h1 style="margin:0 0 12px;font-size:20px">Worker health check failed</h1>
-    <p style="margin:0 0 12px;font-size:14px;color:#3d4250">The scheduled pipeline run at ${escapeHtml(report.startedAt)} finished with status <strong>${escapeHtml(report.scrape)}</strong>.</p>
-    <pre style="white-space:pre-wrap;margin:0 0 16px;padding:12px;background:#f8fafc;border:1px solid #e4e6ea;font-size:12px;color:#3d4250">${escapeHtml(errors)}</pre>
-    <a href="${workerBase(env)}/api/health" style="display:inline-block;background:#d97706;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open health report</a>
-    <p style="margin:16px 0 0;font-size:11px;color:#9aa0ac">At most one health-failure alert is sent every six hours.</p>
-  </div>
-</body></html>`;
+function healthAlertEmail(env: Env, report: RunReport): EmailContent {
+  return renderEmail({
+    category: 'OPERATIONS · HEALTH',
+    title: { zh: '运行状态需要检查', en: 'Worker health check failed' },
+    intro: { zh: '本轮采集出现异常，以下信息仅供管理员排查。', en: 'The scheduled pipeline reported a problem. These details are for operations only.' },
+    details: [
+      { label: '采集时间 / Run started', value: report.startedAt },
+      { label: '采集状态 / Scrape status', value: report.scrape },
+      { label: '诊断摘要 / Diagnostics', value: report.errors.length ? report.errors.slice(0, 3).join('\n') : 'No diagnostic details were recorded.' },
+    ],
+    action: { label: { zh: '查看运行状态', en: 'Open health report' }, url: workerBase(env) + '/api/health' },
+    footer: { zh: '同类运行异常提醒最多每六小时发送一次。', en: 'At most one health-failure alert is sent every six hours.' },
+  });
 }
 
-function calibrationAlertHtml(env: Env, calibration: ForecastCalibration): string {
-  const score = calibration.recentBrier === null ? 'not enough samples' : calibration.recentBrier.toFixed(3);
-  const accuracy = calibration.decisionAccuracy48h.accuracy === null
-    ? 'not enough high-confidence decisions'
-    : `${Math.round(calibration.decisionAccuracy48h.accuracy * 100)}%`;
-  return `<!doctype html>
-<html><body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16171c">
-  <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ea;border-radius:8px;padding:24px">
-    <p style="margin:0 0 4px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:#2563eb">i codex resets operations</p>
-    <h1 style="margin:0 0 12px;font-size:20px">Forecast calibration review</h1>
-    <p style="margin:0 0 12px;font-size:14px;color:#3d4250">Private calibration reached <strong>${escapeHtml(calibration.stage)}</strong> with ${calibration.samples} resolved samples. Recent combined Brier score: ${escapeHtml(score)}; trend: ${escapeHtml(calibration.trend)}. High-confidence 48h decision accuracy: ${escapeHtml(accuracy)}.</p>
-    <p style="margin:0 0 16px;font-size:13px;color:#667085">The public model continues its time-ordered automatic selection. This notice records a review threshold; it does not change subscriber delivery.</p>
-    <a href="${workerBase(env)}/api/health" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px">Open health report</a>
-  </div>
-</body></html>`;
+function calibrationAlertEmail(env: Env, calibration: ForecastCalibration): EmailContent {
+  return renderEmail({
+    category: 'OPERATIONS · CALIBRATION',
+    title: { zh: '预测校准复核', en: 'Forecast calibration review' },
+    intro: { zh: '私有校准达到复核条件。以下为当前统计，不代表已通过正式准确率验收。', en: 'Private calibration reached a review threshold. These statistics do not imply formal accuracy acceptance.' },
+    details: [
+      { label: '复核阶段 / Review stage', value: calibration.stage },
+      { label: '已结算样本 / Resolved samples', value: String(calibration.samples) },
+      { label: '近期 Brier 分数 / Recent Brier score', value: calibration.recentBrier === null ? 'not enough samples' : calibration.recentBrier.toFixed(3) },
+      { label: '趋势 / Trend', value: calibration.trend },
+      { label: '48 小时高置信决策准确率 / High-confidence 48h accuracy', value: calibration.decisionAccuracy48h.accuracy === null ? 'not enough high-confidence decisions' : Math.round(calibration.decisionAccuracy48h.accuracy * 100) + '%' },
+    ],
+    action: { label: { zh: '查看运行状态', en: 'Open health report' }, url: workerBase(env) + '/api/health' },
+    footer: { zh: '仅用于管理员复核，不改变订阅通知或模型选择。', en: 'Operations review only. Subscriber delivery and automatic model selection are unchanged.' },
+  });
 }
 
 // --- Web Push (VAPID + aes128gcm via Web Crypto) ----------------------------

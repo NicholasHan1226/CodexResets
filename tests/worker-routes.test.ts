@@ -690,7 +690,8 @@ describe('pipeline read endpoints', () => {
 
       const retry = await notifyAll(emailEnv(), event, ledger);
       expect(retry).toMatchObject({ emails: 1, errors: [], pending: false });
-      expect(recipients).toEqual(['first@example.test', 'second@example.test', 'second@example.test']);
+      expect(recipients.slice(0, 2).sort()).toEqual(['first@example.test', 'second@example.test']);
+      expect(recipients.slice(2)).toEqual(['second@example.test']);
     } finally {
       vi.unstubAllGlobals();
     }

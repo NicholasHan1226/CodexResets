@@ -68,6 +68,25 @@ protected `POST /api/test-email` delivery exercise for an administrator: it
 requires `Authorization: Bearer $CRON_SECRET`, accepts exactly one JSON email
 recipient, and never reads subscribers or runs the pipeline.
 
+All seven mail types share the presentation-only renderer in
+`worker/src/email-template.ts`: branded header, Chinese/English hierarchy,
+one primary action, and identical-content HTML/plain-text alternatives.
+Inline styles and fluid presentation tables do not require external fonts,
+images, scripts or tracking pixels. Forecasts highlight the 24-hour likelihood;
+confirmed resets retain type, recorded time and official evidence. Subscriber
+alerts keep their signed unsubscribe link and one-click headers. Operations
+and delivery tests remain clearly labelled and have no subscription action.
+The protected test route uses `buildTestEmail()` from `worker/src/notify.ts`.
+An authorized manual test must reuse that exact subject/html/text payload,
+not bypass the template with a separately composed plain-text message.
+Template previews use local fixtures only; previewing never sends mail or
+writes reset/calibration data. Validate mobile layout before authorized sends;
+browser rendering is not a substitute for actual mailbox-client verification.
+To produce local HTML/text previews, create an empty temporary directory and
+run `CODEX_EMAIL_PREVIEW_DIR=/absolute/preview-directory pnpm exec vitest run tests/email-templates.test.ts`.
+All sends in that test are intercepted; it generates seven fixture previews,
+not production evidence. Keep previews outside `public/` and the deployment.
+
 When configured, the authenticated official X API is the only direct-account
 source permitted to create, confirm, or deliver an automated alert or raise an
 active public reset signal. A direct official post scheduling a future reset is

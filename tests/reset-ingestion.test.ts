@@ -18,6 +18,7 @@ function setup(cache: Record<string, string> = {}) {
   };
   const env = {
     CACHE: store, TARGET_ACCOUNT: 'thsottiaux', X_BEARER_TOKEN: 'test-only',
+    SITE_URL: 'https://codexresets.cc',
     RSSHUB_INSTANCES: '', SUPABASE_URL: 'https://db.example.test', SUPABASE_SERVICE_ROLE_KEY: 'test-only',
   } as unknown as Env;
   cache['x-api:user:thsottiaux'] = '42';
@@ -376,11 +377,14 @@ describe('reset ingestion regressions', () => {
       expect((await runPipelineOnce(env, 'test', ledger)).errors).toEqual([]);
       expect(row.notified_at).toBe(new Date(NOW + HOUR / 2).toISOString());
       expect(accepted.size).toBe(2);
-      expect(attempts).toEqual(failure === 'database-mark'
-        ? ['first@example.test', 'second@example.test']
+      // Signing and sending fan out concurrently. Assert each run's exact
+      // recipients, not the nondeterministic order of the first two requests.
+      expect(attempts.slice(0, 2).sort()).toEqual(['first@example.test', 'second@example.test']);
+      expect(attempts.slice(2).sort()).toEqual(failure === 'database-mark'
+        ? []
         : failure === 'ledger-mark'
-          ? ['first@example.test', 'second@example.test', 'first@example.test', 'second@example.test']
-          : ['first@example.test', 'second@example.test', 'second@example.test']);
+          ? ['first@example.test', 'second@example.test']
+          : ['second@example.test']);
       const requestCount = attempts.length;
       expect(await runPipelineOnce(env, 'test', ledger)).toMatchObject({ notifiedEmails: 0, errors: [] });
       expect(attempts).toHaveLength(requestCount);
