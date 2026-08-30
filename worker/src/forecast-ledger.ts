@@ -79,6 +79,8 @@ function parseRows(value: unknown): ResetRecordRow[] | null {
       source_url: null,
       description: null,
       auto_state: row.auto_state,
+      automated: row.automated,
+      created_at: row.created_at,
     });
   }
   return rows;

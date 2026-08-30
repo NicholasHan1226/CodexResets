@@ -190,7 +190,8 @@ describe('pipeline read endpoints', () => {
       expect(report).toMatchObject({
         scrape: 'ok',
         directSource: 'live',
-        candidates: 1,
+        candidates: 0,
+        staleCandidates: 1,
         autoConfirmed: 1,
         notifiedEmails: 0,
         notifiedPush: 0,
@@ -1058,7 +1059,7 @@ describe('pipeline read endpoints', () => {
 
   it('never replays a manual or historical confirmed row to subscribers', () => {
     const base = {
-      id: 'reset', reset_date: '2026-08-22T00:00:00.000Z', source_url: null,
+      id: 'reset', reset_date: new Date(Date.now() - 60_000).toISOString(), source_url: null,
       description: 'verified reset', verified: true,
     };
     expect(isAutomaticallyDeliverable({ ...base, automated: true, auto_state: 'confirmed' })).toBe(true);
@@ -1102,7 +1103,7 @@ describe('pipeline read endpoints', () => {
       }
       if (input.startsWith('https://api.x.com/2/users/42/tweets')) {
         return new Response(JSON.stringify({
-          data: [{ id: 'post-1', text: 'Codex usage limits were reset.', created_at: '2026-08-22T15:00:00.000Z' }],
+          data: [{ id: '12345', text: 'Codex usage limits were reset.', created_at: new Date(Date.now() - 60_000).toISOString() }],
         }), { status: 200 });
       }
       return new Response('unexpected source', { status: 500 });
@@ -1116,7 +1117,7 @@ describe('pipeline read endpoints', () => {
         RSSHUB_INSTANCES: '',
       });
       expect(result).toMatchObject({ ok: true, instance: 'x-api', sourceKind: 'direct' });
-      expect(result.tweets[0]).toMatchObject({ link: 'https://x.com/thsottiaux/status/post-1' });
+      expect(result.tweets[0]).toMatchObject({ link: 'https://x.com/thsottiaux/status/12345', historyOnly: true });
       expect(String(fetchMock.mock.calls[1]?.[0])).toContain('exclude=retweets');
       expect(fetchMock).toHaveBeenCalledTimes(2);
     } finally {

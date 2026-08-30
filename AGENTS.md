@@ -31,6 +31,10 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   mirrors → Google News RSS degraded source for reset detection. Failed
   primary attempts remain in `attempted[]`; a populated degraded source keeps
   the run healthy.
+  Direct X reads use an incremental watermark, up to 8 pages of 50 posts,
+  full-text/reply context, and a 7-day private evidence cache. Never advance
+  the watermark on partial failure or a pagination cap. Bootstrap/old events
+  are history-only; do not replay them as fresh subscriber alerts.
 - `src/signals.ts`   — builds the 3-source snapshot (tibopost / status_page /
   cooldown), mirrors the frontend model. Derived timing arithmetic is never
   exposed as a separate evidence source.
@@ -108,6 +112,12 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   `observed` state for one cron interval (30 minutes). The Worker then confirms
   and notifies automatically; no Supabase dashboard action is required. The
   coordinator serializes all run triggers before any database read or delivery.
+- First-pass recovery and posts older than 48h can repair history only from
+  unambiguous direct evidence without a matching retraction. Use the existing
+  verified, non-automated `manual` lifecycle to prevent delivery; preserve
+  `created_at` as discovery provenance. Affected historical forecast samples
+  remain stored but excluded (`historyIncomplete`), never converted to hits.
+  See README's source/forecast sections for collection and delivery bounds.
 - A later direct-source correction in the 72-hour correction window changes a
   still-pending automated record to `retracted`, so it cannot affect the model
   or subscriber delivery. Corrections must match the reset topic (banked,

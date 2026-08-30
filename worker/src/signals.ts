@@ -1,6 +1,6 @@
 import type { Env, PublicResetHistory, ScrapeResult, SignalSnapshot, SignalsPayload } from './types';
 import { readJsonWithin } from './util';
-import { RESET_RE, CONTEXT_RE, isResetAnnouncement, isScheduledResetAnnouncement, parseScheduledResetAt } from './scrape';
+import { RESET_RE, CONTEXT_RE, isResetTweet, isScheduledResetAnnouncement, parseScheduledResetAt } from './scrape';
 
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
@@ -122,9 +122,11 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
   // Confirmed reset notices retain the strict detector context. A separate
   // future-tense official schedule can lift the public planning signal, but
   // is never passed to the event detector or notification pipeline.
-  const latestResetTweet = scrape.tweets.find((t) => RESET_RE.test(t.text) && CONTEXT_RE.test(t.text));
+  const confirmedTweet = scrape.tweets.find(isResetTweet);
+  const latestResetTweet = confirmedTweet || scrape.tweets.find((t) => RESET_RE.test(t.text) && CONTEXT_RE.test(t.text));
   const hoursSinceResetMention = ageInHours(latestResetTweet);
-  const scheduledResetTweet = scrape.tweets.find((t) => isScheduledResetAnnouncement(t.text));
+  const scheduledResetTweet = scrape.tweets.find((t) => isScheduledResetAnnouncement(t.text)
+    && (!confirmedTweet || t.ts > confirmedTweet.ts));
   const hoursSinceScheduledReset = ageInHours(scheduledResetTweet);
   const scheduledAt = scheduledResetTweet ? parseScheduledResetAt(scheduledResetTweet.text, scheduledResetTweet.ts) : undefined;
 
@@ -132,7 +134,7 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
     hoursSinceResetMention !== null &&
     hoursSinceResetMention < 24 &&
     latestResetTweet &&
-    isResetAnnouncement(latestResetTweet.text)
+    isResetTweet(latestResetTweet)
   ) {
     return {
       ...base,
@@ -141,6 +143,7 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
       description: 'signals.resetAnnounced',
       descriptionParams: { n: hoursSinceResetMention },
       updatedAt: observedAt(latestResetTweet),
+      sourceUrl: latestResetTweet.link,
     };
   }
   const targetElapsed = typeof scheduledAt === 'number' && scheduledAt <= now;
@@ -160,6 +163,7 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
       description: targetElapsed ? 'signals.resetScheduleElapsed' : 'signals.resetScheduled',
       updatedAt: observedAt(scheduledResetTweet),
       scheduledAt,
+      sourceUrl: scheduledResetTweet?.link,
     };
   }
   if (hoursSinceResetMention !== null && hoursSinceResetMention < 24 * 7) {

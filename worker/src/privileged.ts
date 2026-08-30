@@ -12,14 +12,14 @@ export interface ResetInsertRow {
   source_url: string;
   verified: boolean;
   automated?: boolean;
-  auto_state?: 'observed';
+  auto_state?: 'observed' | 'manual';
   auto_confirm_after?: string;
 }
 
 export async function privInsertResets(env: Env, rows: ResetInsertRow[]): Promise<Response> {
   return sb(env, 'reset_records', {
     method: 'POST',
-    headers: { prefer: 'return=minimal' },
+    headers: { prefer: 'return=representation' },
     body: JSON.stringify(rows),
   }, true);
 }

@@ -4,7 +4,11 @@ import { decodeEntities, readJsonWithin, readTextWithin, stripTags } from './uti
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_TWEETS = 15;
 const MAX_EXTERNAL_TEXT_BYTES = 512 * 1024;
-const MAX_OFFICIAL_JSON_BYTES = 64 * 1024;
+const MAX_OFFICIAL_JSON_BYTES = 2 * 1024 * 1024;
+const OFFICIAL_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+const OFFICIAL_PAGE_SIZE = 50;
+const MAX_OFFICIAL_PAGES = 8;
+const MAX_CACHED_POSTS = 1000;
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 
@@ -23,6 +27,30 @@ interface XApiResult {
   error?: string;
 }
 
+interface XPost {
+  id?: string;
+  author_id?: string;
+  text?: string;
+  created_at?: string;
+  note_tweet?: { text?: string };
+  note_post?: { text?: string };
+  referenced_tweets?: { type: string; id: string }[];
+  referenced_posts?: { type: string; id: string }[];
+}
+
+interface XPage {
+  data?: XPost[];
+  includes?: { tweets?: XPost[]; posts?: XPost[] };
+  meta?: { next_token?: string; newest_id?: string };
+  errors?: unknown[];
+}
+
+interface TimelineCache {
+  sinceId?: string;
+  checkedAt: number;
+  tweets: Tweet[];
+}
+
 /**
  * Fetch the target account's recent posts. Strategy chain:
  *   1. authenticated X API (the only source allowed to confirm or deliver)
@@ -36,7 +64,7 @@ export async function scrapeTweets(env: Env): Promise<ScrapeResult> {
   const attempted: string[] = [];
 
   const official = await scrapeOfficialXTimeline(env);
-  if (official.tweets.length > 0) {
+  if (!official.error && env.X_BEARER_TOKEN) {
     return { ok: true, instance: 'x-api', sourceKind: 'direct', tweets: official.tweets, attempted };
   }
   if (official.error) attempted.push(official.error);
@@ -133,22 +161,78 @@ async function scrapeOfficialXTimeline(env: Env): Promise<XApiResult> {
       await env.CACHE.put(cacheKey, userId, { expirationTtl: 30 * 24 * 60 * 60 });
     }
 
-    const timeline = await fetch(
-      // A repost can repeat reset wording from an unrelated account. It is not
-      // an announcement authored by the target, so exclude it before the
-      // automatic confirmation and delivery path sees the timeline.
-      `https://api.x.com/2/users/${encodeURIComponent(userId)}/tweets?max_results=${MAX_TWEETS}&exclude=retweets&tweet.fields=created_at`,
-      { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
-    );
-    if (!timeline.ok) return { tweets: [], error: `x-api timeline: HTTP ${timeline.status}` };
-    const body = await readJsonWithin<{ data?: Array<{ id?: string; text?: string; created_at?: string }> }>(timeline, MAX_OFFICIAL_JSON_BYTES);
-    if (!body) return { tweets: [], error: 'x-api timeline: invalid or oversized response' };
-    const tweets = (body.data || []).flatMap((post) => {
-      const ts = Date.parse(post.created_at || '');
-      if (!post.id || !post.text || Number.isNaN(ts)) return [];
-      return [{ text: post.text, ts, link: `https://x.com/${env.TARGET_ACCOUNT}/status/${post.id}` }];
-    }).sort((a, b) => b.ts - a.ts);
-    return tweets.length > 0 ? { tweets } : { tweets: [], error: 'x-api timeline: 0 items' };
+    const now = Date.now();
+    const timelineKey = `x-api:timeline:v2:${env.TARGET_ACCOUNT.toLowerCase()}`;
+    const raw = await env.CACHE.get(timelineKey);
+    let cached: TimelineCache | undefined;
+    if (raw) {
+      const parsed = JSON.parse(raw) as TimelineCache;
+      if (Array.isArray(parsed.tweets) && Number.isFinite(parsed.checkedAt)
+        && now - parsed.checkedAt < OFFICIAL_LOOKBACK_MS && parsed.checkedAt <= now) cached = parsed;
+    }
+    const collected: Tweet[] = [];
+    let nextToken: string | undefined;
+    let newestId = cached?.sinceId;
+    for (let page = 0; page < MAX_OFFICIAL_PAGES; page++) {
+      const url: URL = new URL(`https://api.x.com/2/users/${encodeURIComponent(userId)}/tweets`);
+      url.searchParams.set('max_results', String(OFFICIAL_PAGE_SIZE));
+      url.searchParams.set('exclude', 'retweets');
+      // X's v2 API retains tweet field names on deployed accounts; accept the
+      // renamed post fields too when that API version is in use.
+      url.searchParams.set('tweet.fields', 'author_id,created_at,note_tweet,referenced_tweets');
+      url.searchParams.set('expansions', 'referenced_tweets.id');
+      if (cached?.sinceId) url.searchParams.set('since_id', cached.sinceId);
+      else url.searchParams.set('start_time', new Date(now - OFFICIAL_LOOKBACK_MS).toISOString());
+      if (nextToken) url.searchParams.set('pagination_token', nextToken);
+      let timeline: Response = await fetch(url.toString(), { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      if (timeline.status === 400) {
+        await timeline.body?.cancel();
+        url.searchParams.delete('tweet.fields');
+        url.searchParams.set('post.fields', 'author_id,created_at,note_post,referenced_posts');
+        url.searchParams.set('expansions', 'referenced_posts.id');
+        timeline = await fetch(url.toString(), { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      }
+      if (!timeline.ok) return { tweets: [], error: `x-api timeline: HTTP ${timeline.status}` };
+      const body: XPage | null = await readJsonWithin<XPage>(timeline, MAX_OFFICIAL_JSON_BYTES);
+      if (!body || (!Array.isArray(body.data) && !body.meta) || (body.errors?.length && !body.data)) {
+        return { tweets: [], error: 'x-api timeline: invalid or incomplete response' };
+      }
+      const parents = [...(body.includes?.tweets || []), ...(body.includes?.posts || [])];
+      for (const post of body.data || []) {
+        const ts = Date.parse(post.created_at || '');
+        const text = post.note_tweet?.text || post.note_post?.text || post.text;
+        if (!post.id || !text || !Number.isFinite(ts) || ts > now) {
+          return { tweets: [], error: 'x-api timeline: incomplete post; watermark retained' };
+        }
+        if (post.author_id && post.author_id !== userId) continue;
+        const refs = post.referenced_tweets || post.referenced_posts || [];
+        if (refs.some((ref) => ref.type === 'retweeted')) continue;
+        const parent = parents.find((item) => item.id === refs.find((ref) => ref.type === 'replied_to')?.id);
+        const parentText = parent?.note_tweet?.text || parent?.note_post?.text || parent?.text;
+        const parentTs = Date.parse(parent?.created_at || '');
+        const parentIsTimely = Number.isFinite(parentTs) && parentTs <= ts && ts - parentTs <= 48 * 3600_000;
+        collected.push({
+          text, ts, link: `https://x.com/${env.TARGET_ACCOUNT}/status/${post.id}`,
+          historyOnly: !cached || now - ts > 48 * 3600_000,
+          ...(parentText && parentIsTimely && parent?.author_id === userId ? { officialParentText: parentText } : {}),
+          // Do not archive community identities/text. Only an explicit target
+          // affirmation of a global report can carry this narrow evidence bit.
+          ...(parentText && parentIsTimely && isGlobalResetReport(parentText)
+            && isAffirmativeResetReply(text) ? { replyConfirmsGlobalReset: true } : {}),
+        });
+        if (/^\d+$/.test(post.id) && (!newestId || BigInt(post.id) > BigInt(newestId))) newestId = post.id;
+      }
+      nextToken = body.meta?.next_token;
+      if (!nextToken) break;
+    }
+    // Never advance a watermark after a failed/truncated page sequence.
+    if (nextToken) return { tweets: [], error: 'x-api timeline: pagination bound reached; watermark retained' };
+    const tweets = [...new Map([...(cached?.tweets || []), ...collected].map((tweet) => [tweet.link, tweet])).values()]
+      .filter((tweet) => tweet.ts >= now - OFFICIAL_LOOKBACK_MS && tweet.ts <= now)
+      .sort((a, b) => b.ts - a.ts);
+    if (tweets.length > MAX_CACHED_POSTS) return { tweets: [], error: 'x-api timeline: cache bound reached; watermark retained' };
+    await env.CACHE.put(timelineKey, JSON.stringify({ sinceId: newestId, checkedAt: now, tweets }), { expirationTtl: 8 * 24 * 3600 });
+    return { tweets };
   } catch (error) {
     return { tweets: [], error: `x-api: ${error instanceof Error ? error.message : String(error)}` };
   }
@@ -228,15 +312,16 @@ function parseNitterDate(title: string): number | null {
 }
 
 // Reset detection patterns — module scope so the signal builder shares them
-export const RESET_RE = /\breset(s|ting)?\b/i;
+export const RESET_RE = /\breset(?:s|t?ing|ed)?\b/i;
 // A generic "users" or "everyone" mention is not enough: it promoted launch
 // updates and celebration posts to reset candidates. Keep the Codex/limit
 // context explicit so a reset is about product access rather than any reset.
-export const CONTEXT_RE = /(?:\bcodex\b|usage\s+limits?|rate\s+limits?|quota|credits?|banked\s+reset)/i;
+export const CONTEXT_RE = /(?:\bcodex\b|\bchatgpt\s+work\b|\busage\b|rate\s+limits?|quota|credits?|banked\s+reset)/i;
 // Announcement-style phrasing must assert that a reset became available.
 // Precision matters more than recall: weak mentions remain visible in health,
 // whereas a false inserted reset distorts the model for several days.
-export const ANNOUNCE_RE = /(?:\b(?:usage\s+limits?|rate\s+limits?|quota|credits?)\s+(?:are|is|were|was|have|has|just)?\s*reset(?:ting)?\b|\b(?:banked\s+)?reset\s+(?:has|have|just)?\s*(?:landed|arrived|rolled(?:\s+out)?|gone\s+live|went\s+live|is\s+live|are\s+live)\b|\b(?:all|everyone)\s+(?:paid\s+)?users?\s+(?:should|have|has|can)\s+(?:now\s+)?(?:see|use|access|have)\b)/i;
+export const ANNOUNCE_RE = /(?:\b(?:usage(?:\s+limits?)?|rate\s+limits?|quota|credits?)\s+(?:(?:are|is|were|was|have|has|been|just|now)\s+)*reset\b|\b(?:i|we)(?:'ve)?\s+(?:(?:have|has|are|am|just|now)\s+)*reset(?:t?ing)?\s+(?:(?:the|all|your|everyone's|codex)\s+)*(?:usage|rate\s+limits?|quota|credits?)\b|\b(?:banked\s+)?reset\s+(?:(?:has|have|been|was|is|just|now)\s+)*(?:landed|arrived|propagated|rolled\s+out|gone\s+live|went\s+live|live)\b|\b(?:added|credited|given)\b[^.!?\n]{0,80}\bbanked\s+reset\b|\b(?:brand\s+)?new\s+usage\s+for\s+(?:all\s+)?(?:paid\s+)?(?:chatgpt\s+work|codex)\b)/i;
+const NON_EXECUTION_RE = /\b(?:not|never|hasn't|haven't|isn't|wasn't|didn't|don't|won't|will|would|could|might|maybe|if|tomorrow|going\s+to|plan\s+to|scheduled\s+to|expected\s+to|hope|wish)\b/i;
 const QUESTION_RE = /(?:\?|^\s*(?:when|will|would|can|does|do|how)\b)/i;
 // A future-tense official post is useful public planning evidence, but is
 // deliberately distinct from ANNOUNCE_RE: it must never create a reset
@@ -249,7 +334,33 @@ const QUOTA_RESET_RE = /\bquota\b/i;
 const CREDIT_RESET_RE = /\bcredits?\b/i;
 
 export function isResetAnnouncement(text: string): boolean {
-  return ANNOUNCE_RE.test(text) && !QUESTION_RE.test(text);
+  const normalized = text.replace(/[’‘]/g, "'");
+  if (!CONTEXT_RE.test(normalized) || isResetRetraction(normalized)) return false;
+  // Judge the assertion sentence, not punctuation or future plans in the
+  // rest of a long post. A later FAQ must not cancel an actual announcement.
+  return normalized.split(/(?<=[.!?])\s+|\n+/).some((sentence) => (
+    ANNOUNCE_RE.test(sentence) && !QUESTION_RE.test(sentence) && !NON_EXECUTION_RE.test(sentence)
+      && !/\b(?:every\s+(?:week|day|month)|usually|normally|typically)\b/i.test(sentence)
+  ));
+}
+
+function isAffirmativeResetReply(text: string): boolean {
+  return /^(?:@\w+\s+)*(?:ah\s+)?(?:yes|yeah|yep|correct|indeed)\b/i.test(text.trim())
+    && !/\?|\b(?:not|no|tomorrow|will|maybe|but)\b/i.test(text);
+}
+
+function isGlobalResetReport(text: string): boolean {
+  return CONTEXT_RE.test(text) && /\b(?:all|everyone|paid\s+users)\b/i.test(text)
+    && RESET_RE.test(text) && /\b(?:reset|back\s+to\s+100%)\b/i.test(text)
+    && !/\b(?:will|tomorrow|might|not|hasn't)\b/i.test(text);
+}
+
+export function isResetTweet(tweet: Tweet): boolean {
+  if (isResetAnnouncement(tweet.text)) return true;
+  if (tweet.replyConfirmsGlobalReset && isAffirmativeResetReply(tweet.text)) return true;
+  return Boolean(tweet.officialParentText && CONTEXT_RE.test(tweet.officialParentText)
+    && /\b(?:button\s+(?:was\s+|has\s+been\s+)?(?:already\s+)?pressed|reset\s+(?:has\s+)?landed)\b/i.test(tweet.text)
+    && !/\?|\b(?:not|will|hasn't|never)\b/i.test(tweet.text));
 }
 
 /** A future-tense reset schedule is a signal only, never an event candidate. */
@@ -315,9 +426,12 @@ type ResetTopic = 'banked' | 'limits' | 'quota' | 'credits' | 'general';
 export type ResetNotificationType = 'banked' | 'direct' | 'quota' | 'credits';
 
 export function classifyResetNotification(text: string): ResetNotificationType {
-  if (BANKED_RESET_RE.test(text)) return 'banked';
-  if (QUOTA_RESET_RE.test(text)) return 'quota';
-  if (CREDIT_RESET_RE.test(text)) return 'credits';
+  // Full long-post text may discuss unrelated banked resets or credits later.
+  // Classify the actual assertion, not an incidental FAQ paragraph.
+  const assertion = text.split(/(?<=[.!?])\s+|\n+/).find(isResetAnnouncement) || text;
+  if (BANKED_RESET_RE.test(assertion)) return 'banked';
+  if (QUOTA_RESET_RE.test(assertion)) return 'quota';
+  if (CREDIT_RESET_RE.test(assertion)) return 'credits';
   return 'direct';
 }
 
@@ -350,19 +464,14 @@ export interface ResetDetection {
 }
 
 /**
- * Detect reset announcements. Every verified historical reset came from a
- * post mentioning a reset, so require "reset" plus a usage-limit context
- * word; auto-insert additionally requires announcement-style phrasing.
- * Precision beats recall here: a missed reset self-corrects via the news
- * fallback and the next mention, while a false reset corrupts the
- * prediction model for days.
+ * Detect completed/in-progress official assertions, including long posts and
+ * context-bound replies. Mirrors remain discovery-only at the pipeline gate.
  */
 export function detectResetEvents(tweets: Tweet[]): ResetDetection {
-  const toEvent = (t: Tweet): ResetEvent => ({ ts: t.ts, text: t.text.slice(0, 280), link: t.link });
-  const matched = tweets.filter((t) => RESET_RE.test(t.text) && CONTEXT_RE.test(t.text));
+  const toEvent = (t: Tweet): ResetEvent => ({ ts: t.ts, text: t.text, link: t.link, ...(t.historyOnly ? { historyOnly: true } : {}) });
   return {
-    strong: matched.filter((t) => isResetAnnouncement(t.text)).map(toEvent),
-    weak: matched.filter((t) => !isResetAnnouncement(t.text)).map(toEvent),
+    strong: tweets.filter(isResetTweet).map(toEvent),
+    weak: tweets.filter((t) => !isResetTweet(t) && RESET_RE.test(t.text) && CONTEXT_RE.test(t.text)).map(toEvent),
   };
 }
 

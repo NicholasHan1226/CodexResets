@@ -26,6 +26,12 @@ export interface Tweet {
   text: string;
   link: string;
   ts: number;
+  /** Bootstrap/backlog recovery is history-only, never a fresh alert. */
+  historyOnly?: boolean;
+  /** Only same-account parent text may supply implicit official context. */
+  officialParentText?: string;
+  /** Derived from an explicit global-reset report in the directly fetched parent. */
+  replyConfirmsGlobalReset?: boolean;
 }
 
 export interface ScrapeResult {
@@ -42,6 +48,7 @@ export interface ResetEvent {
   ts: number;
   text: string;
   link: string;
+  historyOnly?: boolean;
 }
 
 export interface ResetRecordRow {
@@ -126,6 +133,7 @@ export interface RunReport {
   weakCandidates?: number;
   /** Strong direct-source matches older than the automatic delivery window. */
   staleCandidates?: number;
+  recoveredHistory?: number;
   /** First few candidate excerpts — lets ops eyeball false positives in /api/health */
   candidateSamples?: { tier: 'strong' | 'weak'; ts: string; link: string; text: string }[];
   inserted: number;

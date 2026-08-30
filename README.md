@@ -72,6 +72,29 @@ When configured, the authenticated official X API is the only direct-account
 source permitted to create, confirm, or deliver an automated alert or raise an
 active public reset signal. A direct official post scheduling a future reset is
 shown as a short-lived active planning signal only: it never enters reset history.
+The official timeline uses an incremental post-ID watermark, bounded pagination
+(50 posts/page, at most eight pages/run), full long-post text, and directly
+fetched reply context. A seven-day private KV cache retains official evidence;
+successful empty incremental reads are healthy, but a failed or truncated page
+sequence never advances the watermark. The limit caps recovery cost at 400
+timeline posts per run; ordinary runs fetch only new posts. A pagination-limit
+error needs investigation, not silent truncation or an automatic budget increase.
+Common announcement spellings and completed-action phrasing are supported;
+questions, denials, recurring personal reset rules and future plans are not
+confirmations. An affirmative reply needs an explicit global-reset parent
+report; unrelated community wording cannot confirm an event. Community parent
+text and identities are not archived.
+
+The first seven-day catch-up and notices older than 48 hours are history-only.
+Unambiguous direct official evidence without a matching retraction repairs the
+existing reset table with `verified=true`, `automated=false`, `auto_state=manual`
+(the existing non-delivery lifecycle, not a request for human approval).
+Publication time is retained as the observation time, not invented as an exact
+account-level execution time. These records update the dashboard/model but
+never send a backdated confirmed-reset alert. Normal new events retain the
+30-minute stabilization window. Confirmed notification retries expire 48 hours
+after the source post. Pending reset discoveries suppress premature forecast
+emails based on an obsolete last-reset date.
 When the current direct source is healthy, no relevant official incident is
 active, and the dashboard's next-24-hour planning likelihood first reaches
 70%, the Worker sends one email-only forecast notice per reset cycle. It is
@@ -150,6 +173,11 @@ time-ordered model selection.
 Direct reset announcements are already-observed information, so they are not
 part of the browser or Worker probability model. Legacy private snapshots that
 contained one are excluded from calibration and formal release scoring.
+When history is recovered after a prediction, affected pending/evaluated
+samples are retained with `historyIncomplete=true` and excluded from calibration
+and release scoring; past scores are not rewritten into successful predictions.
+New forward snapshots can use the corrected history. Backfills create no
+synthetic forecasts or historical decision samples.
 The dashboard presents exactly one percentage as its primary answer: the
 selected 24- or 48-hour probability. The timing chart is deliberately
 percentage-free; it highlights the single three-hour period with the highest

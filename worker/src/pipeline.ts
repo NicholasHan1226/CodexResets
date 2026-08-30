@@ -100,6 +100,10 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
     allRecords = await sbSelect<ResetRecordRow>(env, 'reset_records?select=*&order=reset_date.desc&limit=100', true);
   } catch (err) {
     report.errors.push(`records read: ${err instanceof Error ? err.message : String(err)}`);
+    // A failed private read is not an empty history. Do not insert duplicates,
+    // notify, or overwrite a good forecast using an empty substitute.
+    await env.CACHE.put('health:last_run', JSON.stringify(report));
+    return report;
   }
 
   // 3. Detect direct-source announcements, dedupe, then start the automated
@@ -107,16 +111,19 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
   //    create a reset record or trigger delivery.
   const detection = detectResetEvents(scrape.tweets);
   const strongCandidates = detection.strong;
-  const candidates = strongCandidates.filter((candidate) => isTimelyAutomatedCandidate(candidate));
-  report.candidates = candidates.length;
-  report.staleCandidates = strongCandidates.length - candidates.length;
+  const candidates = strongCandidates.filter((candidate) => isTimelyAutomatedCandidate(candidate, Date.now(), 7 * 24 * HOUR));
+  report.candidates = candidates.filter((candidate) => !candidate.historyOnly && isTimelyAutomatedCandidate(candidate)).length;
+  report.staleCandidates = candidates.filter((candidate) => candidate.historyOnly || !isTimelyAutomatedCandidate(candidate)).length;
   report.weakCandidates = detection.weak.length;
   report.candidateSamples = [
     ...detection.strong.map((c) => ({ tier: 'strong' as const, ts: new Date(c.ts).toISOString(), link: c.link, text: c.text.slice(0, 160) })),
     ...detection.weak.map((c) => ({ tier: 'weak' as const, ts: new Date(c.ts).toISOString(), link: c.link, text: c.text.slice(0, 160) })),
   ].slice(0, 4);
   const fresh: ResetEvent[] = [];
+  const retractions = detectResetRetractions(scrape.tweets);
   for (const candidate of candidates) {
+    if (retractions.some((event) => event.ts >= candidate.ts && event.ts - candidate.ts <= RETRACTION_WINDOW_MS
+      && isRetractionForCandidate(candidate, event))) continue;
     const duplicateInRecords = allRecords.some((record) => isDuplicateResetNotice({
       ts: Date.parse(record.reset_date),
       text: record.description || '',
@@ -130,23 +137,24 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
     if (!hasPrivilegedAccess(env)) {
       report.errors.push('insert skipped: no privileged DB access (service role key)');
     } else {
-      const rows = fresh.map((c) => ({
+      const rows = fresh.map((c) => {
+        const historyOnly = c.historyOnly || !isTimelyAutomatedCandidate(c);
+        return {
         reset_date: new Date(c.ts).toISOString(),
         description: c.text,
         source_url: c.link,
-        verified: false,
-        automated: true,
-        auto_state: 'observed' as const,
-        auto_confirm_after: new Date(Date.now() + AUTOMATION_STABILIZATION_MS).toISOString(),
-      }));
+        verified: Boolean(historyOnly),
+        automated: !historyOnly,
+        auto_state: historyOnly ? 'manual' as const : 'observed' as const,
+        ...(historyOnly ? {} : { auto_confirm_after: new Date(Date.now() + AUTOMATION_STABILIZATION_MS).toISOString() }),
+      }; });
       const res = await privInsertResets(env, rows);
       if (res.ok) {
-        report.pendingInserted = rows.length;
-        report.autoQueued = (report.autoQueued || 0) + rows.length;
-        allRecords = [
-          ...rows.map((r, i) => ({ id: `new-${i}`, ...r })),
-          ...allRecords,
-        ];
+        const inserted = await res.json() as ResetRecordRow[];
+        report.recoveredHistory = rows.filter((row) => row.verified).length;
+        report.pendingInserted = rows.length - report.recoveredHistory;
+        report.autoQueued = (report.autoQueued || 0) + report.pendingInserted;
+        allRecords = [...inserted, ...allRecords].sort((a, b) => Date.parse(b.reset_date) - Date.parse(a.reset_date));
       } else {
         report.errors.push(`insert: ${res.status} ${await res.text()}`);
       }
@@ -273,7 +281,8 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
   // cross the public 70% planning threshold. A separate due-time notice makes
   // a direct official schedule actionable when it arrives, without treating
   // it as a confirmed reset or altering history.
-  if (scrape.sourceKind === 'direct' && statusEvidence.state !== 'incident') {
+  if (scrape.sourceKind === 'direct' && statusEvidence.state !== 'incident'
+    && !allRecords.some((record) => record.auto_state === 'observed' && !record.verified)) {
     const prealert = getForecastPrealert(records, snapshot.signals, latestResetTs, recordNow);
     if (prealert) {
       const outcome = await notifyForecastPrealert(env, prealert, deliveryLedger);
@@ -337,8 +346,7 @@ export function isAutomaticallyDeliverable(record: ResetRecordRow, now = Date.no
     && record.automated === true
     && record.auto_state === 'confirmed'
     && !record.notified_at
-    && Number.isFinite(Date.parse(record.reset_date))
-    && Date.parse(record.reset_date) <= now;
+    && isTimelyAutomatedCandidate({ ts: Date.parse(record.reset_date), text: '', link: '' }, now);
 }
 
 /**

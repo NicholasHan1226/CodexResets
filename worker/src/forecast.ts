@@ -33,6 +33,8 @@ interface ForecastSample {
   prob48h: number;
   /** Retained only to exclude legacy samples created before the forward-only model. */
   strongDirectSignal?: boolean;
+  /** Retain the original score but exclude decisions affected by late history. */
+  historyIncomplete?: boolean;
 }
 
 interface ForecastEvaluation extends ForecastSample {
@@ -159,7 +161,7 @@ export async function recordForecastSnapshot(
       body: JSON.stringify({
         now,
         legacy,
-        rows: rows.map(({ id, reset_date, verified, auto_state }) => ({ id, reset_date, verified, auto_state })),
+        rows: rows.map(({ id, reset_date, verified, auto_state, automated, created_at }) => ({ id, reset_date, verified, auto_state, automated, created_at })),
       }),
     });
     if (!response.ok) throw new Error(`forecast ledger ${response.status}`);
@@ -202,13 +204,20 @@ export async function recordForecastSnapshotInStore(
     prob48h: probabilityWithin(records, selection.model, now, 48),
   };
 
-  const pending = parseSamples((await store.get(FORECAST_PENDING_KEY)) ?? null);
+  const flagIncompleteHistory = <T extends ForecastSample>(sample: T): T => ({
+    ...sample,
+    ...(rows.some((row) => row.verified && row.automated === false
+      && Date.parse(row.created_at || '') > sample.at
+      && Date.parse(row.reset_date) <= sample.dueAt)
+      ? { historyIncomplete: true } : {}),
+  });
+  const pending = parseSamples((await store.get(FORECAST_PENDING_KEY)) ?? null).map(flagIncompleteHistory);
   const due = pending.filter((sample) => sample.dueAt <= now);
   const remaining = pending.filter((sample) => sample.dueAt > now);
-  if (due.length > 0) {
+  {
     const cutoff = now - FORECAST_TTL_SECONDS * 1000;
     const previous = parseEvaluations((await store.get(FORECAST_EVALUATIONS_KEY)) ?? null)
-      .filter((evaluation) => evaluation.at >= cutoff);
+      .filter((evaluation) => evaluation.at >= cutoff).map(flagIncompleteHistory);
     const evaluations = [
       ...previous,
       ...due.map((sample) => ({
@@ -291,7 +300,7 @@ export async function getForecastCalibrationFromStore(store: ForecastStore): Pro
  * Otherwise a same-run announcement could inflate a "future" accuracy claim.
  */
 function calibrationEvaluations(evaluations: ForecastEvaluation[]): ForecastEvaluation[] {
-  return evaluations.filter((evaluation) => !evaluation.strongDirectSignal);
+  return evaluations.filter((evaluation) => !evaluation.strongDirectSignal && !evaluation.historyIncomplete);
 }
 
 function forecastDecisionAccuracy(evaluations: ForecastEvaluation[]): ForecastDecisionAccuracy {
