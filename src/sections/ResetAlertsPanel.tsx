@@ -119,6 +119,9 @@ export function ResetAlertsPanel() {
       <p className="mt-2 text-sm text-muted-foreground">
         {t('subscribe.description')}
       </p>
+      <p className="mt-1 text-sm text-muted-foreground/80">
+        {t('subscribe.scope')}
+      </p>
 
       {/* Email sends one 24-hour forecast notice at 70%, an official due-time notice, then a separate confirmed-reset alert. */}
       <div className="mt-4 max-w-xl border border-border/40 bg-muted/20 transition-colors focus-within:border-primary/50">

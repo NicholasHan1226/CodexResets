@@ -113,7 +113,6 @@ li + li { margin-top: 0.7rem; }
 
 .action {
   display: inline-flex;
-  margin-top: 2.5rem;
   border: 1px solid rgba(16, 163, 127, 0.45);
   padding: 0.7rem 0.9rem;
   color: var(--accent);
@@ -121,8 +120,27 @@ li + li { margin-top: 0.7rem; }
   transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), background-color 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 2.5rem;
+}
+
 .action:hover { background: var(--accent-dim); }
 .action:active { transform: translateY(1px); }
+
+.action-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0b0c0f;
+  font-weight: 700;
+}
+
+.action-primary:hover {
+  background: #0e8f70;
+  color: #0b0c0f;
+}
 
 .related {
   display: flex;

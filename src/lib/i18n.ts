@@ -24,7 +24,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.answerScheduledElapsed': 'The official target time passed; confirmation is pending.',
     'hero.answerScheduledGrace': 'The official schedule is still being executed.',
     'hero.lastResetWas': 'The last verified global reset was',
-    'hero.lastResetLabel': 'last verified reset',
+    'hero.lastResetLabel': 'last verified global reset',
     'hero.daysAgo': 'days ago',
     'hero.flatNote': 'Waiting longer does not raise the odds — the 24h number stays flat while the quiet stretch runs.',
     'hero.medianGap': 'median gap',
@@ -44,10 +44,16 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.compositeWithinHours': 'planning likelihood · next {n}h',
     'hero.modelBaseline': 'history model {n}%',
     'hero.windowShort': 'likely window',
+    'hero.windowStat': '{pct}% in {n}h',
+    'hero.horizonLabel': '{n}h reset probability',
+    'hero.horizonToggle': '24-hour and 48-hour forecast',
+    'hero.scope': 'For Codex users: a 24/48-hour forecast of broadly observed usage-limit resets — not the timer in your ChatGPT or Codex /status.',
     'hero.shareText': 'Codex reset probability: {n}% in next {h}h — live forecast:',
     'hero.shareLink': '[share]',
     'hero.copied': '[copied ✓]',
     'hero.alertLink': '[set alert]',
+    'hero.alertCta': 'Get email alerts',
+    'hero.guideLink': '[how this forecast works]',
     'hero.prob24h': '24h Reset Probability',
     'hero.prob48h': '48h Reset Probability',
     'hero.trend': '+9 pts / 24h',
@@ -81,6 +87,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'availability.description': 'A fresh verified snapshot is required before showing a reset probability. Please retry shortly.',
     'availability.retry': '[retry]',
     'availability.docs': '[method]',
+    'availability.guides': '[guides]',
 
     // Header
     'app.title': 'Codex Resets',
@@ -218,8 +225,9 @@ const translations: Record<Locale, Record<string, string>> = {
     'timeDistribution.peakWindow': 'peak window',
 
     // Subscribe
-    'subscribe.title': 'RESET RADAR',
+    'subscribe.title': 'RESET ALERTS',
     'subscribe.description': 'We’ll email one 24-hour forecast at 70%, a due-time notice for an official schedule, then the confirmed reset type and official announcement. Confirm your email first.',
+    'subscribe.scope': 'These alerts cover broadly observed Codex resets — not your personal ChatGPT or Codex usage window.',
     'subscribe.command': 'watch forecast+scheduled+confirmed --channel email',
     'subscribe.armed': 'ARMED',
     'subscribe.standby': 'STANDBY',
@@ -238,7 +246,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Push Notifications
     'push.title': 'BROWSER NOTIFICATIONS',
-    'push.description': 'Get instant alerts when a Codex reset is imminent.',
+    'push.description': 'Browser push is for confirmed Codex resets only.',
     'push.enable': 'Enable Notifications',
     'push.disable': 'Disable Notifications',
     'push.active': 'Notifications active',
@@ -302,6 +310,11 @@ const translations: Record<Locale, Record<string, string>> = {
     'footer.modelVersion': 'Model v2.4.1',
     'footer.dataSources': 'Data: @thsottiaux posts · OpenAI Status · Historical patterns',
     'footer.disclaimer': 'Not affiliated with OpenAI. Reset timing can change; estimates are for planning only.',
+    'footer.guides': 'Guides',
+    'footer.guideLimits': 'usage limits',
+    'footer.guideForecast': '24/48h forecast',
+    'footer.guideHistory': 'reset history',
+    'footer.guideZh': '中文',
 
     // Calendar
     'calendar.title': 'Reset Calendar',
@@ -343,7 +356,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.answerScheduledElapsed': '官方预告时间已过，等待实际确认。',
     'hero.answerScheduledGrace': '官方预告执行中，等待实际确认。',
     'hero.lastResetWas': '上次已验证的全局重置发生在',
-    'hero.lastResetLabel': '上次已验证重置',
+    'hero.lastResetLabel': '上次已验证的全局重置',
     'hero.daysAgo': '天前',
     'hero.flatNote': '等待不会提高概率——在平静期内，24 小时数值保持不变。',
     'hero.medianGap': '中位间隔',
@@ -363,10 +376,16 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.compositeWithinHours': '综合预判 · 未来 {n} 小时',
     'hero.modelBaseline': '历史模型 {n}%',
     'hero.windowShort': '最可能窗口',
+    'hero.windowStat': '{n} 小时 {pct}%',
+    'hero.horizonLabel': '{n} 小时重置概率',
+    'hero.horizonToggle': '24 小时与 48 小时预测',
+    'hero.scope': '面向 Codex 用户：这是对可公开观察到的额度重置的 24/48 小时预判，不是 ChatGPT 或 Codex /status 里的个人倒计时。',
     'hero.shareText': 'Codex 重置概率：未来 {h} 小时内 {n}% — 实时预测：',
     'hero.shareLink': '[分享]',
     'hero.copied': '[已复制 ✓]',
     'hero.alertLink': '[订阅提醒]',
+    'hero.alertCta': '订阅邮件提醒',
+    'hero.guideLink': '[预测方法说明]',
     'hero.prob24h': '24h 内重置概率',
     'hero.prob48h': '48h 内重置概率',
     'hero.trend': '+9 点 / 24h',
@@ -400,6 +419,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'availability.description': '只有取得最新的已验证快照后才会展示重置概率，请稍后重试。',
     'availability.retry': '[重试]',
     'availability.docs': '[方法]',
+    'availability.guides': '[指南]',
 
     // Header
     'app.title': 'Codex 重置预判',
@@ -537,8 +557,9 @@ const translations: Record<Locale, Record<string, string>> = {
     'timeDistribution.peakWindow': '高峰窗口',
 
     // Subscribe
-    'subscribe.title': '重置雷达',
+    'subscribe.title': '重置提醒',
     'subscribe.description': '未来 24 小时综合判断达到 70% 时会发送一次预告；官方预告时间到达时会发送执行通知；重置确认后会另行告知类型并附官方公告。请先完成邮箱确认。',
+    'subscribe.scope': '提醒覆盖可公开观察到的 Codex 重置，不是你个人的 ChatGPT 或 Codex 用量窗口。',
     'subscribe.command': 'watch forecast+scheduled+confirmed --channel email',
     'subscribe.armed': '已生效',
     'subscribe.standby': '待命',
@@ -557,7 +578,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Push Notifications
     'push.title': '浏览器通知',
-    'push.description': '当 Codex 重置即将发生时获取即时通知。',
+    'push.description': '浏览器推送仅用于已确认的 Codex 重置。',
     'push.enable': '开启通知',
     'push.disable': '关闭通知',
     'push.active': '通知已激活',
@@ -621,6 +642,11 @@ const translations: Record<Locale, Record<string, string>> = {
     'footer.modelVersion': '模型 v2.4.1',
     'footer.dataSources': '数据源：@thsottiaux 推文 · OpenAI 状态页 · 历史模式',
     'footer.disclaimer': '非 OpenAI 官方产品。重置节奏可能变化，预测仅供参考。',
+    'footer.guides': '指南',
+    'footer.guideLimits': '限额说明',
+    'footer.guideForecast': '24/48h 预测',
+    'footer.guideHistory': '重置历史',
+    'footer.guideZh': '中文',
 
     // Calendar
     'calendar.title': '重置日历',

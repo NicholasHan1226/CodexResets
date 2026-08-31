@@ -9,6 +9,7 @@ import { TimeDistribution } from "@/sections/TimeDistribution";
 import { ResetCalendar } from "@/sections/ResetCalendar";
 import { ProbabilityCurve } from "@/sections/ProbabilityCurve";
 import { AnchorNav } from "@/components/AnchorNav";
+import { GuideLinks } from "@/components/GuideLinks";
 import { buildShareSummary, shareUrl, copyToClipboard } from "@/lib/export-share";
 import { useI18n } from "@/contexts/I18nContext";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
@@ -75,17 +76,15 @@ export default function Home() {
         />
 
         <main className="mx-auto max-w-4xl px-4 py-10 md:px-6 lg:py-12" role="main" aria-label="Codex Reset Prediction Dashboard">
-          {/* The probability + quick nav */}
-          <div className="micro-fade-up">
-            <HeroSection
-              prediction={prediction}
-              timeframe={timeframe}
-              onTimeframeChange={setTimeframe}
-              primaryForecast={primaryForecast}
-              currentTime={now}
-            />
-            <AnchorNav showCalendar={showCalendar} showRhythm={showHistoricalTiming} />
-          </div>
+          {/* Answer first, then the subscribe well — deeper evidence follows. */}
+          <HeroSection
+            prediction={prediction}
+            timeframe={timeframe}
+            onTimeframeChange={setTimeframe}
+            primaryForecast={primaryForecast}
+            currentTime={now}
+          />
+          <AnchorNav showCalendar={showCalendar} showRhythm={showHistoricalTiming} />
 
           <hr className="my-10 border-border/30" />
 
@@ -96,6 +95,12 @@ export default function Home() {
               planningProbability={planningProbability}
               officialScheduleAt={officialScheduleAt}
             />
+          </div>
+
+          <hr className="my-10 border-border/30" />
+
+          <div id="alerts" className="scroll-mt-16">
+            <ResetAlertsPanel />
           </div>
 
           <hr className="my-10 border-border/30" />
@@ -126,15 +131,10 @@ export default function Home() {
             </div>
           </>}
 
-          <hr className="my-10 border-border/30" />
-
-          <div id="alerts" className="scroll-mt-16 cv-auto">
-            <ResetAlertsPanel />
-          </div>
-
           {/* Footer */}
           <footer className="mt-10 pt-6 border-t border-border/30" role="contentinfo">
             <p className="text-xs text-muted-foreground">{t('footer.disclaimer')}</p>
+            <GuideLinks className="mt-3 font-mono text-xs" />
           </footer>
         </main>
       </div>

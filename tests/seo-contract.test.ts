@@ -12,6 +12,10 @@ describe('search entry contracts', () => {
     expect(home).toContain('<title>Codex Usage Limit Reset Forecast | 24/48h Probability</title>');
     expect(home).toContain('<noscript>');
     expect(home).toContain('<h1>Codex usage-limit reset forecast</h1>');
+    expect(home).toContain('href="/#alerts"');
+    expect(home).toContain('href="/guides/codex-reset-prediction/"');
+    expect(home).toContain('href="/zh/codex-reset-prediction/"');
+    expect(home).toContain('not an account-specific reset schedule');
   });
 
   it('uses the canonical about URL in its metadata and sitemap', () => {
