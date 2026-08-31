@@ -1,4 +1,5 @@
 import { useI18n } from '@/contexts/I18nContext';
+import { GuideLinks } from '@/components/GuideLinks';
 
 interface DashboardUnavailableProps {
   onRetry: () => void;
@@ -6,7 +7,7 @@ interface DashboardUnavailableProps {
 
 /** A fail-closed production state: no probability is shown without live inputs. */
 export function DashboardUnavailable({ onRetry }: DashboardUnavailableProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   return (
     <main className="flex min-h-screen items-center bg-background px-4" aria-live="polite">
@@ -17,7 +18,9 @@ export function DashboardUnavailable({ onRetry }: DashboardUnavailableProps) {
         <div className="mt-6 flex flex-wrap gap-3 font-mono text-xs">
           <button onClick={onRetry} className="command-action text-primary">{t('availability.retry')}</button>
           <a href="/about/" className="command-action text-muted-foreground hover:text-foreground">{t('availability.docs')}</a>
+          <a href={locale === 'zh' ? '/zh/codex-reset-prediction/' : '/guides/codex-reset-prediction/'} className="command-action text-muted-foreground hover:text-foreground">{t('availability.guides')}</a>
         </div>
+        <GuideLinks className="mt-6 font-mono text-xs" />
       </section>
     </main>
   );

@@ -52,6 +52,13 @@ export function DashboardSkeleton() {
 
         <hr className="my-10 border-border/30" />
 
+        {/* Alerts well — sits after the answer so first paint matches the live funnel */}
+        <Bar className="h-5 w-40" />
+        <Bar className="mt-3 h-4 w-full max-w-xl" />
+        <Bar className="mt-4 h-28 w-full max-w-xl" />
+
+        <hr className="my-10 border-border/30" />
+
         {/* Signals section */}
         <Bar className="h-5 w-36" />
         <div className="mt-4 space-y-3">

@@ -2,8 +2,12 @@ import { useI18n } from '@/contexts/I18nContext';
 import { useRef, type KeyboardEvent } from 'react';
 
 interface ProbabilityDisplayProps {
-  /** Probability 0-100 */
+  /** Probability 0-100 for the selected horizon. */
   pct: number;
+  /** Planning likelihood for the next 24 hours (0-100). */
+  pct24: number;
+  /** Planning likelihood for the next 48 hours (0-100). */
+  pct48: number;
   /** Underlying history-only value when a current official target raises the planning likelihood. */
   modelPct?: number;
   timeframe: 24 | 48;
@@ -20,9 +24,11 @@ const BAR_WIDTH = 30;
 /**
  * The calibrated probability remains visible at all times. A direct official
  * schedule is displayed as a separate strong input so it informs the answer
- * without being silently converted into an uncalibrated percentage.
+ * without being silently converted into an uncalibrated percentage. Both the
+ * 24h and 48h windows stay on screen so the selected horizon is a comparison,
+ * not a hidden toggle.
  */
-export function ProbabilityDisplay({ pct, modelPct, timeframe, onTimeframeChange, officialSchedule }: ProbabilityDisplayProps) {
+export function ProbabilityDisplay({ pct, pct24, pct48, modelPct, timeframe, onTimeframeChange, officialSchedule }: ProbabilityDisplayProps) {
   const { t } = useI18n();
   const tabRefs = useRef<Partial<Record<24 | 48, HTMLButtonElement>>>({});
 
@@ -40,12 +46,12 @@ export function ProbabilityDisplay({ pct, modelPct, timeframe, onTimeframeChange
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <span className="text-[11px] text-muted-foreground/70 uppercase tracking-widest">
-          {t(modelPct !== undefined ? 'hero.compositeWithinHours' : officialSchedule ? 'hero.modelWithinHours' : 'hero.probLabel', { n: timeframe })}
+          {t(modelPct !== undefined ? 'hero.compositeWithinHours' : officialSchedule ? 'hero.modelWithinHours' : 'hero.horizonLabel', { n: timeframe })}
         </span>
-        {/* Timeframe toggle */}
-        <div className="flex items-center rounded-sm border border-border/50 bg-background/50 p-0.5 font-mono text-sm" role="tablist" aria-label="Timeframe">
+        {/* Timeframe toggle — both windows carry their numbers */}
+        <div className="flex items-center rounded-sm border border-border/50 bg-background/50 p-0.5 font-mono text-sm" role="tablist" aria-label={t('hero.horizonToggle')}>
           {([24, 48] as const).map((tf) => (
             <button
               key={tf}
@@ -63,7 +69,7 @@ export function ProbabilityDisplay({ pct, modelPct, timeframe, onTimeframeChange
                   : 'text-muted-foreground/40 hover:text-muted-foreground'
               }`}
             >
-              [{tf}h]
+              [{tf}h {tf === 24 ? pct24 : pct48}%]
             </button>
           ))}
         </div>
@@ -81,8 +87,14 @@ export function ProbabilityDisplay({ pct, modelPct, timeframe, onTimeframeChange
           <span className="text-primary">{barFilled}</span>
           <span className="text-muted-foreground/15">{barEmpty}</span>
         </p>
-        <p className="mt-3 text-sm text-muted-foreground">
-          {t('hero.withinHours', { n: timeframe })}
+        <p className="mt-3 font-mono text-sm text-muted-foreground">
+          <span className={timeframe === 24 ? 'text-foreground' : 'text-muted-foreground/60'}>
+            {t('hero.windowStat', { pct: pct24, n: 24 })}
+          </span>
+          <span className="mx-2 text-border">·</span>
+          <span className={timeframe === 48 ? 'text-foreground' : 'text-muted-foreground/60'}>
+            {t('hero.windowStat', { pct: pct48, n: 48 })}
+          </span>
           {modelPct !== undefined && <span className="text-muted-foreground/60"> · {t('hero.modelBaseline', { n: modelPct })}</span>}
         </p>
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
 import { ProbabilityDisplay } from '@/sections/ProbabilityDisplay';
-import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPlanningProbability, type PrimaryForecast } from '@/lib/forecast-display';
+import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPlanningProbability, getPrimaryForecast, type PrimaryForecast } from '@/lib/forecast-display';
 import {
   buildShareSummary,
   shareUrl,
@@ -22,15 +22,19 @@ interface HeroSectionProps {
 export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryForecast, currentTime }: HeroSectionProps) {
   const { t, locale } = useI18n();
   const [copied, setCopied] = useState(false);
-  const pct24 = Math.round(prediction.prob24h * 100);
-  const pct48 = Math.round(prediction.prob48h * 100);
-  const modelPct = timeframe === 24 ? pct24 : pct48;
+  const modelPct24 = Math.round(prediction.prob24h * 100);
+  const modelPct48 = Math.round(prediction.prob48h * 100);
+  const forecast24 = getPrimaryForecast(prediction.signals, 24, currentTime);
+  const forecast48 = getPrimaryForecast(prediction.signals, 48, currentTime);
+  const pct24 = Math.round(getPlanningProbability(prediction.prob24h, prediction.signals, forecast24) * 100);
+  const pct48 = Math.round(getPlanningProbability(prediction.prob48h, prediction.signals, forecast48) * 100);
+  const modelPct = timeframe === 24 ? modelPct24 : modelPct48;
 
   const lastResetDate = prediction.lastReset ? new Date(prediction.lastReset) : null;
   const daysSince = prediction.daysSinceLastReset;
   const officialSignal = prediction.signals.find((signal) => signal.source === 'tibopost');
   const hasScheduledReset = primaryForecast.kind === 'official-schedule';
-  const pct = Math.round(getPlanningProbability(modelPct / 100, prediction.signals, primaryForecast) * 100);
+  const pct = timeframe === 24 ? pct24 : pct48;
   const isOfficialBoosted = pct !== modelPct;
   // The wording tracks probability bands: a middle range should not read as
   // either a dismissal or a guarantee. A direct official schedule is a
@@ -98,6 +102,8 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
     }
   };
 
+  const guideHref = locale === 'zh' ? '/zh/codex-reset-prediction/' : '/guides/codex-reset-prediction/';
+
   return (
     <section aria-label="Reset probability" className="hero-stage max-w-4xl">
       {/* Terminal prompt — answer first, then the evidence in dim text */}
@@ -112,11 +118,16 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
           </span>
         )}
       </p>
+      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+        {t('hero.scope')}
+      </p>
 
       {/* The probability — the single protagonist */}
       <div className="mt-10">
         <ProbabilityDisplay
           pct={pct}
+          pct24={pct24}
+          pct48={pct48}
           modelPct={isOfficialBoosted ? modelPct : undefined}
           timeframe={timeframe}
           onTimeframeChange={onTimeframeChange}
@@ -154,16 +165,19 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
           : `advice.${prediction.advice[timeframe].level}`)}
       </p>
 
-      {/* Low-friction actions — subscription remains the page's only solid CTA. */}
-      <p className="mt-4 flex flex-wrap gap-2 font-mono text-xs">
+      {/* Subscribe is the page's only solid CTA; share and guides stay quieter. */}
+      <p className="mt-5 flex flex-wrap items-center gap-2 font-mono text-xs">
+        <a href="#alerts" className="command-action command-action-primary">
+          {t('hero.alertCta')}
+        </a>
         <button
           onClick={handleShare}
-          className="command-action text-primary"
+          className="command-action text-muted-foreground hover:text-foreground"
         >
           {copied ? t('hero.copied') : t('hero.shareLink')}
         </button>
-        <a href="#alerts" className="command-action text-muted-foreground hover:text-foreground">
-          {t('hero.alertLink')}
+        <a href={guideHref} className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground">
+          {t('hero.guideLink')}
         </a>
       </p>
     </section>

@@ -3,10 +3,10 @@ import { useI18n } from '@/contexts/I18nContext';
 
 const baseSections = [
   { id: 'curve', key: 'nav.curve' },
+  { id: 'alerts', key: 'nav.alerts' },
   { id: 'signals', key: 'nav.signals' },
   { id: 'rhythm', key: 'nav.rhythm' },
   { id: 'history', key: 'nav.history' },
-  { id: 'alerts', key: 'nav.alerts' },
 ];
 
 interface AnchorNavProps {
@@ -19,9 +19,14 @@ export function AnchorNav({ showCalendar, showRhythm = true }: AnchorNavProps) {
   const { t } = useI18n();
   const sections = useMemo(() => {
     const withoutRhythm = showRhythm ? baseSections : baseSections.filter(({ id }) => id !== 'rhythm');
-    return showCalendar
-      ? [...withoutRhythm.slice(0, -1), { id: 'calendar', key: 'nav.calendar' }, withoutRhythm.at(-1)!]
-      : withoutRhythm;
+    if (!showCalendar) return withoutRhythm;
+    const historyIndex = withoutRhythm.findIndex(({ id }) => id === 'history');
+    const insertAt = historyIndex >= 0 ? historyIndex + 1 : withoutRhythm.length;
+    return [
+      ...withoutRhythm.slice(0, insertAt),
+      { id: 'calendar', key: 'nav.calendar' },
+      ...withoutRhythm.slice(insertAt),
+    ];
   }, [showCalendar, showRhythm]);
   const [activeId, setActiveId] = useState(() => {
     const hashId = window.location.hash.slice(1);

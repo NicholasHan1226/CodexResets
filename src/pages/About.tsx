@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import { useI18n } from '@/contexts/I18nContext';
+import { GuideLinks } from '@/components/GuideLinks';
 
 export default function About() {
   const { t } = useI18n();
@@ -111,15 +112,19 @@ export default function About() {
           </p>
         </section>
 
-        {/* Back link */}
-        <div className="mt-10 pt-6 border-t border-border/30">
+        {/* Back / next actions */}
+        <div className="mt-10 flex flex-wrap items-center gap-3 pt-6 border-t border-border/30">
           <Link
             to="/"
             className="font-mono text-sm text-primary hover:underline"
           >
             ← {t('about.backHome')}
           </Link>
+          <a href="/#alerts" className="command-action command-action-primary font-mono text-xs">
+            {t('hero.alertCta')}
+          </a>
         </div>
+        <GuideLinks className="mt-4 font-mono text-xs" />
       </main>
     </div>
   );
