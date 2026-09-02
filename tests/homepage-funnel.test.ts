@@ -24,6 +24,11 @@ describe('homepage funnel contracts', () => {
 
     expect(display).toContain('[{tf}h {tf === 24 ? pct24 : pct48}%]');
     expect(display).toContain("t('hero.windowStat'");
+    expect(hero).toContain("t('hero.question')");
+    expect(hero).toContain('todayVerdictKey');
+    expect(hero).toContain("t('hero.windowStat'");
+    expect(hero).toContain('pct24');
+    expect(hero).toContain('pct48');
     expect(hero).toContain('command-action-primary');
     expect(hero).toContain("t('hero.alertCta')");
     expect(hero).toContain("t('hero.scope')");

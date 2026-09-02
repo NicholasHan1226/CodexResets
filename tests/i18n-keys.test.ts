@@ -10,6 +10,9 @@ describe('i18n dictionaries', () => {
   });
 
   it('states that the 24h and 48h numbers are a shared forecast, not an account timer', () => {
+    expect(english['hero.question']).toMatch(/today/i);
+    expect(english['hero.question']).not.toContain('{n}');
+    expect(chinese['hero.question']).toContain('今天');
     expect(english['hero.scope']).toMatch(/24\/48-hour forecast/i);
     expect(english['hero.scope']).toMatch(/not the timer/i);
     expect(english['hero.scope']).toMatch(/Codex/);

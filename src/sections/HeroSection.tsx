@@ -32,34 +32,28 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
 
   const lastResetDate = prediction.lastReset ? new Date(prediction.lastReset) : null;
   const daysSince = prediction.daysSinceLastReset;
-  const officialSignal = prediction.signals.find((signal) => signal.source === 'tibopost');
   const hasScheduledReset = primaryForecast.kind === 'official-schedule';
   const pct = timeframe === 24 ? pct24 : pct48;
   const isOfficialBoosted = pct !== modelPct;
-  // The wording tracks probability bands: a middle range should not read as
-  // either a dismissal or a guarantee. A direct official schedule is a
-  // strong live input, while the independently calibrated history model stays
-  // visible beside it rather than being replaced.
-  const verdictKey = hasScheduledReset
-    ? primaryForecast.window === 'after'
+  // First sentence answers "today" (next 24h) with both window stats inline.
+  // Probability bands stay non-certain; an official schedule is a strong live
+  // input shown beside the history model rather than replacing it. The selected
+  // horizon still drives the large number, curve, and advice below.
+  const todayVerdictKey = forecast24.kind === 'official-schedule'
+    ? forecast24.window === 'after'
       ? 'hero.answerScheduledAfter'
-      : primaryForecast.window === 'grace'
+      : forecast24.window === 'grace'
         ? 'hero.answerScheduledGrace'
-      : primaryForecast.window === 'elapsed'
+      : forecast24.window === 'elapsed'
         ? 'hero.answerScheduledElapsed'
-        : primaryForecast.window === 'pending'
+        : forecast24.window === 'pending'
         ? 'hero.answerScheduledPending'
         : 'hero.answerScheduled'
-    : pct >= 60
+    : pct24 >= 60
     ? 'hero.answerYes'
-    : pct >= 30
+    : pct24 >= 30
       ? 'hero.answerWatch'
       : 'hero.answerNo';
-  const signalCopy = officialSignal?.status === 'active'
-    ? 'hero.signalYes'
-    : officialSignal?.status === 'weak'
-      ? 'hero.signalWatch'
-      : 'hero.signalNo';
 
   const lastResetStr = lastResetDate
     ? lastResetDate.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
@@ -108,13 +102,16 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
     <section aria-label="Reset probability" className="hero-stage max-w-4xl">
       {/* Terminal prompt — answer first, then the evidence in dim text */}
       <p className="font-mono text-sm text-muted-foreground">
-        <span className="text-primary">❯</span> {t('hero.question', { n: timeframe })} →{' '}
+        <span className="text-primary">❯</span> {t('hero.question')} →{' '}
         <span className="text-foreground font-semibold">
-          {t(verdictKey)}
-        </span>{' '}
-        {!hasScheduledReset && officialSignal?.description !== 'signals.resetAnnounced' && (
-          <span className="text-muted-foreground/50">
-            ({t(signalCopy)})
+          {t(todayVerdictKey)}
+        </span>
+        {forecast24.kind !== 'official-schedule' && (
+          <span className="text-muted-foreground/70">
+            {' '}
+            {t('hero.windowStat', { pct: pct24, n: 24 })}
+            <span className="mx-1.5 text-muted-foreground/50">·</span>
+            {t('hero.windowStat', { pct: pct48, n: 48 })}
           </span>
         )}
       </p>
