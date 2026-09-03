@@ -253,6 +253,30 @@ describe('pipeline read endpoints', () => {
     );
     expect(direct.sources.tweets).toBe('live');
     expect(direct.signals[0]).toMatchObject({ status: 'active', value: 0.9, description: 'signals.resetAnnounced' });
+
+    const confirmed = await buildSignalsSnapshot(
+      envWith({}),
+      {
+        ok: true,
+        sourceKind: 'direct',
+        tweets: [{
+          text: 'Codex usage limits are reset for everyone',
+          link: 'https://x.com/thsottiaux/status/1',
+          ts: now - 60 * 60 * 1000,
+        }],
+      },
+      now - 60 * 60 * 1000,
+      3.8,
+      [{ id: 'reset-1', reset_date: new Date(now - 60 * 60 * 1000).toISOString(), verified: true }],
+      { state: 'clear', incidentCount: 0 },
+    );
+    expect(confirmed.signals[0]).toMatchObject({
+      status: 'idle',
+      value: 0.08,
+      description: 'signals.resetConfirmed',
+      descriptionParams: { n: 1 },
+      sourceUrl: 'https://x.com/thsottiaux/status/1',
+    });
   });
 
   it('treats a direct official future reset schedule as a planning signal, not a reset event', async () => {

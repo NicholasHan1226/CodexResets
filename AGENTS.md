@@ -112,6 +112,9 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   `observed` state for one cron interval (30 minutes). The Worker then confirms
   and notifies automatically; no Supabase dashboard action is required. The
   coordinator serializes all run triggers before any database read or delivery.
+- Once a matching completion is present in verified reset history, its Tibo
+  radar entry is idle confirmation context, never an active or weak signal for
+  another future reset. A newer future schedule still takes priority.
 - First-pass recovery and posts older than 48h can repair history only from
   unambiguous direct evidence without a matching retraction. Use the existing
   verified, non-automated `manual` lifecycle to prevent delivery; preserve

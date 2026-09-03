@@ -46,7 +46,7 @@ export async function buildSignalsSnapshot(
   const cooldownRatio = medianGapDays > 0 ? daysSince / medianGapDays : 0;
 
   const [tibo, statusPage] = await Promise.all([
-    Promise.resolve(buildTiboSignal(scrape, now)),
+    Promise.resolve(buildTiboSignal(scrape, now, latestResetTs)),
     buildStatusSignal(now, statusEvidence),
   ]);
 
@@ -77,7 +77,7 @@ export async function buildSignalsSnapshot(
   };
 }
 
-function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
+function buildTiboSignal(scrape: ScrapeResult, now: number, latestResetTs: number): SignalSnapshot {
   const base = {
     source: 'tibopost',
     label: 'Tibo Posting',
@@ -125,6 +125,17 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
   const confirmedTweet = scrape.tweets.find(isResetTweet);
   const latestResetTweet = confirmedTweet || scrape.tweets.find((t) => RESET_RE.test(t.text) && CONTEXT_RE.test(t.text));
   const hoursSinceResetMention = ageInHours(latestResetTweet);
+  // A completion post at or before the latest verified episode is already
+  // history, not evidence for another future reset. Keep it available as an
+  // idle confirmation when it is the newest post, but never let it raise the
+  // forward-looking signal strength after the pipeline has confirmed it.
+  const resetAlreadyConfirmed = Boolean(
+    latestResetTweet
+      && isResetTweet(latestResetTweet)
+      && Number.isFinite(latestResetTs)
+      && latestResetTs > 0
+      && latestResetTweet.ts <= latestResetTs,
+  );
   const scheduledResetTweet = scrape.tweets.find((t) => isScheduledResetAnnouncement(t.text)
     && (!confirmedTweet || t.ts > confirmedTweet.ts));
   const hoursSinceScheduledReset = ageInHours(scheduledResetTweet);
@@ -139,6 +150,7 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
   if (
     hoursSinceResetMention !== null &&
     hoursSinceResetMention < 24 &&
+    !resetAlreadyConfirmed &&
     !(hoursSinceScheduledReset !== null && scheduleIsFresh) &&
     latestResetTweet &&
     isResetTweet(latestResetTweet)
@@ -167,7 +179,19 @@ function buildTiboSignal(scrape: ScrapeResult, now: number): SignalSnapshot {
       sourceUrl: scheduledResetTweet?.link,
     };
   }
-  if (hoursSinceResetMention !== null && hoursSinceResetMention < 24 * 7) {
+  if (resetAlreadyConfirmed && latestResetTweet === latest && hoursSinceResetMention !== null) {
+    const confirmedWithinDay = hoursSinceResetMention < 24;
+    return {
+      ...base,
+      status: 'idle',
+      value: 0.08,
+      description: confirmedWithinDay ? 'signals.resetConfirmed' : 'signals.resetConfirmedDays',
+      descriptionParams: { n: confirmedWithinDay ? hoursSinceResetMention : Math.floor(hoursSinceResetMention / 24) },
+      updatedAt: observedAt(latestResetTweet),
+      sourceUrl: latestResetTweet.link,
+    };
+  }
+  if (!resetAlreadyConfirmed && hoursSinceResetMention !== null && hoursSinceResetMention < 24 * 7) {
     return {
       ...base,
       status: 'weak',

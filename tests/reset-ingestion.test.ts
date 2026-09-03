@@ -249,7 +249,11 @@ describe('reset ingestion regressions', () => {
     expect(isAutomaticallyDeliverable(rows[0], NOW)).toBe(false);
     const snapshot = JSON.parse(cache['signals:latest']);
     expect(snapshot.history[0].reset_date).toBe(new Date(NOW - 6 * HOUR).toISOString());
-    expect(snapshot.signals[0].description).toBe('signals.resetAnnounced');
+    expect(snapshot.signals[0]).toMatchObject({
+      status: 'idle',
+      value: 0.08,
+      description: 'signals.resetConfirmed',
+    });
     expect(snapshot.signals[2].descriptionParams.d).toBe('0.3');
     const again = await runPipelineOnce(env, 'test');
     expect(again).toMatchObject({ notifiedEmails: 0, errors: [] });
@@ -403,13 +407,18 @@ describe('reset ingestion regressions', () => {
     expect(JSON.parse(cache['forecast:pending'])).toHaveLength(0);
   });
 
-  it('does not let a newer question hide a real reset or keep an older schedule active', async () => {
+  it('does not let a confirmed reset or older schedule become a future signal behind a newer question', async () => {
     const { env } = setup();
     const result = await buildSignalsSnapshot(env, { ok: true, sourceKind: 'direct', tweets: [
       { text: 'When will Codex usage limits reset again?', ts: NOW - HOUR, link: 'question' },
       { text: 'We are reseting usage for all paid users of Codex.', ts: NOW - 2 * HOUR, link: 'confirmed' },
       { text: 'Reset will land around 14pm PST tomorrow.', ts: NOW - 24 * HOUR, link: 'scheduled' },
     ] }, NOW - 2 * HOUR, 2, [], { state: 'clear', incidentCount: 0 });
-    expect(result.signals[0]).toMatchObject({ description: 'signals.resetAnnounced', sourceUrl: 'confirmed' });
+    expect(result.signals[0]).toMatchObject({
+      status: 'weak',
+      value: 0.2,
+      description: 'signals.activeToday',
+      sourceUrl: 'https://x.com/thsottiaux',
+    });
   });
 });
