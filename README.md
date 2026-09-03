@@ -155,9 +155,9 @@ After a completed reset, the hero continues to answer the probability of
 another future reset; it does not repeat the completed event as a future hint
 or describe the source as having no strong signal.
 Once that completion is present in verified history, the matching Tibo radar
-entry is an idle confirmation rather than an active or weak future signal. A
-newer unrelated post can still show ordinary source activity, and a newer
-future schedule continues to take priority.
+entry and same-episode follow-ups are idle confirmation rather than active or
+weak future signals. A newer unrelated post can still show ordinary source
+activity, and a newer future schedule continues to take priority.
 When the current direct source is healthy, no relevant official incident is
 active, and the dashboard's next-24-hour planning likelihood first reaches
 70%, the Worker sends one email-only forecast notice per reset cycle. It is

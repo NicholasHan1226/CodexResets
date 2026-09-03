@@ -277,6 +277,51 @@ describe('pipeline read endpoints', () => {
       descriptionParams: { n: 1 },
       sourceUrl: 'https://x.com/thsottiaux/status/1',
     });
+
+    const confirmedFollowUp = await buildSignalsSnapshot(
+      envWith({}),
+      {
+        ok: true,
+        sourceKind: 'direct',
+        tweets: [{
+          text: 'Codex reset discussions continue.',
+          link: 'https://x.com/thsottiaux/status/2',
+          ts: now - 55 * 60 * 1000,
+        }],
+      },
+      now - 60 * 60 * 1000,
+      3.8,
+      [{ id: 'reset-1', reset_date: new Date(now - 60 * 60 * 1000).toISOString(), verified: true }],
+      { state: 'clear', incidentCount: 0 },
+    );
+    expect(confirmedFollowUp.signals[0]).toMatchObject({
+      status: 'idle',
+      value: 0.08,
+      description: 'signals.resetConfirmed',
+      sourceUrl: 'https://x.com/thsottiaux/status/2',
+    });
+
+    const laterMention = await buildSignalsSnapshot(
+      envWith({}),
+      {
+        ok: true,
+        sourceKind: 'direct',
+        tweets: [{
+          text: 'Codex reset discussions continue.',
+          link: 'https://x.com/thsottiaux/status/3',
+          ts: now - 60 * 60 * 1000,
+        }],
+      },
+      now - 2 * 24 * 60 * 60 * 1000,
+      3.8,
+      [],
+      { state: 'clear', incidentCount: 0 },
+    );
+    expect(laterMention.signals[0]).toMatchObject({
+      status: 'weak',
+      value: 0.4,
+      description: 'signals.resetMentionedDays',
+    });
   });
 
   it('treats a direct official future reset schedule as a planning signal, not a reset event', async () => {

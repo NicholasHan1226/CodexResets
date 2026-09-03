@@ -131,10 +131,13 @@ function buildTiboSignal(scrape: ScrapeResult, now: number, latestResetTs: numbe
   // forward-looking signal strength after the pipeline has confirmed it.
   const resetAlreadyConfirmed = Boolean(
     latestResetTweet
-      && isResetTweet(latestResetTweet)
+      && !isScheduledResetAnnouncement(latestResetTweet.text)
       && Number.isFinite(latestResetTs)
       && latestResetTs > 0
-      && latestResetTweet.ts <= latestResetTs,
+      // Follow-up wording can be less explicit than the completion post that
+      // created the verified row. The model already merges related posts in
+      // this 24-hour episode, so the radar must use the same boundary.
+      && latestResetTweet.ts <= latestResetTs + DAY,
   );
   const scheduledResetTweet = scrape.tweets.find((t) => isScheduledResetAnnouncement(t.text)
     && (!confirmedTweet || t.ts > confirmedTweet.ts));
