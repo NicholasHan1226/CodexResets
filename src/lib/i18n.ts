@@ -14,7 +14,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.signalWatch': 'related activity to watch',
     'hero.signalYes': 'reset signal detected',
     'hero.signalScheduled': 'official reset scheduled',
-    'hero.question': 'will Codex reset today?',
+    'hero.question': 'will Codex reset in the next {n} hours?',
     'hero.answerNo': 'Not likely.',
     'hero.answerWatch': 'Possible — keep watching.',
     'hero.answerYes': 'Likely.',
@@ -160,7 +160,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Signal Radar
     'signals.title': 'SIGNAL RADAR',
-    'signals.sources': '{n} sources',
+    'signals.sources': '{n} indicators',
     'signals.composite': 'signal strength',
     'signals.strength.low': 'low',
     'signals.strength.medium': 'medium',
@@ -346,7 +346,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.signalWatch': '存在待观察的相关动态',
     'hero.signalYes': '检测到重置信号',
     'hero.signalScheduled': '官方已预告即将重置',
-    'hero.question': '今天会重置吗？',
+    'hero.question': '未来 {n} 小时会重置吗？',
     'hero.answerNo': '暂不太可能。',
     'hero.answerWatch': '有一定可能，继续观察。',
     'hero.answerYes': '很可能。',
@@ -492,7 +492,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Signal Radar
     'signals.title': '信号雷达',
-    'signals.sources': '{n} 个信号源',
+    'signals.sources': '{n} 个观测项',
     'signals.composite': '信号强度',
     'signals.strength.low': '低',
     'signals.strength.medium': '中',

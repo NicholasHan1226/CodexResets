@@ -415,8 +415,8 @@ describe('reset ingestion regressions', () => {
       { text: 'Reset will land around 14pm PST tomorrow.', ts: NOW - 24 * HOUR, link: 'scheduled' },
     ] }, NOW - 2 * HOUR, 2, [], { state: 'clear', incidentCount: 0 });
     expect(result.signals[0]).toMatchObject({
-      status: 'weak',
-      value: 0.2,
+      status: 'idle',
+      value: 0.08,
       description: 'signals.activeToday',
       sourceUrl: 'https://x.com/thsottiaux',
     });

@@ -24,8 +24,10 @@ describe('homepage funnel contracts', () => {
 
     expect(display).toContain('[{tf}h {tf === 24 ? pct24 : pct48}%]');
     expect(display).toContain("t('hero.windowStat'");
-    expect(hero).toContain("t('hero.question')");
-    expect(hero).toContain('todayVerdictKey');
+    expect(hero).toContain("t('hero.question', { n: timeframe })");
+    expect(hero).toContain('const verdictKey');
+    expect(hero).toContain(': pct >= 60');
+    expect(hero).toContain(': pct >= 30');
     expect(hero).toContain("t('hero.windowStat'");
     expect(hero).toContain('pct24');
     expect(hero).toContain('pct48');
@@ -33,6 +35,15 @@ describe('homepage funnel contracts', () => {
     expect(hero).toContain("t('hero.alertCta')");
     expect(hero).toContain("t('hero.scope')");
     expect(hero).toContain('#alerts');
+  });
+
+  it('does not present mixed indicators as a second aggregate probability', () => {
+    const signals = read('src/sections/SignalPanel.tsx');
+
+    expect(signals).not.toContain('signalStrength(');
+    expect(signals).not.toContain("t('signals.composite')");
+    expect(signals).not.toContain("t('signals.strongCount'");
+    expect(signals).not.toContain('aria-label={`${t(\'signals.composite\')}');
   });
 
   it('links crawlable guides and the subscribe well from search-entry pages', () => {

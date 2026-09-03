@@ -156,8 +156,9 @@ another future reset; it does not repeat the completed event as a future hint
 or describe the source as having no strong signal.
 Once that completion is present in verified history, the matching Tibo radar
 entry and same-episode follow-ups are idle confirmation rather than active or
-weak future signals. A newer unrelated post can still show ordinary source
-activity, and a newer future schedule continues to take priority.
+weak future signals. A newer unrelated post remains idle source-freshness
+context rather than a reset hint, and a newer future schedule continues to
+take priority.
 When the current direct source is healthy, no relevant official incident is
 active, and the dashboard's next-24-hour planning likelihood first reaches
 70%, the Worker sends one email-only forecast notice per reset cycle. It is
@@ -269,6 +270,11 @@ the bucket's start rather than end. Partial first/last slots are clipped to the
 selected horizon. Internal splits preserve the exact rolling 24/48-hour totals;
 the chart rejoins splits within a single UTC slot. Dates distinguish repeated
 clock times and cross-midnight windows. Refreshing cannot shift slot boundaries.
+The headline question and verdict follow that same selected rolling horizon;
+they never describe the next 24 hours as calendar "today." The signal radar is
+a list of three operational indicators, not a second probability or a count of
+independent reset sources. It therefore does not average cooldown, public-post
+freshness, and service incidents into a visitor-facing strength score.
 When a direct official post schedules a future reset, the dashboard keeps the
 visitor-facing history-calibrated probability number and curve visible, and
 shows the official timing alongside them as a separate strong signal. When the

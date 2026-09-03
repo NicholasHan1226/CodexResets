@@ -207,7 +207,9 @@ function buildTiboSignal(scrape: ScrapeResult, now: number, latestResetTs: numbe
 
   const hoursSincePost = ageInHours(latest);
   if (hoursSincePost !== null && hoursSincePost < 24) {
-    return { ...base, status: 'weak', value: 0.2, description: 'signals.activeToday', updatedAt: observedAt(latest) };
+    // Ordinary posting without reset language is source freshness, not reset
+    // evidence. Keep it neutral so the radar cannot turn activity into a hint.
+    return { ...base, status: 'idle', value: 0.08, description: 'signals.activeToday', updatedAt: observedAt(latest) };
   }
   return {
     ...base,

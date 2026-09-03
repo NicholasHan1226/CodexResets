@@ -35,23 +35,22 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
   const hasScheduledReset = primaryForecast.kind === 'official-schedule';
   const pct = timeframe === 24 ? pct24 : pct48;
   const isOfficialBoosted = pct !== modelPct;
-  // First sentence answers "today" (next 24h) with both window stats inline.
-  // Probability bands stay non-certain; an official schedule is a strong live
-  // input shown beside the history model rather than replacing it. The selected
-  // horizon still drives the large number, curve, and advice below.
-  const todayVerdictKey = forecast24.kind === 'official-schedule'
-    ? forecast24.window === 'after'
+  // The question, verdict, large number, curve, and advice must all describe
+  // the selected rolling horizon. "Today" is not interchangeable with the
+  // next 24 hours, especially for visitors arriving late in the day.
+  const verdictKey = primaryForecast.kind === 'official-schedule'
+    ? primaryForecast.window === 'after'
       ? 'hero.answerScheduledAfter'
-      : forecast24.window === 'grace'
+      : primaryForecast.window === 'grace'
         ? 'hero.answerScheduledGrace'
-      : forecast24.window === 'elapsed'
+      : primaryForecast.window === 'elapsed'
         ? 'hero.answerScheduledElapsed'
-        : forecast24.window === 'pending'
+        : primaryForecast.window === 'pending'
         ? 'hero.answerScheduledPending'
         : 'hero.answerScheduled'
-    : pct24 >= 60
+    : pct >= 60
     ? 'hero.answerYes'
-    : pct24 >= 30
+    : pct >= 30
       ? 'hero.answerWatch'
       : 'hero.answerNo';
 
@@ -102,11 +101,11 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
     <section aria-label="Reset probability" className="hero-stage max-w-4xl">
       {/* Terminal prompt — answer first, then the evidence in dim text */}
       <p className="font-mono text-sm text-muted-foreground">
-        <span className="text-primary">❯</span> {t('hero.question')} →{' '}
+        <span className="text-primary">❯</span> {t('hero.question', { n: timeframe })} →{' '}
         <span className="text-foreground font-semibold">
-          {t(todayVerdictKey)}
+          {t(verdictKey)}
         </span>
-        {forecast24.kind !== 'official-schedule' && (
+        {!hasScheduledReset && (
           <span className="text-muted-foreground/70">
             {' '}
             {t('hero.windowStat', { pct: pct24, n: 24 })}

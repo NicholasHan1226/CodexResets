@@ -11,10 +11,10 @@ interface SignalPanelProps {
  * Terminal reverse-video status badges: ACTIVE/WARM pop as inverted blocks,
  * IDLE stays plain dim text — inactive things should not compete for attention.
  */
-const statusTagMap: Record<string, { label: string; badge: string; bar: string }> = {
-  active: { label: 'ACTIVE', badge: 'bg-primary text-background', bar: 'text-primary' },
-  weak: { label: 'WARM', badge: 'bg-warning text-background', bar: 'text-warning' },
-  idle: { label: 'IDLE', badge: 'text-muted-foreground/60', bar: 'text-muted-foreground/50' },
+const statusTagMap: Record<string, { label: string; badge: string }> = {
+  active: { label: 'ACTIVE', badge: 'bg-primary text-background' },
+  weak: { label: 'WARM', badge: 'bg-warning text-background' },
+  idle: { label: 'IDLE', badge: 'text-muted-foreground/60' },
 };
 
 const statusWeight: Record<string, number> = { active: 0, weak: 1, idle: 2 };
@@ -26,23 +26,6 @@ const signalLabelKeys: Record<string, string> = {
   status_page: 'signals.status',
   cooldown: 'signals.cooldown',
 };
-
-function signalStrength(composite: number): 'low' | 'medium' | 'high' {
-  if (composite >= 0.6) return 'high';
-  if (composite >= 0.3) return 'medium';
-  return 'low';
-}
-
-/** ASCII strength bar — same █░ vocabulary as the hero probability display */
-function AsciiBar({ value, length, className = '' }: { value: number; length: number; className?: string }) {
-  const filled = Math.max(0, Math.min(length, Math.round(value * length)));
-  return (
-    <span className={`font-mono ${className}`} aria-hidden="true">
-      {'█'.repeat(filled)}
-      <span className="text-muted-foreground/30">{'░'.repeat(length - filled)}</span>
-    </span>
-  );
-}
 
 function timeAgo(timestamp: number, locale: string): string {
   const diff = Date.now() - timestamp;
@@ -71,9 +54,6 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
   );
 
   const total = prediction.signals.length;
-  const activeCount = prediction.signals.filter((s) => s.status === 'active').length;
-  const composite = total > 0 ? prediction.signals.reduce((sum, s) => sum + s.value, 0) / total : 0;
-  const strength = signalStrength(composite);
 
   return (
     <section aria-label="Signal radar" className="max-w-4xl">
@@ -90,21 +70,10 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
         </div>
       </div>
 
-      {/* Composite readout — instant-scan summary of the whole radar */}
-      <div className="mt-3 flex items-center gap-3 font-mono text-xs text-muted-foreground">
-        <span>{t('signals.composite')}</span>
-        <AsciiBar value={composite} length={16} className="text-primary" />
-        <span className="text-sm font-semibold text-foreground">{t(`signals.strength.${strength}`)}</span>
-        <span className="text-muted-foreground/60">
-          · {t('signals.strongCount', { a: activeCount, n: total })}
-        </span>
-      </div>
-
       {/* Timeline feed */}
-      <div className="mt-4 space-y-0">
+      <div className="mt-3 space-y-0">
         {sortedSignals.map((signal, i) => {
           const tag = statusTagMap[signal.status] || statusTagMap.idle;
-          const pct = Math.round(signal.value * 100);
           const labelKey = signalLabelKeys[signal.source];
 
           return (
@@ -131,15 +100,6 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
                 </div>
               </div>
 
-              {/* The bar shows relative signal weight, not reset probability.
-                  Keep the numeric value available to assistive technology
-                  without presenting it as a misleading percentage-like score. */}
-              <span
-                className="shrink-0 pt-0.5 font-mono text-xs whitespace-nowrap"
-                aria-label={`${t('signals.composite')} ${pct}/100`}
-              >
-                <AsciiBar value={signal.value} length={8} className={tag.bar} />
-              </span>
             </div>
           );
         })}
