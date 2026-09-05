@@ -122,6 +122,8 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
   const hasOfficialTiming = officialBucketIndex >= 0;
   const officialTime = hasOfficialTiming && typeof officialScheduleAt === 'number'
     ? new Date(officialScheduleAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-GB', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : null;
+  const totalPlanningProbability = planningProbability !== undefined ? Math.round(planningProbability * 100) : null;
+  const peakPercent = Math.round(peak.probability * 100);
 
   const minTs = chartData[0].timestamp;
   const maxTs = chartData[chartData.length - 1].timestamp;
@@ -234,7 +236,15 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
           )}
         </h2>
         <span className="font-mono text-xs text-muted-foreground">
-          {officialTime ? t("curve.scheduleTarget", { time: officialTime }) : t("curve.likeliestTime", { time: peakTime })}
+          {officialTime
+            ? t("curve.scheduleTarget", { time: officialTime })
+            : t("curve.likeliestTime", { time: peakTime })
+          }
+          <span className="mx-2 text-border">·</span>
+          {totalPlanningProbability !== null && typeof hours === "number"
+            ? t("curve.totalWindowProbability", { n: hours, pct: totalPlanningProbability })
+            : t("curve.peakProbability", { pct: peakPercent })
+          }
           <span className="text-muted-foreground/50"> · {tzLabel}</span>
         </span>
       </div>
