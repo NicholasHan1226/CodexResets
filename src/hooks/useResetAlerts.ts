@@ -43,7 +43,12 @@ export function useResetAlerts(locale: Locale) {
   }, []);
 
   // Stable callbacks prevent the verification widget remounting on locale changes.
-  const onToken = useCallback((value: string) => { token.current = value; }, []);
+  const onToken = useCallback((value: string) => {
+    token.current = value;
+    if (value) setEmailState((state) => state.status === 'error'
+      && (state.messageKey === 'subscribe.verificationUnavailable' || state.messageKey === 'subscribe.verificationRequired')
+      ? { status: 'idle' } : state);
+  }, []);
   const onVerificationError = useCallback(() => {
     token.current = '';
     setEmailState((state) => state.status === 'submitting' || state.status === 'pending'

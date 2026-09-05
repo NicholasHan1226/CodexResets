@@ -167,6 +167,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Signal Radar
     'signals.title': 'SIGNAL RADAR',
+    'signals.viewSource': 'View public source',
     'signals.sources': '{n} indicators',
     'signals.composite': 'signal strength',
     'signals.strength.low': 'low',
@@ -256,6 +257,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'subscribe.subscribers': '{n} subscribers',
     'subscribe.invalidEmail': 'Please enter a valid email',
     'subscribe.success': "Subscribed — we'll email a 24-hour forecast, official due-time notice, and any confirmed reset.",
+    'subscribe.retryVerification': 'Retry verification',
     'subscribe.confirmationSent': 'Check your inbox to confirm your subscription.',
     'subscribe.verificationRequired': 'Complete the human verification before subscribing.',
     'subscribe.verificationUnavailable': 'Subscription verification is temporarily unavailable.',
@@ -319,7 +321,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'about.sourceHistory': 'Verified reset history',
     'about.sourceHistoryDesc': 'reviewed public reset episodes and production-confirmed records',
     'about.privacyTitle': 'Email and privacy',
-    'about.privacyDesc': 'An email address is stored only after its recipient confirms the subscription. It is used to send reset alerts and to process unsubscribe requests; this site does not ask for an OpenAI account or personal usage data.',
+    'about.privacyDesc': 'Your email address is temporarily stored to verify your subscription and is added to the subscriber list only after you confirm. It is used to send reset alerts and to process unsubscribe requests; this site does not ask for an OpenAI account or personal usage data.',
     'about.privacyRetention': 'Unconfirmed email addresses expire after 24 hours. A confirmed address is deleted when you unsubscribe, or when its mail provider reports a permanent delivery failure or spam complaint.',
     'about.privacyAbuse': 'To protect the subscription form, the service temporarily keeps a hashed network address for up to 10 minutes. It is used only to limit automated requests.',
     'about.privacyAnalytics': 'Cloudflare Web Analytics collects aggregate visit and performance metrics; it is not used to read OpenAI account or personal usage data.',
@@ -518,6 +520,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Signal Radar
     'signals.title': '信号雷达',
+    'signals.viewSource': '查看公开来源',
     'signals.sources': '{n} 个观测项',
     'signals.composite': '信号强度',
     'signals.strength.low': '低',
@@ -607,6 +610,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'subscribe.subscribers': '{n} 位订阅者',
     'subscribe.invalidEmail': '请输入有效的邮箱地址',
     'subscribe.success': '已订阅——达到预告条件、官方预告时间到达及重置确认后都会邮件通知你。',
+    'subscribe.retryVerification': '重试验证',
     'subscribe.confirmationSent': '请查收邮箱并完成订阅确认。',
     'subscribe.verificationRequired': '请先完成人机验证，再订阅。',
     'subscribe.verificationUnavailable': '订阅验证暂时不可用。',
@@ -670,7 +674,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'about.sourceHistory': '已验证的重置历史',
     'about.sourceHistoryDesc': '经复核的公开重置事件与生产确认记录',
     'about.privacyTitle': '邮箱与隐私',
-    'about.privacyDesc': '只有收件人完成确认后，邮箱才会写入订阅名单。邮箱仅用于发送重置提醒和处理退订；本站不会索取 OpenAI 账户或个人用量数据。',
+    'about.privacyDesc': '邮箱会临时保存以完成订阅验证；只有收件人完成确认后，才会加入订阅名单。邮箱仅用于发送重置提醒和处理退订；本站不会索取 OpenAI 账户或个人用量数据。',
     'about.privacyRetention': '未确认的邮箱会在 24 小时后过期。已确认的邮箱会在退订后删除；若邮箱服务商报告永久投递失败或垃圾邮件投诉，也会删除。',
     'about.privacyAbuse': '为保护订阅表单，服务会暂存经过哈希处理的网络地址，最长 10 分钟，仅用于限制自动化请求。',
     'about.privacyAnalytics': 'Cloudflare Web Analytics 会收集汇总访问与性能指标；它不会读取 OpenAI 账户或个人用量数据。',

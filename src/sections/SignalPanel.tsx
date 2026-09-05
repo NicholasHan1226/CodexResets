@@ -27,6 +27,12 @@ const signalLabelKeys: Record<string, string> = {
   cooldown: 'signals.cooldown',
 };
 
+// Public snapshots omit article URLs; these are source entry points, not evidence for a specific post.
+const publicSourceUrls: Record<string, string> = {
+  tibopost: 'https://x.com/thsottiaux',
+  status_page: 'https://status.openai.com/history',
+};
+
 function timeAgo(timestamp: number, locale: string): string {
   const diff = Date.now() - timestamp;
   const minutes = Math.floor(diff / 60000);
@@ -75,6 +81,8 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
         {sortedSignals.map((signal, i) => {
           const tag = statusTagMap[signal.status] || statusTagMap.idle;
           const labelKey = signalLabelKeys[signal.source];
+          const sourceUrl = signal.sourceUrl && /^https:\/\//i.test(signal.sourceUrl)
+            ? signal.sourceUrl : publicSourceUrls[signal.source];
 
           return (
             <div
@@ -98,6 +106,15 @@ export function SignalPanel({ prediction, loading }: SignalPanelProps) {
                     {labelKey ? t(labelKey) : signal.label}
                   </span>
                 </div>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {t(signal.description, signal.descriptionParams)}
+                </p>
+                {sourceUrl && (
+                  <a href={sourceUrl} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex min-h-11 items-center text-xs text-primary underline underline-offset-4">
+                    {t('signals.viewSource')}
+                  </a>
+                )}
               </div>
 
             </div>
