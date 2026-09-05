@@ -99,8 +99,7 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
   return (
     <section aria-label="Probability curve" className="max-w-4xl">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 className="text-lg font-semibold text-foreground">
-          <span className="mr-2 font-mono font-normal text-primary">❯</span>
+        <h2 className="text-sm font-semibold text-foreground">
           {t("curve.title")}
           {hours && (
             <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
@@ -108,7 +107,7 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
             </span>
           )}
         </h2>
-        <span className="font-mono text-xs text-muted-foreground">
+        <span className="text-xs leading-relaxed text-primary/90">
           {officialTime
             ? t("curve.scheduleTarget", { time: officialTime })
             : showPeak ? t("curve.likeliestTime", { time: peakTime }) : t("curve.sparseTiming")
@@ -116,7 +115,7 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
 
         </span>
       </div>
-      <p className="mt-1 font-mono text-xs text-muted-foreground">{sparseHistory && !officialTime ? t("curve.sparseTiming") : t("curve.distributionHint")}</p>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{sparseHistory && !officialTime ? t("curve.sparseTiming") : t("curve.distributionHint")}</p>
       <div className="mt-4">
         <div ref={containerRef} className="relative h-40 w-full sm:h-56">
           {width > 0 && height > 0 && (
@@ -291,17 +290,7 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
           </p>
         </div>
 
-        {/* Inline readout — answers "where am I on this curve" even at a glance */}
-        <p className="mt-2 font-mono text-xs text-muted-foreground/70">
-          <span className="inline-block h-2 w-2 rounded-full bg-foreground ring-1 ring-primary align-middle" />
-          <span className="ml-2">
-            {t("curve.now")} {nowLocalLabel}
-          </span>
-          <span className="mx-2 text-border">·</span>
-          <span>{t("curve.fromNow")}</span>
-          <span className="mx-2 text-border">·</span>
-          {tzLabel}
-        </p>
+        <p className="mt-2 text-right font-mono text-[10px] text-muted-foreground/70">{tzLabel}</p>
       </div>
     </section>
   );

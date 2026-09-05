@@ -100,30 +100,14 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
   const guideHref = locale === 'zh' ? '/zh/codex-reset-prediction/' : '/guides/codex-reset-prediction/';
 
   return (
-    <section aria-label="Reset probability" className="hero-stage max-w-4xl">
-      {/* Terminal prompt — answer first, then the evidence in dim text */}
-      <p className="font-mono text-sm text-muted-foreground">
-        <span className="text-primary">❯</span> {t('hero.question', { n: timeframe })} →{' '}
-        <span className="text-foreground font-semibold">
-          {t(verdictKey)}
-        </span>
-      </p>
-      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-        {t('hero.scope')}
-      </p>
+    <section aria-label="Reset probability" className="hero-stage max-w-4xl border border-border/50 bg-muted/10">
+      <header className="border-b border-border/40 px-4 py-4 sm:px-5">
+        <p className="font-mono text-xs text-muted-foreground">{t('hero.question', { n: timeframe })}</p>
+        <h2 className="mt-1 text-xl font-semibold tracking-tight text-foreground">{t(verdictKey)}</h2>
+      </header>
 
-      {/* Meta — one quiet line */}
-      <p className="mt-5 font-mono text-xs text-muted-foreground/80">
-        <span className="mr-2 inline-block max-w-full">
-          {t('hero.lastResetLabel')}{' '}
-          <span className="text-foreground">{daysSince.toFixed(1)} {t('hero.daysAgo')}</span>
-          {lastResetStr && <span className="text-muted-foreground/50"> ({lastResetStr})</span>}
-        </span>
-      </p>
-
-      {/* One outlook: timing on the left, the selected probability on the right. */}
-      <div className="mt-6 grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_240px]">
-        <div id="curve" className="min-w-0 scroll-mt-24 md:col-start-1 md:row-start-1">
+      <div className="grid md:grid-cols-[minmax(0,1fr)_240px]">
+        <div id="curve" className="min-w-0 scroll-mt-24 p-4 sm:p-5 md:col-start-1 md:row-start-1">
           <ProbabilityCurve
             currentTime={currentTime}
             curve={prediction.curve}
@@ -132,7 +116,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
             officialScheduleAt={primaryForecast.kind === 'official-schedule' && primaryForecast.window === 'within' ? primaryForecast.scheduledAt : undefined}
           />
         </div>
-        <div className="min-w-0 row-start-1 border-b border-border/30 pb-5 md:col-start-2 md:border-b-0 md:border-l md:pb-0 md:pl-5">
+        <div className="min-w-0 row-start-1 border-b border-border/40 p-4 sm:p-5 md:col-start-2 md:border-b-0 md:border-l">
           <ProbabilityDisplay
             pct={pct}
             pct24={pct24}
@@ -144,28 +128,27 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
               ? { window: primaryForecast.window, targetLabel: scheduledTargetStr, countdownLabel: scheduledCountdownStr }
               : undefined}
           />
+          <div className="mt-5 border-t border-border/40 pt-4 text-xs leading-relaxed text-muted-foreground">
+            <p>{t('hero.lastResetLabel')}</p>
+            <p className="mt-1 font-mono text-sm text-foreground">{daysSince.toFixed(1)} {t('hero.daysAgo')}</p>
+            {lastResetStr && <p className="mt-1 font-mono text-xs">{lastResetStr}</p>}
+            <p className="mt-3">{t('hero.historySample', { n: getEffectiveHistory().length })}</p>
+          </div>
         </div>
       </div>
 
-      <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted-foreground">
-        {t('hero.historySample', { n: getEffectiveHistory().length })}
-      </p>
-
-      {/* Subscribe is the page's only solid CTA; share and guides stay quieter. */}
-      <p className="mt-5 flex flex-wrap items-center gap-2 font-mono text-xs">
-        <a href="#alerts" className="command-action command-action-primary">
-          {t('hero.alertCta')}
-        </a>
-        <button
-          onClick={handleShare}
-          className="command-action text-muted-foreground hover:text-foreground"
-        >
-          {copied ? t('hero.copied') : t('hero.shareLink')}
-        </button>
-        <a href={guideHref} className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground">
-          {t('hero.guideLink')}
-        </a>
-      </p>
+      <footer className="border-t border-border/40 px-4 py-3 sm:px-5">
+        <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+          <a href="#alerts" className="command-action command-action-primary">{t('hero.alertCta')}</a>
+          <button onClick={handleShare} className="command-action text-muted-foreground hover:text-foreground">
+            {copied ? t('hero.copied') : t('hero.shareLink')}
+          </button>
+          <a href={guideHref} className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground">
+            {t('hero.guideLink')}
+          </a>
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{t('hero.scope')}</p>
+      </footer>
     </section>
   );
 }

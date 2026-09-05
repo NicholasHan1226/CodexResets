@@ -27,25 +27,21 @@ export function DashboardSkeleton() {
       </div>
 
       <div className="mx-auto max-w-4xl px-4 py-10 md:px-6">
-        {/* Hero: prompt line */}
-        <Bar className="h-4 w-64" />
-
-        {/* Hero: giant probability */}
-        <div className="mt-10">
-          <div className="flex items-center justify-between">
-            <Bar className="h-3 w-32" />
-            <Bar className="h-4 w-20" />
+        <div className="border border-border/50 p-5">
+          <Bar className="h-3 w-3/4 max-w-xs" />
+          <Bar className="mt-2 h-6 w-1/2" />
+          <div className="mt-5 grid gap-5 md:grid-cols-[minmax(0,1fr)_200px]">
+            <Bar className="h-56 w-full" />
+            <div className="row-start-1 md:col-start-2">
+              <Bar className="h-4 w-32" />
+              <Bar className="mt-4 h-16 w-28" />
+              <Bar className="mt-5 h-3 w-3/4" />
+              <Bar className="mt-3 h-3 w-full" />
+            </div>
           </div>
-          <Bar className="mt-4 h-24 w-44 sm:h-32" />
-          <Bar className="mt-5 h-3.5 w-full max-w-md" />
-          <Bar className="mt-3 h-4 w-36" />
+          <Bar className="mt-5 h-10 w-44" />
+          <Bar className="mt-3 h-3 w-full" />
         </div>
-
-        {/* Hero: meta + actions */}
-        <Bar className="mt-8 h-3 w-3/4" />
-        <Bar className="mt-4 h-4 w-full" />
-        <Bar className="mt-2 h-4 w-2/3" />
-        <Bar className="mt-8 h-3.5 w-56" />
 
         <hr className="my-10 border-border/30" />
 

@@ -225,6 +225,8 @@ claims into those pages. Keep their links and `public/sitemap.xml` synchronized.
   a sparse-history caveat. A highlighted interval is not confirmed timing.
 - Keep the subscription section after the primary answer and before deeper
   evidence. Explain all three email classes; Push remains confirmed-only.
+  Email submission opens an on-demand Turnstile dialog; verification continues
+  the captured request once. Cancellation preserves the email and sends nothing.
 - `pnpm run report:traffic` reads production-host Web Analytics with explicit
   periods, bot separation and sampling flags. Never equate Visits with people.
   Block RUM requests during browser QA so tests do not inflate product traffic.
