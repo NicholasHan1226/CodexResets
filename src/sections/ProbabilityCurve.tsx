@@ -238,6 +238,7 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
           <span className="text-muted-foreground/50"> · {tzLabel}</span>
         </span>
       </div>
+      <p className="mt-1 font-mono text-xs text-muted-foreground">{t("curve.distributionHint")}</p>
       <div className="mt-4">
         <div ref={containerRef} className="relative h-40 w-full sm:h-56">
           {width > 0 && height > 0 && (
