@@ -1,16 +1,8 @@
-import { useState } from 'react';
 import { getEffectiveHistory } from '@/lib/reset-data';
 import { useI18n } from '@/contexts/I18nContext';
 import { ProbabilityCurve } from '@/sections/ProbabilityCurve';
 import { ProbabilityDisplay } from '@/sections/ProbabilityDisplay';
 import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPlanningProbability, getPrimaryForecast, type PrimaryForecast } from '@/lib/forecast-display';
-import {
-  buildShareSummary,
-  shareUrl,
-  copyToClipboard,
-  shareViaWebAPI,
-  canNativeShare,
-} from '@/lib/export-share';
 import type { ResetPrediction } from '@/types/reset';
 
 interface HeroSectionProps {
@@ -23,7 +15,6 @@ interface HeroSectionProps {
 
 export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryForecast, currentTime }: HeroSectionProps) {
   const { t, locale } = useI18n();
-  const [copied, setCopied] = useState(false);
   const modelPct24 = Math.round(prediction.prob24h * 100);
   const modelPct48 = Math.round(prediction.prob48h * 100);
   const forecast24 = getPrimaryForecast(prediction.signals, 24, currentTime);
@@ -76,29 +67,6 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
     ? formatOfficialScheduleCountdown(primaryForecast.scheduledAt, currentTime, locale)
     : null;
 
-  const handleShare = async () => {
-    const summary = buildShareSummary({
-      pct,
-      hours: timeframe,
-      daysSince: prediction.daysSinceLastReset,
-      medianDays: prediction.medianIntervalDays,
-      officialSchedule: hasScheduledReset
-        ? { targetLabel: scheduledTargetStr, window: primaryForecast.window }
-        : undefined,
-    }, locale);
-    // Mobile: native share sheet. Desktop: copy summary + link.
-    if (canNativeShare()) {
-      const ok = await shareViaWebAPI(t('app.title'), summary, shareUrl());
-      if (ok) return;
-    }
-    if (await copyToClipboard(`${summary}\n${shareUrl()}`)) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  const guideHref = locale === 'zh' ? '/zh/codex-reset-prediction/' : '/guides/codex-reset-prediction/';
-
   return (
     <section aria-label="Reset probability" className="hero-stage max-w-4xl border border-border/50 bg-muted/10">
       <header className="border-b border-border/40 px-4 py-4 sm:px-5">
@@ -138,16 +106,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
       </div>
 
       <footer className="border-t border-border/40 px-4 py-3 sm:px-5">
-        <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-          <a href="#alerts" className="command-action command-action-primary">{t('hero.alertCta')}</a>
-          <button onClick={handleShare} className="command-action text-muted-foreground hover:text-foreground">
-            {copied ? t('hero.copied') : t('hero.shareLink')}
-          </button>
-          <a href={guideHref} className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground">
-            {t('hero.guideLink')}
-          </a>
-        </div>
-        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{t('hero.scope')}</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">{t('hero.scope')}</p>
       </footer>
     </section>
   );

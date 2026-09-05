@@ -24,6 +24,7 @@ export function DashboardSkeleton() {
             <Bar className="h-3 w-12" />
           </div>
         </div>
+        <Bar className="mx-4 mb-2 h-11 w-[calc(100%_-_2rem)] md:hidden" />
       </div>
 
       <div className="mx-auto max-w-4xl px-4 py-10 md:px-6">
@@ -39,7 +40,6 @@ export function DashboardSkeleton() {
               <Bar className="mt-3 h-3 w-full" />
             </div>
           </div>
-          <Bar className="mt-5 h-10 w-44" />
           <Bar className="mt-3 h-3 w-full" />
         </div>
 
