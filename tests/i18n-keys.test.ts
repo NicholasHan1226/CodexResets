@@ -12,8 +12,8 @@ describe('i18n dictionaries', () => {
   it('states that the 24h and 48h numbers are a shared forecast, not an account timer', () => {
     expect(english['hero.question']).toMatch(/next \{n\} hours/i);
     expect(chinese['hero.question']).toContain('未来 {n} 小时');
-    expect(english['hero.scope']).toMatch(/24\/48-hour forecast/i);
-    expect(english['hero.scope']).toMatch(/not the timer/i);
+    expect(english['hero.scope']).toMatch(/forecasts broad Codex resets/i);
+    expect(english['hero.scope']).toMatch(/not your personal quota timer/i);
     expect(english['hero.scope']).toMatch(/Codex/);
     expect(english['hero.windowStat']).toContain('{pct}% in {n}h');
     expect(english['subscribe.scope']).toMatch(/not your personal/i);

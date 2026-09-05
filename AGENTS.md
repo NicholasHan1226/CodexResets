@@ -163,15 +163,14 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
 ```
 src/
 ├── components/ui/     # shadcn/ui components (button, card — only what's used)
-│   └── AnchorNav.tsx  # Terminal-style section quick nav
 ├── contexts/          # I18nContext (en/zh)
-├── hooks/             # Custom hooks (usePrediction)
+├── hooks/             # Snapshot state and subscription operations
 ├── lib/               # Utilities (cn, prediction model, i18n, export-share)
 ├── pages/             # Home (dashboard), About (/about docs page)
 ├── sections/          # Dashboard sections (doc-flow, no cards)
-│   ├── StatusHeader.tsx      # Sticky header: LIVE status, [docs], share, refresh
-│   ├── HeroSection.tsx       # Prompt + ProbabilityDisplay + meta + advice + share
-│   ├── ProbabilityDisplay.tsx# Giant probability number + ASCII bar + 24h/48h toggle
+│   ├── StatusHeader.tsx      # Sticky header: snapshot age, language, refresh
+│   ├── HeroSection.tsx       # Outlook + last reset + probability + share
+│   ├── ProbabilityDisplay.tsx# Primary probability + 24h/48h comparison
 │   ├── ProbabilityCurve.tsx  # Area chart, filters to next 24/48h (hours prop)
 │   ├── SignalPanel.tsx       # Signal timeline feed (ACTIVE/WARM/IDLE)
 │   ├── TimeDistribution.tsx  # Reset time-of-day distribution bars
@@ -244,7 +243,10 @@ claims into those pages. Keep their links and `public/sitemap.xml` synchronized.
   other deps there would force them onto the critical path
 - About page is route-level code-split in App.tsx
 - System font stacks render immediately; do not reintroduce remote font requests
-- Below-fold Home sections use `.cv-auto` (content-visibility: auto)
+- Deeper Home evidence is inside one native `<details>` disclosure; its panels
+  use `.cv-auto` (content-visibility: auto). Keep the main answer and email form
+  visible without opening the evidence. Home shares one clock with the header
+  and curve; snapshot state is loading/ready/refreshing/unavailable.
 
 ## Deployment
 - Cloudflare Pages: `codexresets.cc` (project `codex-resets`)

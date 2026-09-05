@@ -295,6 +295,14 @@ legacy snapshots remain stored and are not upgraded or replayed. New samples
 require four verified episodes; existing samples can still settle with sparse
 history. Backfills create no
 synthetic forecasts or historical decision samples.
+The home page follows the visitor's decision order: the current outlook and
+last verified reset, the 24/48-hour comparison, then email alerts. The header
+shows snapshot age on mobile as well as desktop. A single native disclosure
+keeps the curve, source signals and historical panels available on demand.
+Email entry precedes the three alert descriptions on mobile; pending email
+confirmation remains distinct from active browser Push. Sharing stays beside
+the answer, and explanatory guides remain available there and in the footer.
+
 The dashboard presents exactly one percentage as its primary answer: the
 selected 24- or 48-hour probability. The timing chart is deliberately
 percentage-free. With fewer than 12 verified episodes it suppresses a precise

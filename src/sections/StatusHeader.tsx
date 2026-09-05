@@ -1,114 +1,46 @@
 import { useI18n } from '@/contexts/I18nContext';
 import type { ResetPrediction } from '@/types/reset';
-import { Link } from 'react-router';
-import { useState, useEffect } from 'react';
 
 interface StatusHeaderProps {
   prediction: ResetPrediction;
-  isLive: boolean;
+  currentTime: number;
   isRefreshing: boolean;
   onRefresh: () => void;
-  onShare?: () => void;
 }
 
-export function StatusHeader({ prediction, isLive, isRefreshing, onRefresh, onShare }: StatusHeaderProps) {
+export function StatusHeader({ prediction, currentTime, isRefreshing, onRefresh }: StatusHeaderProps) {
   const { locale, setLocale, t } = useI18n();
-  const [localTime, setLocalTime] = useState('');
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const tick = () => {
-      const d = new Date();
-      const hh = String(d.getHours()).padStart(2, '0');
-      const mm = String(d.getMinutes()).padStart(2, '0');
-      const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      setLocalTime(`${hh}:${mm} ${zone}`);
-      setNow(d.getTime());
-    };
-    tick();
-    const id = setInterval(tick, 30000);
-    return () => clearInterval(id);
-  }, []);
-
-  const formatTimeAgo = (timestamp: number): string => {
-    const diff = now - timestamp;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    if (minutes < 1) return t('header.justNow');
-    if (minutes < 60) return t('header.minutesAgo', { n: minutes });
-    return t('header.hoursAgo', { n: hours });
-  };
+  const minutes = Math.max(0, Math.floor((currentTime - prediction.generatedAt) / 60000));
+  const age = minutes < 1 ? t('header.justNow')
+    : minutes < 60 ? t('header.minutesAgo', { n: minutes })
+    : t('header.hoursAgo', { n: Math.floor(minutes / 60) });
 
   return (
-    <header className="sticky top-0 z-50 bg-background/90 backdrop-blur-sm border-b border-border/20">
-      <div className="mx-auto flex min-h-12 max-w-4xl items-center justify-between gap-3 px-3 py-2 sm:px-4 md:px-6">
-        {/* Left: Title + status */}
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <h1 className="shrink-0 whitespace-nowrap font-mono text-[11px] font-semibold text-foreground sm:text-sm">{t('app.title')}</h1>
-          {!isRefreshing && (
-            <span
-              className="flex shrink-0 items-center gap-1.5"
-              aria-label={isLive ? t('signals.liveData') : t('signals.fallbackData')}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${
-                isLive ? 'bg-primary live-dot' : 'bg-muted-foreground/40'
-              }`} />
-              <span className="hidden font-mono text-[10px] text-muted-foreground sm:inline">
-                {isLive ? 'LIVE' : 'SIM'}
-              </span>
-            </span>
-          )}
+    <header className="sticky top-0 z-50 border-b border-border/20 bg-background/90 backdrop-blur-sm">
+      <div className="mx-auto flex min-h-16 max-w-4xl items-center justify-between gap-2 px-4 py-2 md:px-6">
+        <div className="min-w-0">
+          <h1 className="font-mono text-xs font-semibold text-foreground sm:text-sm">{t('app.title')}</h1>
+          <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+            {t('header.updated')} · {age}
+          </p>
         </div>
-
-        {/* Right: Time + actions */}
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="hidden sm:inline font-mono text-xs text-muted-foreground/60">
-            {localTime}
-          </span>
-          <span className="hidden md:inline font-mono text-[10px] text-muted-foreground/40">
-            {formatTimeAgo(prediction.generatedAt)}
-          </span>
-
-          <Link
-            to="/about"
-            className="hidden min-h-11 items-center font-mono text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
-          >
-            [docs]
-          </Link>
-
-          <a
-            href={locale === 'zh' ? '/zh/codex-reset-prediction/' : '/guides/codex-reset-prediction/'}
-            className="inline-flex min-h-11 items-center font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
-          >
-            [{t('header.guide')}]
-          </a>
-
+        <div className="flex shrink-0 items-center gap-2 font-mono text-xs">
           <button
             onClick={() => setLocale(locale === 'en' ? 'zh' : 'en')}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
+            className="min-h-11 min-w-11 text-muted-foreground hover:text-foreground"
             aria-label={t('header.language')}
           >
-            {locale === 'en' ? '[中文]' : '[EN]'}
+            {locale === 'en' ? '中文' : 'EN'}
           </button>
-
-          {onShare && (
-            <button
-              onClick={onShare}
-              className="hidden min-h-11 items-center font-mono text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
-              aria-label={t('header.share')}
-            >
-              [share]
-            </button>
-          )}
-
           <button
             onClick={onRefresh}
             disabled={isRefreshing}
             aria-busy={isRefreshing}
-            className="inline-flex min-h-11 items-center justify-center font-mono text-xs text-muted-foreground transition-[color,transform] hover:text-foreground active:translate-y-px disabled:cursor-wait disabled:opacity-70"
+            className="min-h-11 min-w-11 text-muted-foreground hover:text-foreground disabled:cursor-wait disabled:opacity-70"
           >
             <span className={isRefreshing ? 'micro-refresh-pulse' : undefined}>
-              {isRefreshing ? '[refresh…]' : '[refresh]'}
+              {t('header.refresh')}{isRefreshing ? '…' : ''}
             </span>
           </button>
         </div>

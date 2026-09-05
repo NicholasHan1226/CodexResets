@@ -19,8 +19,6 @@ interface ProbabilityDisplayProps {
   };
 }
 
-const BAR_WIDTH = 30;
-
 /**
  * The calibrated probability remains visible at all times. A direct official
  * schedule is displayed as a separate strong input so it informs the answer
@@ -40,13 +38,9 @@ export function ProbabilityDisplay({ pct, pct24, pct48, modelPct, timeframe, onT
     tabRefs.current[next]?.focus();
   };
 
-  const filled = Math.round((pct / 100) * BAR_WIDTH);
-  const barFilled = '█'.repeat(filled);
-  const barEmpty = '░'.repeat(BAR_WIDTH - filled);
-
   return (
     <div>
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-[11px] text-muted-foreground/70 uppercase tracking-widest">
           {t(modelPct !== undefined ? 'hero.compositeWithinHours' : officialSchedule ? 'hero.modelWithinHours' : 'hero.horizonLabel', { n: timeframe })}
         </span>
@@ -83,20 +77,9 @@ export function ProbabilityDisplay({ pct, pct24, pct48, modelPct, timeframe, onT
           <span className="font-mono text-4xl sm:text-5xl text-primary/40">%</span>
         </div>
 
-        <p className="mt-5 font-mono text-sm leading-none select-none" aria-hidden="true">
-          <span className="text-primary">{barFilled}</span>
-          <span className="text-muted-foreground/15">{barEmpty}</span>
-        </p>
-        <p className="mt-3 font-mono text-sm text-muted-foreground">
-          <span className={timeframe === 24 ? 'text-foreground' : 'text-muted-foreground/60'}>
-            {t('hero.windowStat', { pct: pct24, n: 24 })}
-          </span>
-          <span className="mx-2 text-border">·</span>
-          <span className={timeframe === 48 ? 'text-foreground' : 'text-muted-foreground/60'}>
-            {t('hero.windowStat', { pct: pct48, n: 48 })}
-          </span>
-          {modelPct !== undefined && <span className="text-muted-foreground/60"> · {t('hero.modelBaseline', { n: modelPct })}</span>}
-        </p>
+        {modelPct !== undefined && (
+          <p className="mt-3 font-mono text-xs text-muted-foreground">{t('hero.modelBaseline', { n: modelPct })}</p>
+        )}
 
         {officialSchedule && (
           <p className="mt-5 border-l border-primary/60 pl-3 font-mono text-sm text-muted-foreground">

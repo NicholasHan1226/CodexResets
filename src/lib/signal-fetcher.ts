@@ -80,7 +80,8 @@ async function fetchPipelineSnapshot(force = false): Promise<PipelineSnapshot | 
 
   const cacheKey = 'pipeline_snapshot';
   const cached = force ? null : getCached<PipelineSnapshot>(cacheKey);
-  if (cached) return cached;
+  // The five-minute browser TTL must never extend the server freshness limit.
+  if (cached && isFreshPipelineSnapshot(cached.generatedAt)) return cached;
 
   try {
     const endpoint = force

@@ -36,7 +36,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
   const hasScheduledReset = primaryForecast.kind === 'official-schedule';
   const pct = timeframe === 24 ? pct24 : pct48;
   const isOfficialBoosted = pct !== modelPct;
-  // The question, verdict, large number, curve, and advice must all describe
+  // The question, verdict, large number and curve must all describe
   // the selected rolling horizon. "Today" is not interchangeable with the
   // next 24 hours, especially for visitors arriving late in the day.
   const verdictKey = primaryForecast.kind === 'official-schedule'
@@ -106,17 +106,18 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
         <span className="text-foreground font-semibold">
           {t(verdictKey)}
         </span>
-        {!hasScheduledReset && (
-          <span className="text-muted-foreground/70">
-            {' '}
-            {t('hero.windowStat', { pct: pct24, n: 24 })}
-            <span className="mx-1.5 text-muted-foreground/50">·</span>
-            {t('hero.windowStat', { pct: pct48, n: 48 })}
-          </span>
-        )}
       </p>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
         {t('hero.scope')}
+      </p>
+
+      {/* Meta — one quiet line */}
+      <p className="mt-5 font-mono text-xs text-muted-foreground/80">
+        <span className="mr-2 inline-block max-w-full">
+          {t('hero.lastResetLabel')}{' '}
+          <span className="text-foreground">{daysSince.toFixed(1)} {t('hero.daysAgo')}</span>
+          {lastResetStr && <span className="text-muted-foreground/50"> ({lastResetStr})</span>}
+        </span>
       </p>
 
       {/* The probability — the single protagonist */}
@@ -136,34 +137,6 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
 
       <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted-foreground">
         {t('hero.historySample', { n: getEffectiveHistory().length })}
-      </p>
-
-      {/* Meta — one quiet line */}
-      <p className="mt-5 font-mono text-xs text-muted-foreground/80">
-        <span className="mr-2 inline-block max-w-full">
-          {t('hero.lastResetLabel')}{' '}
-          <span className="text-foreground">{daysSince.toFixed(1)}d</span>
-          {lastResetStr && <span className="text-muted-foreground/50"> ({lastResetStr})</span>}
-        </span>
-        <span className="mr-2 inline-block max-w-full">
-          <span className="mr-2 text-border">·</span>
-          {t('hero.medianGap')}{' '}
-          <span className="text-foreground">{prediction.medianIntervalDays.toFixed(1)}d</span>
-        </span>
-      </p>
-
-      {/* Advice */}
-      <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-        <span className="text-foreground font-medium">{t('hero.adviceLabel')}</span>{' '}
-        {t(hasScheduledReset
-          ? primaryForecast.window === 'elapsed'
-            ? 'advice.scheduledElapsed'
-            : primaryForecast.window === 'grace'
-              ? 'advice.scheduledGrace'
-            : primaryForecast.window === 'pending'
-              ? 'advice.scheduledPending'
-              : 'advice.scheduled'
-          : `advice.${prediction.advice[timeframe].level}`)}
       </p>
 
       {/* Subscribe is the page's only solid CTA; share and guides stay quieter. */}

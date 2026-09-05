@@ -7,7 +7,7 @@ export type Locale = 'en' | 'zh';
 const translations: Record<Locale, Record<string, string>> = {
   en: {
     // Common
-    'common.loading': 'Initializing signal model...',
+    'common.loading': 'Loading page…',
 
     // Hero Section
     'hero.signalNo': 'no official reset signal',
@@ -47,8 +47,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.windowStat': '{pct}% in {n}h',
     'hero.horizonLabel': '{n}h reset probability',
     'hero.horizonToggle': '24-hour and 48-hour forecast',
-    'hero.historySample': 'Based on {n} verified resets. Limited history; timing estimates are exploratory, not a validated accuracy claim.',
-    'hero.scope': 'For Codex users: a 24/48-hour forecast of broadly observed usage-limit resets — not the timer in your ChatGPT or Codex /status.',
+    'hero.historySample': 'Based on {n} verified resets. Limited history; forecast accuracy is not yet validated.',
+    'hero.scope': 'Forecasts broad Codex resets, not your personal quota timer. Check Codex /status for your account.',
     'hero.shareText': 'Codex reset probability: {n}% in next {h}h — live forecast:',
     'hero.shareLink': '[share]',
     'hero.copied': '[copied ✓]',
@@ -104,6 +104,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'header.liveMonitoring': 'LIVE MONITORING',
     'header.simulated': 'SIMULATED',
     'header.model': 'Model',
+    'home.evidence': 'Evidence and reset history',
+    'home.evidenceHint': 'Probability curve, source signals and past resets',
     'header.updated': 'Updated',
     'header.justNow': 'just now',
     'header.minutesAgo': '{n}m ago',
@@ -356,7 +358,7 @@ const translations: Record<Locale, Record<string, string>> = {
   },
   zh: {
     // Common
-    'common.loading': '正在初始化信号模型...',
+    'common.loading': '正在加载页面…',
 
     // Hero Section
     'hero.signalNo': '暂无官方重置信号',
@@ -396,8 +398,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.windowStat': '{n} 小时 {pct}%',
     'hero.horizonLabel': '{n} 小时重置概率',
     'hero.horizonToggle': '24 小时与 48 小时预测',
-    'hero.historySample': '基于 {n} 次已验证重置。历史样本有限，时间估计仅供探索，不代表已验证的预测准确率。',
-    'hero.scope': '面向 Codex 用户：这是对可公开观察到的额度重置的 24/48 小时预判，不是 ChatGPT 或 Codex /status 里的个人倒计时。',
+    'hero.historySample': '基于 {n} 次已验证重置。样本有限，预测准确率尚未验证。',
+    'hero.scope': '预判 Codex 大范围额度重置，并非个人倒计时。个人额度请查看 Codex /status。',
     'hero.shareText': 'Codex 重置概率：未来 {h} 小时内 {n}% — 实时预测：',
     'hero.shareLink': '[分享]',
     'hero.copied': '[已复制 ✓]',
@@ -453,6 +455,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'header.liveMonitoring': '实时监控',
     'header.simulated': '模拟数据',
     'header.model': '模型',
+    'home.evidence': '查看依据与重置历史',
+    'home.evidenceHint': '概率曲线、来源信号和历史记录',
     'header.updated': '更新',
     'header.justNow': '刚刚',
     'header.minutesAgo': '{n}分钟前',

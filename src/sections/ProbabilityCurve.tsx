@@ -2,9 +2,13 @@ import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, 
 import { getEffectiveHistory, MIN_CALENDAR_RECORDS } from "@/lib/reset-data";
 import type { ProbabilityPoint } from "@/types/reset";
 import { useI18n } from "@/contexts/I18nContext";
-import { alignTimingCurveWithOfficialSchedule, formatTimingRange, getTimingWindow, timingBucketStart } from "@/lib/forecast-display";
+import { formatTimingRange, timingBucketStart } from "@/lib/forecast-display";
+
+import { buildProbabilityChart, clamp, moveChartFocus, PLOT_PADDING as PAD } from "@/lib/probability-curve";
 
 interface ProbabilityCurveProps {
+  /** Shared dashboard clock; standalone renders use the current instant. */
+  currentTime?: number;
   curve: ProbabilityPoint[];
   /** When set, only show points within the next N hours from now */
   hours?: 24 | 48;
@@ -14,8 +18,7 @@ interface ProbabilityCurveProps {
   officialScheduleAt?: number | null;
 }
 
-const HOUR = 3600 * 1000;
-const MONO = "IBM Plex Mono, monospace";
+const MONO = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
 
 // Palette — mirrors DESIGN.md tokens
 const C = {
@@ -25,14 +28,6 @@ const C = {
   grid: "#26272E",
   bg: "#0B0C0F",
 };
-
-// Plot padding — NOW pill lives in the top band, tick labels in the bottom band
-const PAD = { top: 30, right: 10, bottom: 36, left: 38 };
-
-interface Pt {
-  x: number;
-  y: number;
-}
 
 /** Track the pixel size of the chart container so coordinates are exact */
 function useElementSize<T extends HTMLElement>() {
@@ -51,76 +46,21 @@ function useElementSize<T extends HTMLElement>() {
   return [ref, size] as const;
 }
 
-/** Catmull-Rom → cubic bezier smoothing (same look as recharts' monotone) */
-function smoothLine(pts: Pt[]): string {
-  if (pts.length === 0) return "";
-  if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
-  let d = `M ${pts[0].x} ${pts[0].y}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[Math.max(0, i - 1)];
-    const p1 = pts[i];
-    const p2 = pts[i + 1];
-    const p3 = pts[Math.min(pts.length - 1, i + 2)];
-    const c1x = p1.x + (p2.x - p0.x) / 6;
-    const c1y = clamp(p1.y + (p2.y - p0.y) / 6, Math.min(p1.y, p2.y), Math.max(p1.y, p2.y));
-    const c2x = p2.x - (p3.x - p1.x) / 6;
-    const c2y = clamp(p2.y - (p3.y - p1.y) / 6, Math.min(p1.y, p2.y), Math.max(p1.y, p2.y));
-    d += ` C ${c1x} ${c1y} ${c2x} ${c2y} ${p2.x} ${p2.y}`;
-  }
-  return d;
-}
-
-const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
-
-export function ProbabilityCurve({ curve, hours, planningProbability, officialScheduleAt }: ProbabilityCurveProps) {
+export function ProbabilityCurve({ curve, hours, planningProbability, officialScheduleAt, currentTime }: ProbabilityCurveProps) {
   const { t, locale } = useI18n();
   const [containerRef, { width, height }] = useElementSize<HTMLDivElement>();
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
-  // Ticking clock — the NOW marker glides along the curve in real time
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 30000);
-    return () => clearInterval(id);
-  }, []);
-  const nowTimestamp = now.getTime();
-  // Local time, like codex-reset.com — users plan in their own timezone
+  const [initialTime] = useState(Date.now);
+  const nowTimestamp = currentTime ?? initialTime;
+  const now = new Date(nowTimestamp);
   const nowLocalLabel = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const tzLabel = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-  const windowData = getTimingWindow(curve, hours ?? 168, nowTimestamp);
-  const officialBucketIndex = typeof officialScheduleAt === 'number' && Number.isFinite(officialScheduleAt)
-    && typeof hours === 'number' && officialScheduleAt > nowTimestamp && officialScheduleAt <= nowTimestamp + hours * HOUR
-    ? windowData.findIndex((point) => officialScheduleAt > timingBucketStart(point) && officialScheduleAt <= point.timestamp)
-    : -1;
-  const allData = alignTimingCurveWithOfficialSchedule(
-    windowData,
-    planningProbability,
-    officialScheduleAt,
-    hours,
-    nowTimestamp,
-  ).map((point) => ({ ...point, timestamp: point.timestamp }));
-
-  // Forecast samples begin three hours in the future. Add the exact current
-  // moment as a zero-length forecast so the user always has a truthful visual
-  // position: the NOW marker is the left edge of the forward-looking window.
-  const nowAnchor = {
-    date: now.toISOString().slice(0, 10),
-    hour: now.getUTCHours(),
-    probability: 0,
-    timestamp: nowTimestamp,
-  };
-  const chartData = [nowAnchor, ...allData];
-
-  if (chartData.length === 0) return null;
-
-  const forecastData = chartData.slice(1);
-  const peak = officialBucketIndex >= 0 ? forecastData[officialBucketIndex] : forecastData.reduce(
-    (max, point) => (point.probability > max.probability ? point : max),
-    forecastData[0] ?? chartData[0]
-  );
+  const {
+    chartData, peak, hasOfficialTiming, x, y, pts, linePath, areaPath,
+    peakStartX, peakEndX, plotH, xTicks, yTicks, closestPointIndex,
+  } = buildProbabilityChart({ curve, hours, planningProbability, officialScheduleAt, now: nowTimestamp, width, height });
   const peakTime = formatTimingRange(timingBucketStart(peak), peak.timestamp);
-  const hasOfficialTiming = officialBucketIndex >= 0;
   // Reuse the existing sparse-history presentation floor; this is not an accuracy claim.
   const sparseHistory = getEffectiveHistory().length < MIN_CALENDAR_RECORDS;
   const showPeak = hasOfficialTiming || !sparseHistory;
@@ -129,102 +69,33 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
   const totalPlanningProbability = planningProbability !== undefined ? Math.round(planningProbability * 100) : null;
   const peakPercent = Math.round(peak.probability * 100);
 
-  const minTs = chartData[0].timestamp;
-  const maxTs = chartData[chartData.length - 1].timestamp;
-  const range = Math.max(1, maxTs - minTs);
-  const isNowInRange = nowTimestamp >= minTs && nowTimestamp <= maxTs;
-
-  // Interpolated probability at the exact current moment — the dot sits on the curve
-  const probAtNow = (() => {
-    if (!isNowInRange) return 0;
-    const nextIdx = chartData.findIndex((p) => p.timestamp >= nowTimestamp);
-    if (nextIdx <= 0) return chartData[0].probability;
-    const a = chartData[nextIdx - 1];
-    const b = chartData[nextIdx];
-    const ratio = (nowTimestamp - a.timestamp) / (b.timestamp - a.timestamp);
-    return a.probability + (b.probability - a.probability) * ratio;
-  })();
-
-  // --- Scales -------------------------------------------------------------
-  const plotW = Math.max(1, width - PAD.left - PAD.right);
-  const plotH = Math.max(1, height - PAD.top - PAD.bottom);
-  const x = (ts: number) => PAD.left + ((ts - minTs) / range) * plotW;
-
-  // Nice ceiling: round the data max up to a clean 5% step with headroom
-  const rawMax = Math.max(...chartData.map((point) => point.probability), probAtNow, 0.05);
-  const yMax = Math.max(0.1, Math.ceil(((rawMax * 1.15) / 0.05)) * 0.05);
-  const y = (p: number) => PAD.top + (1 - p / yMax) * plotH;
-
-  const pts: Pt[] = chartData.map((p) => ({ x: x(p.timestamp), y: y(p.probability) }));
-  const linePath = smoothLine(pts);
-  const areaPath = `${linePath} L ${pts[pts.length - 1].x} ${PAD.top + plotH} L ${pts[0].x} ${PAD.top + plotH} Z`;
-  const peakStartX = x(Math.max(minTs, timingBucketStart(peak)));
-  const peakEndX = x(peak.timestamp);
-
-  // --- Ticks ---------------------------------------------------------------
-  const step = range <= 26 * HOUR ? 6 * HOUR : range <= 50 * HOUR ? (width < 500 ? 24 : 12) * HOUR : 24 * HOUR;
-  const xTicks: number[] = [];
-  for (let ts = Math.ceil(minTs / step) * step; ts <= maxTs; ts += step) xTicks.push(ts);
-
-  const yStep = yMax > 0.2 ? 0.1 : 0.05;
-  const yTicks: number[] = [];
-  for (let v = 0; v <= yMax + 1e-9; v += yStep) yTicks.push(Number(v.toFixed(2)));
-
   const formatXTick = (ts: number) => {
     const d = new Date(ts);
     return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   };
 
   // --- NOW geometry ----------------------------------------------------------
-  const nowX = x(nowTimestamp);
-  const nowY = y(probAtNow);
+  const { x: nowX, y: nowY } = pts[0];
   const pillText = `${t("curve.now")} ${nowLocalLabel}`;
   const pillW = 88;
   const pillH = 18;
   const pillX = clamp(nowX, pillW / 2, Math.max(pillW / 2, width - pillW / 2));
 
   // --- Hover -----------------------------------------------------------------
-  const closestPointIndex = (clientX: number, element: SVGSVGElement) => {
-    const rect = element.getBoundingClientRect();
-    const ts = minTs + ((clientX - rect.left - PAD.left) / plotW) * range;
-    let best = 0;
-    let bestDist = Infinity;
-    chartData.forEach((p, i) => {
-      const d = Math.abs(p.timestamp - ts);
-      if (d < bestDist) {
-        bestDist = d;
-        best = i;
-      }
-    });
-    return best;
-  };
-
-  const nearestNowIndex = chartData.reduce(
-    (best, point, index) => Math.abs(point.timestamp - nowTimestamp) < Math.abs(chartData[best].timestamp - nowTimestamp) ? index : best,
-    0
-  );
-  const firstForecastIndex = chartData.length > 1 ? 1 : nearestNowIndex;
-
   const handlePointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     if (e.clientX < rect.left || e.clientX > rect.right) return;
-    setHoverIdx(closestPointIndex(e.clientX, e.currentTarget));
+    setHoverIdx(closestPointIndex(e.clientX - rect.left));
   };
 
   const handleKeyDown = (e: ReactKeyboardEvent<SVGSVGElement>) => {
-    const current = hoverIdx ?? nearestNowIndex;
-    let next: number | null = null;
-    if (e.key === 'ArrowLeft') next = Math.max(0, current - 1);
-    if (e.key === 'ArrowRight') next = Math.min(chartData.length - 1, current + 1);
-    if (e.key === 'Home') next = 0;
-    if (e.key === 'End') next = chartData.length - 1;
+    const next = moveChartFocus(e.key, hoverIdx ?? 0, chartData.length);
     if (next === null) return;
     e.preventDefault();
     setHoverIdx(next);
   };
 
   const hoverPoint = hoverIdx !== null ? chartData[hoverIdx] : null;
-  const hoverLocal = hoverPoint ? new Date(hoverPoint.timestamp) : null;
   const hoveredIsPeak = showPeak && hoverPoint?.timestamp === peak.timestamp;
 
   return (
@@ -259,13 +130,13 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
             <svg
               width={width}
               height={height}
-              className="block cursor-crosshair touch-pan-y"
+              className="block max-w-full cursor-crosshair touch-pan-y"
               onPointerMove={handlePointerMove}
               onPointerDown={handlePointerMove}
               onPointerLeave={(e) => {
                 if (e.pointerType === 'mouse') setHoverIdx(null);
               }}
-              onFocus={() => setHoverIdx((current) => current ?? firstForecastIndex)}
+              onFocus={() => setHoverIdx((current) => current ?? Math.min(1, chartData.length - 1))}
               onBlur={() => setHoverIdx(null)}
               onKeyDown={handleKeyDown}
               tabIndex={0}
@@ -362,57 +233,55 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
 
               {/* NOW — painted last so nothing covers it. Plain SVG elements with
                   coordinates computed above: no library can swallow this marker. */}
-              {isNowInRange && (
-                <g>
-                  <line
-                    x1={nowX}
-                    x2={nowX}
-                    y1={PAD.top}
-                    y2={PAD.top + plotH}
-                    stroke={C.text}
-                    strokeWidth={1.5}
-                    strokeDasharray="4 3"
-                    strokeOpacity={0.9}
-                  />
-                  {/* Halo ring makes the dot findable at a glance */}
-                  <circle
-                    cx={nowX}
-                    cy={nowY}
-                    r={9}
-                    fill="none"
-                    stroke={C.text}
-                    strokeOpacity={0.35}
-                    strokeWidth={1.5}
-                  />
-                  <circle cx={nowX} cy={nowY} r={4.5} fill={C.text} stroke={C.green} strokeWidth={2.5} />
-                  {/* Pill label pinned above the plot, clamped to the chart edges */}
-                  <g transform={`translate(${pillX - pillW / 2}, 4)`}>
-                    <rect width={pillW} height={pillH} rx={4} fill={C.text} />
-                    <text
-                      x={pillW / 2}
-                      y={pillH / 2 + 3.5}
-                      textAnchor="middle"
-                      fontSize={10}
-                      fontWeight={700}
-                      fontFamily={MONO}
-                      fill={C.bg}
-                    >
-                      {pillText}
-                    </text>
-                  </g>
+              <g>
+                <line
+                  x1={nowX}
+                  x2={nowX}
+                  y1={PAD.top}
+                  y2={PAD.top + plotH}
+                  stroke={C.text}
+                  strokeWidth={1.5}
+                  strokeDasharray="4 3"
+                  strokeOpacity={0.9}
+                />
+                {/* Halo ring makes the dot findable at a glance */}
+                <circle
+                  cx={nowX}
+                  cy={nowY}
+                  r={9}
+                  fill="none"
+                  stroke={C.text}
+                  strokeOpacity={0.35}
+                  strokeWidth={1.5}
+                />
+                <circle cx={nowX} cy={nowY} r={4.5} fill={C.text} stroke={C.green} strokeWidth={2.5} />
+                {/* Pill label pinned above the plot, clamped to the chart edges */}
+                <g transform={`translate(${pillX - pillW / 2}, 4)`}>
+                  <rect width={pillW} height={pillH} rx={4} fill={C.text} />
+                  <text
+                    x={pillW / 2}
+                    y={pillH / 2 + 3.5}
+                    textAnchor="middle"
+                    fontSize={10}
+                    fontWeight={700}
+                    fontFamily={MONO}
+                    fill={C.bg}
+                  >
+                    {pillText}
+                  </text>
                 </g>
-              )}
+              </g>
             </svg>
           )}
 
           {/* HTML tooltip — follows the hovered point */}
-          {hoverPoint && hoverLocal && hoverIdx !== null && hoverIdx > 0 && pts[hoverIdx] && (
+          {hoverPoint && hoverIdx !== null && hoverIdx > 0 && pts[hoverIdx] && (
             <div
               className="pointer-events-none absolute z-10 rounded-md border border-border bg-card px-3 py-2 shadow-lg"
               style={{
                 width: Math.min(216, width - 16),
-                left: clamp(pts[hoverIdx ?? 0].x, Math.min(108, width / 2), Math.max(width / 2, width - 108)),
-                top: Math.max(0, pts[hoverIdx ?? 0].y - 14),
+                left: clamp(pts[hoverIdx].x, Math.min(108, width / 2), Math.max(width / 2, width - 108)),
+                top: Math.max(0, pts[hoverIdx].y - 14),
                 transform: "translate(-50%, -100%)",
               }}
             >
@@ -423,25 +292,23 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
             </div>
           )}
           <p id="curve-explorer-status" className="sr-only" aria-live="polite">
-            {hoverPoint && hoverLocal && hoverIdx !== null && hoverIdx > 0
+            {hoverPoint && hoverIdx !== null && hoverIdx > 0
               ? `${formatTimingRange(timingBucketStart(hoverPoint), hoverPoint.timestamp)}${hoveredIsPeak ? `, ${t("curve.highestLikelihood")}` : ''}`
               : hoverIdx === 0 ? `${t("curve.now")} · ${t("curve.fromNow")}` : ''}
           </p>
         </div>
 
         {/* Inline readout — answers "where am I on this curve" even at a glance */}
-        {isNowInRange && (
-          <p className="mt-2 font-mono text-xs text-muted-foreground/70">
-            <span className="inline-block h-2 w-2 rounded-full bg-foreground ring-1 ring-primary align-middle" />
-            <span className="ml-2">
-              {t("curve.now")} {nowLocalLabel}
-            </span>
-            <span className="mx-2 text-border">·</span>
-            <span>{t("curve.fromNow")}</span>
-            <span className="mx-2 text-border">·</span>
-            {tzLabel}
-          </p>
-        )}
+        <p className="mt-2 font-mono text-xs text-muted-foreground/70">
+          <span className="inline-block h-2 w-2 rounded-full bg-foreground ring-1 ring-primary align-middle" />
+          <span className="ml-2">
+            {t("curve.now")} {nowLocalLabel}
+          </span>
+          <span className="mx-2 text-border">·</span>
+          <span>{t("curve.fromNow")}</span>
+          <span className="mx-2 text-border">·</span>
+          {tzLabel}
+        </p>
       </div>
     </section>
   );

@@ -91,6 +91,6 @@ describe('reviewed visitor claims', () => {
     };
     const html = renderToStaticMarkup(<HeroSection prediction={prediction} timeframe={24} onTimeframeChange={() => {}} primaryForecast={{ kind: 'model' }} currentTime={now} />);
     expect(html).toContain('Based on 5 verified resets.');
-    expect(html).toContain('not a validated accuracy claim');
+    expect(html).toContain('forecast accuracy is not yet validated');
   });
 });
