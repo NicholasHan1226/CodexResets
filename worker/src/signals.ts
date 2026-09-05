@@ -1,4 +1,5 @@
 import type { Env, PublicResetHistory, ScrapeResult, SignalSnapshot, SignalsPayload } from './types';
+import { buildBankedNotices } from './banked';
 import { readJsonWithin } from './util';
 import { RESET_RE, CONTEXT_RE, isResetTweet, isScheduledResetAnnouncement, parseScheduledResetAt } from './scrape';
 
@@ -67,6 +68,7 @@ export async function buildSignalsSnapshot(
     signals: [tibo, statusPage, cooldown],
     generatedAt: now,
     history,
+    bankedNotices: buildBankedNotices(scrape, now),
     sources: {
       // A reachable mirror is still useful discovery context, but it is not
       // an authoritative account feed and must not be labelled as live.
@@ -122,8 +124,13 @@ function buildTiboSignal(scrape: ScrapeResult, now: number, latestResetTs: numbe
   // Confirmed reset notices retain the strict detector context. A separate
   // future-tense official schedule can lift the public planning signal, but
   // is never passed to the event detector or notification pipeline.
-  const confirmedTweet = scrape.tweets.find(isResetTweet);
-  const latestResetTweet = confirmedTweet || scrape.tweets.find((t) => RESET_RE.test(t.text) && CONTEXT_RE.test(t.text));
+  // Banked grant promises are independently visible context. They must not
+  // become a global schedule or probability boost through weak matching.
+  const grantPromises = new Set(buildBankedNotices(scrape, now)
+    .filter((notice) => notice.state !== 'available').map((notice) => notice.sourceUrl));
+  const forecastTweets = scrape.tweets.filter((tweet) => !grantPromises.has(tweet.link));
+  const confirmedTweet = forecastTweets.find(isResetTweet);
+  const latestResetTweet = confirmedTweet || forecastTweets.find((t) => RESET_RE.test(t.text) && CONTEXT_RE.test(t.text));
   const hoursSinceResetMention = ageInHours(latestResetTweet);
   // A completion post at or before the latest verified episode is already
   // history, not evidence for another future reset. Keep it available as an
@@ -139,7 +146,7 @@ function buildTiboSignal(scrape: ScrapeResult, now: number, latestResetTs: numbe
       // this 24-hour episode, so the radar must use the same boundary.
       && latestResetTweet.ts <= latestResetTs + DAY,
   );
-  const scheduledResetTweet = scrape.tweets.find((t) => isScheduledResetAnnouncement(t.text)
+  const scheduledResetTweet = forecastTweets.find((t) => isScheduledResetAnnouncement(t.text)
     && (!confirmedTweet || t.ts > confirmedTweet.ts));
   const hoursSinceScheduledReset = ageInHours(scheduledResetTweet);
   const scheduledAt = scheduledResetTweet ? parseScheduledResetAt(scheduledResetTweet.text, scheduledResetTweet.ts) : undefined;

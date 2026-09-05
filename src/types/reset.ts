@@ -48,6 +48,7 @@ export interface ProbabilityPoint {
 }
 
 export interface ResetPrediction {
+  bankedNotices?: import('../lib/banked-notices').BankedNotice[];
   /** Predicted reset window start (ISO) */
   windowStart: string;
   /** Predicted reset window end (ISO) */

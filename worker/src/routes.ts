@@ -8,6 +8,8 @@ import { FORECAST_RELEASE_STATUS_KEY, getForecastCalibration } from './forecast'
 import { getOfficialCodexDiscovery } from './discovery';
 import { getSubscriptionQuality, getXWebhookQuality, recordEmailDelivered, recordSubscriptionMetric, recordXWebhookOutcome } from './operational-metrics';
 
+import { publicBankedNotices } from '../../src/lib/banked-notices';
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CONFIRM_TTL_SECONDS = 24 * 60 * 60;
 const REQUEST_COOLDOWN_SECONDS = 5 * 60;
@@ -44,6 +46,7 @@ type PublicSignalSnapshot = {
 };
 
 type StoredSignalSnapshot = {
+  bankedNotices?: unknown;
   signals?: PublicSignalSnapshot[];
   generatedAt?: number;
   history?: Array<{ id?: unknown; reset_date?: unknown; verified?: unknown }>;
@@ -64,6 +67,7 @@ export async function handleSignals(env: Env): Promise<Response> {
   return json({
     generatedAt: snapshot.generatedAt,
     sources: snapshot.sources,
+    bankedNotices: publicBankedNotices(snapshot.bankedNotices),
     signals: signals.map((signal) => {
       const publicSignal = { ...signal };
       delete publicSignal.sourceUrl;

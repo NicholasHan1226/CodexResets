@@ -18,14 +18,14 @@ export function usePrediction() {
       ? { status: 'refreshing', prediction: previous.prediction }
       : { status: 'loading', prediction: null });
     try {
-      const { signals, hasRealData, generatedAt, records } = await getDashboardInputs(force);
+      const { signals, hasRealData, generatedAt, records, bankedNotices } = await getDashboardInputs(force);
       if (id !== latestRefreshId.current) return;
       if (!hasRealData || !signals || !records?.length || generatedAt === null) {
         setState({ status: 'unavailable', prediction: null });
         return;
       }
       // Preserve the server's input timestamp; a browser refresh is not new evidence.
-      setState({ status: 'ready', prediction: { ...generatePrediction(records, signals), generatedAt } });
+      setState({ status: 'ready', prediction: { ...generatePrediction(records, signals), generatedAt, bankedNotices } });
     } catch {
       if (id === latestRefreshId.current) setState({ status: 'unavailable', prediction: null });
     }
