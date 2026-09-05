@@ -46,6 +46,8 @@ export default function Home() {
       <div className="min-h-screen bg-background">
         <StatusHeader
           prediction={prediction}
+          timeframe={timeframe}
+          primaryForecast={primaryForecast}
           currentTime={now}
           isRefreshing={state.status === 'refreshing'}
           onRefresh={() => { void refresh(true); }}
@@ -63,7 +65,7 @@ export default function Home() {
 
           <hr className="my-8 border-border/30" />
 
-          <div id="alerts" className="scroll-mt-24">
+          <div id="alerts" className="scroll-mt-36 md:scroll-mt-24">
             <ResetAlertsPanel />
           </div>
 

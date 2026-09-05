@@ -21,6 +21,7 @@ describe('homepage funnel contracts', () => {
   it('keeps both forecast windows on screen and uses a solid subscribe CTA', () => {
     const display = read('src/sections/ProbabilityDisplay.tsx');
     const hero = read('src/sections/HeroSection.tsx');
+    const header = read('src/sections/StatusHeader.tsx');
 
     expect(display).toContain('[{tf}h {tf === 24 ? pct24 : pct48}%]');
     expect(hero).toContain("t('hero.question', { n: timeframe })");
@@ -29,10 +30,14 @@ describe('homepage funnel contracts', () => {
     expect(hero).toContain(': pct >= 30');
     expect(hero).toContain('pct24');
     expect(hero).toContain('pct48');
-    expect(hero).toContain('command-action-primary');
-    expect(hero).toContain("t('hero.alertCta')");
+    expect(header).toContain('command-action-primary');
+    expect(header).toContain("t('header.alerts')");
     expect(hero).toContain("t('hero.scope')");
-    expect(hero).toContain('#alerts');
+    expect(header).toContain('#alerts');
+    expect(header).toContain('buildShareSummary');
+    expect(header).toContain('hours: timeframe');
+    expect(header).toContain('href={guideHref}');
+    expect(hero).not.toContain('handleShare');
   });
 
   it('does not present mixed indicators as a second aggregate probability', () => {

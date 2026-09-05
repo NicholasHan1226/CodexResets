@@ -302,8 +302,10 @@ keeps source signals and historical panels available on demand. The hero pairs
 the timing curve with a compact probability on the right on desktop; mobile
 shows the probability first. Email verification and alert descriptions share
 one container with a full-width optional Push footer. The hero groups its verdict
-above timing/probability, supporting history beside the probability, and actions
-with the account-scope explanation below.
+above timing/probability and supporting history beside the probability, with
+a short account-scope explanation below. The sticky header groups the guide,
+share button and primary email-alert link; language and refresh remain utilities.
+On mobile navigation occupies a second row, and the alerts anchor clears it.
 Signals include a short explanation and a public source link. When the public
 snapshot omits article URLs, the link opens the official source entry point. Failed
 verification can be retried without discarding the email or reloading the page.
@@ -312,8 +314,8 @@ Successful verification automatically continues the captured email/locale reques
 once; Escape or Cancel dismisses it without submitting. Tokens are never reused
 and the Worker still validates every subscription with Siteverify.
 Email entry precedes the three alert descriptions on mobile; pending email
-confirmation remains distinct from active browser Push. Sharing stays beside
-the answer, and explanatory guides remain available there and in the footer.
+confirmation remains distinct from active browser Push. Sharing follows the selected 24/48-hour window from the header; explanatory
+guides remain available in navigation and the page footer.
 
 The dashboard presents exactly one percentage as its primary answer: the
 selected 24- or 48-hour probability. The timing chart is deliberately

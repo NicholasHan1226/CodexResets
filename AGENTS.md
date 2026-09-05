@@ -168,8 +168,8 @@ src/
 ├── lib/               # Utilities (cn, prediction model, i18n, export-share)
 ├── pages/             # Home (dashboard), About (/about docs page)
 ├── sections/          # Dashboard sections (doc-flow, no cards)
-│   ├── StatusHeader.tsx      # Sticky header: snapshot age, language, refresh
-│   ├── HeroSection.tsx       # Outlook + timing curve + compact probability + share
+│   ├── StatusHeader.tsx      # Sticky header: snapshot age, navigation, language, refresh
+│   ├── HeroSection.tsx       # Outlook + timing curve + compact probability
 │   ├── ProbabilityDisplay.tsx# Primary probability + 24h/48h comparison
 │   ├── ProbabilityCurve.tsx  # Area chart, filters to next 24/48h (hours prop)
 │   ├── SignalPanel.tsx       # Signal timeline feed (ACTIVE/WARM/IDLE)
@@ -215,6 +215,8 @@ claims into those pages. Keep their links and `public/sitemap.xml` synchronized.
 - Hand-rolled SVG for data visualization (Recharts removed — see Performance)
 - CSS variables for theming (HSL format)
 - Home holds `timeframe` state (24|48) shared by HeroSection + ProbabilityCurve
+- Header navigation holds email alerts, sharing and the prediction guide.
+  Keep mobile anchor offsets clear of both header rows.
 - Share: `buildShareSummary()` emits a Wordle-style terminal text (ASCII bar +
   waited/median), copied with the clean root URL — no state params in the URL
   (they were never read back; the destination always shows fresher live data)
