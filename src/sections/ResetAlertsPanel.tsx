@@ -54,8 +54,8 @@ export function ResetAlertsPanel() {
         {t('subscribe.description')}
       </p>
 
-      <div className="mt-5 grid gap-6 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] md:items-start md:gap-8">
-        <div className="min-w-0 border border-primary/25 bg-muted/20 p-4 transition-colors focus-within:border-primary/60">
+      <div className="mt-5 grid gap-5 border border-primary/25 bg-muted/20 p-4 sm:p-5 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] md:items-start md:gap-x-8">
+        <div className="min-w-0">
           <h3 className="text-sm font-semibold text-foreground">{t('subscribe.emailTitle')}</h3>
           <p id="reset-alert-email-help" className="mt-1 text-xs leading-relaxed text-muted-foreground">{t('subscribe.emailNote')}</p>
           <div className="mt-4">
@@ -103,25 +103,8 @@ export function ResetAlertsPanel() {
               </p>
             )}
           </div>
-
-          <div className="mt-4 border-t border-border/30 pt-3">
-            <p className="text-xs leading-relaxed text-muted-foreground">{t('push.description')}</p>
-            {pushState.status !== 'checking' && (pushState.status !== 'unsupported' ? (
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <button
-                  onClick={togglePush}
-                  disabled={pushLoading}
-                  className="min-h-11 text-left font-mono text-xs text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground disabled:opacity-50"
-                >
-                  {pushLoading ? '···' : pushSubscribed ? t('push.unsubscribe') : t('push.disabled')}
-                </button>
-                {pushSubscribed && <span role="status" className="text-xs text-primary">{t('push.enabled')}</span>}
-                {pushState.status === 'error' && <span role="alert" className="text-xs text-destructive">{t('push.errorRetry')}</span>}
-              </div>
-            ) : <p className="mt-2 text-xs text-muted-foreground/70">{t('push.notSupported')}</p>)}
-          </div>
         </div>
-        <ul className="space-y-3" aria-label={t('subscribe.title')}>
+        <ul className="min-w-0 space-y-3 border-t border-border/30 pt-5 md:border-t-0 md:pt-0" aria-label={t('subscribe.title')}>
           {(['forecast', 'scheduled', 'confirmed'] as const).map((kind) => (
             <li key={kind} className="flex gap-3">
               <div>
@@ -131,6 +114,22 @@ export function ResetAlertsPanel() {
             </li>
           ))}
         </ul>
+        <div className="border-t border-border/30 pt-3 md:col-span-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <p className="text-xs leading-relaxed text-muted-foreground">{t('push.description')}</p>
+          {pushState.status !== 'checking' && (pushState.status !== 'unsupported' ? (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <button
+                onClick={togglePush}
+                disabled={pushLoading}
+                className="min-h-11 text-left font-mono text-xs text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground disabled:opacity-50"
+              >
+                {pushLoading ? '···' : pushSubscribed ? t('push.unsubscribe') : t('push.disabled')}
+              </button>
+              {pushSubscribed && <span role="status" className="text-xs text-primary">{t('push.enabled')}</span>}
+              {pushState.status === 'error' && <span role="alert" className="text-xs text-destructive">{t('push.errorRetry')}</span>}
+            </div>
+          ) : <p className="mt-2 text-xs text-muted-foreground/70">{t('push.notSupported')}</p>)}
+        </div>
       </div>
     </section>
   );

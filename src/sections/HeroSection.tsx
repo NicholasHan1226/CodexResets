@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { getEffectiveHistory } from '@/lib/reset-data';
 import { useI18n } from '@/contexts/I18nContext';
+import { ProbabilityCurve } from '@/sections/ProbabilityCurve';
 import { ProbabilityDisplay } from '@/sections/ProbabilityDisplay';
 import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPlanningProbability, getPrimaryForecast, type PrimaryForecast } from '@/lib/forecast-display';
 import {
@@ -120,19 +121,30 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
         </span>
       </p>
 
-      {/* The probability — the single protagonist */}
-      <div className="mt-7 md:mt-9">
-        <ProbabilityDisplay
-          pct={pct}
-          pct24={pct24}
-          pct48={pct48}
-          modelPct={isOfficialBoosted ? modelPct : undefined}
-          timeframe={timeframe}
-          onTimeframeChange={onTimeframeChange}
-          officialSchedule={hasScheduledReset
-            ? { window: primaryForecast.window, targetLabel: scheduledTargetStr, countdownLabel: scheduledCountdownStr }
-            : undefined}
-        />
+      {/* One outlook: timing on the left, the selected probability on the right. */}
+      <div className="mt-6 grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_240px]">
+        <div id="curve" className="min-w-0 scroll-mt-24 md:col-start-1 md:row-start-1">
+          <ProbabilityCurve
+            currentTime={currentTime}
+            curve={prediction.curve}
+            hours={timeframe}
+            planningProbability={getPlanningProbability(timeframe === 24 ? prediction.prob24h : prediction.prob48h, prediction.signals, primaryForecast)}
+            officialScheduleAt={primaryForecast.kind === 'official-schedule' && primaryForecast.window === 'within' ? primaryForecast.scheduledAt : undefined}
+          />
+        </div>
+        <div className="min-w-0 row-start-1 border-b border-border/30 pb-5 md:col-start-2 md:border-b-0 md:border-l md:pb-0 md:pl-5">
+          <ProbabilityDisplay
+            pct={pct}
+            pct24={pct24}
+            pct48={pct48}
+            modelPct={isOfficialBoosted ? modelPct : undefined}
+            timeframe={timeframe}
+            onTimeframeChange={onTimeframeChange}
+            officialSchedule={hasScheduledReset
+              ? { window: primaryForecast.window, targetLabel: scheduledTargetStr, countdownLabel: scheduledCountdownStr }
+              : undefined}
+          />
+        </div>
       </div>
 
       <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted-foreground">

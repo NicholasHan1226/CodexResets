@@ -7,14 +7,13 @@ import { ResetAlertsPanel } from "@/sections/ResetAlertsPanel";
 import { HistoryPanel } from "@/sections/HistoryPanel";
 import { TimeDistribution } from "@/sections/TimeDistribution";
 import { ResetCalendar } from "@/sections/ResetCalendar";
-import { ProbabilityCurve } from "@/sections/ProbabilityCurve";
 import { GuideLinks } from "@/components/GuideLinks";
 import { useI18n } from "@/contexts/I18nContext";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { DashboardUnavailable } from "@/components/DashboardUnavailable";
 import { isFreshPipelineSnapshot } from "@/lib/signal-fetcher";
 import { shouldShowResetCalendar } from "@/lib/reset-data";
-import { getPlanningProbability, getPrimaryForecast } from "@/lib/forecast-display";
+import { getPrimaryForecast } from "@/lib/forecast-display";
 
 export default function Home() {
   const { state, refresh } = usePrediction();
@@ -42,11 +41,6 @@ export default function Home() {
   const showCalendar = shouldShowResetCalendar();
   const primaryForecast = getPrimaryForecast(prediction.signals, timeframe, now);
   const showHistoricalTiming = primaryForecast.kind !== 'official-schedule';
-  const modelProbability = timeframe === 24 ? prediction.prob24h : prediction.prob48h;
-  const planningProbability = getPlanningProbability(modelProbability, prediction.signals, primaryForecast);
-  const officialScheduleAt = primaryForecast.kind === 'official-schedule' && primaryForecast.window === 'within'
-    ? primaryForecast.scheduledAt
-    : undefined;
 
   return (
       <div className="min-h-screen bg-background">
@@ -81,18 +75,6 @@ export default function Home() {
               <span className="mt-1 block text-xs font-sans text-muted-foreground">{t('home.evidenceHint')}</span>
             </summary>
             <div className="pt-6">
-              <div id="curve" className="scroll-mt-24">
-                <ProbabilityCurve
-                  currentTime={now}
-                  curve={prediction.curve}
-                  hours={timeframe}
-                  planningProbability={planningProbability}
-                  officialScheduleAt={officialScheduleAt}
-                />
-              </div>
-
-              <hr className="my-8 border-border/30" />
-
               <div id="signals" className="scroll-mt-16 cv-auto">
                 <SignalPanel prediction={prediction} loading={state.status === 'refreshing'} />
               </div>

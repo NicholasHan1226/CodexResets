@@ -59,12 +59,18 @@ describe('reviewed visitor claims', () => {
     expect(html).not.toContain(t(locale, 'subscribe.success'));
   });
 
-  it.each([0, 5])('suppresses a precise peak target with %s verified observations', (count) => {
+  it.each([0, 5])('labels sparse timing honestly with %s verified observations', (count) => {
     vi.useFakeTimers(); vi.setSystemTime(now); history(count);
     const html = renderToStaticMarkup(<ProbabilityCurve curve={curve} hours={24} planningProbability={0.47} />);
     expect(html).toContain(t(locale, 'curve.sparseTiming'));
-    expect(html).not.toContain('History-based model peak:');
-    expect(html).toContain('Total in next 24h: 47%');
+    if (count > 0) expect(html).toContain('Model high-likelihood interval:');
+    else expect(html).not.toContain('Model high-likelihood interval:');
+  });
+
+  it('does not invent a peak for an empty timing curve', () => {
+    vi.useFakeTimers(); vi.setSystemTime(now); history(5);
+    const html = renderToStaticMarkup(<ProbabilityCurve curve={[]} hours={24} />);
+    expect(html).not.toContain('Model high-likelihood interval:');
   });
 
   it('preserves direct official timing even when history is sparse', () => {
