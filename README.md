@@ -303,9 +303,11 @@ the timing curve with a compact probability on the right on desktop; mobile
 shows the probability first. Email verification and alert descriptions share
 one container with a full-width optional Push footer. The hero groups its verdict
 above timing/probability and supporting history beside the probability, with
-a short account-scope explanation below. The sticky header groups the guide,
-share button and primary email-alert link; language and refresh remain utilities.
-On mobile navigation occupies a second row, and the alerts anchor clears it.
+a short account-scope explanation below. The sticky header uses consistent 44px controls: brand/status, guide/share,
+language/refresh, then the primary email-alert link. On mobile the brand and
+email-alert link remain visible while secondary actions use a disclosure menu.
+Escape returns focus to its trigger; outside clicks and navigation dismiss it.
+The menu overlays content, so the fixed header remains one row on every screen.
 Signals include a short explanation and a public source link. When the public
 snapshot omits article URLs, the link opens the official source entry point. Failed
 verification can be retried without discarding the email or reloading the page.

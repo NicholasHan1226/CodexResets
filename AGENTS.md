@@ -216,7 +216,8 @@ claims into those pages. Keep their links and `public/sitemap.xml` synchronized.
 - CSS variables for theming (HSL format)
 - Home holds `timeframe` state (24|48) shared by HeroSection + ProbabilityCurve
 - Header navigation holds email alerts, sharing and the prediction guide.
-  Keep mobile anchor offsets clear of both header rows.
+  Use consistent 44px controls. Mobile keeps brand/alerts visible and discloses
+  secondary controls in a dismissible menu; keep anchor offsets below the header.
 - Share: `buildShareSummary()` emits a Wordle-style terminal text (ASCII bar +
   waited/median), copied with the clean root URL — no state params in the URL
   (they were never read back; the destination always shows fresher live data)

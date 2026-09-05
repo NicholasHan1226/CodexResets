@@ -116,6 +116,18 @@
     isolation: isolate;
     position: relative;
   }
+  .header-action {
+    @apply inline-flex min-h-11 min-w-11 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 font-mono text-xs text-muted-foreground transition-colors;
+  }
+  .header-action-menu { justify-content: flex-start; }
+  @media (min-width: 768px) {
+    .header-action-menu { justify-content: center; }
+  }
+  .header-action:hover { @apply bg-muted/60 text-foreground; }
+  .header-action:focus-visible { @apply outline outline-2 outline-offset-2 outline-primary; }
+  .header-action:disabled { @apply cursor-wait opacity-50; }
+  .header-action-primary { @apply bg-primary font-semibold text-background; }
+  .header-action-primary:hover { @apply bg-primary/85 text-background; }
   .command-action {
     display: inline-flex;
     align-items: center;
