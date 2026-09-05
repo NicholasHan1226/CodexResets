@@ -219,7 +219,12 @@ within 24 hours into one reset episode. This prevents one product reset from
 being counted as several short reset intervals. On each refresh, the browser
 backtests logistic and Weibull interval models against earlier time-ordered
 24/48-hour cutoffs and uses the lower-Brier candidate when enough historical
-samples are available. Direct-source reset announcements are used only for the
+samples are available. Until then, selection falls back to logistic. These
+are conditional probabilities: elapsed time can change the estimate even when
+no new reset has occurred. Neither a longer wait nor a displayed percentage
+proves a reset is due or that predictive accuracy has been established. This
+section owns forecast semantics; the bilingual About page summarizes it.
+Direct-source reset announcements are used only for the
 Worker's automatic stabilization, correction, and notification rules; they do
 not alter the future-facing probability.
 The browser forecast and the Worker's cooldown signal both use this same
