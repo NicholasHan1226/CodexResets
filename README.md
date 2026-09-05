@@ -578,3 +578,17 @@ gate, and safe bug-reporting guidance.
 
 Report vulnerabilities through [GitHub private vulnerability reporting](https://github.com/NicholasHan1226/CodexResets/security/advisories/new).
 See [SECURITY.md](SECURITY.md) for scope and reporting guidance.
+
+### Banked reset announcement context
+
+The snapshot exposes up to three recent authenticated official banked-reset
+updates in `bankedNotices`, with source post time/link, mentioned plans and
+announced / officially available / correction state. These are announcement
+updates, not grant counts or account-level receipt proof. Eligibility conditions
+remain in the original post. The dashboard keeps them above the forecast even
+when a newer unrelated post exists. They expire after seven days and degraded
+sources cannot supply them. Elapsed promises and account-creation cutoffs never
+become completion evidence. Announcement context does not create reset records,
+notifications or a global probability boost; existing confirmed-event delivery
+remains separate. Regression fixtures from September 4–5 cover the complete
+snapshot → public API → browser path in `tests/banked-notices.test.ts`.

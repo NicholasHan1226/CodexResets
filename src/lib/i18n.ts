@@ -6,6 +6,17 @@ export type Locale = 'en' | 'zh';
 // Flat key-value translation structure
 const translations: Record<Locale, Record<string, string>> = {
   en: {
+    'banked.title': "Banked reset",
+    'banked.announced': "Grant announced",
+    'banked.available': "Officially reported available",
+    'banked.correction': "Official correction",
+    'banked.source': "Official post",
+    'banked.eligibility': "Plans mentioned (eligibility in official post)",
+    'banked.paid': "Paid ChatGPT plans",
+    'banked.seeSource': "See official post",
+    'banked.caveat': "A banked reset is redeemed manually. An announcement does not confirm receipt in your account or a global quota reset. Check your Codex account.",
+    'banked.updates': "Earlier updates (not separate grant counts)",
+
     // Common
     'common.loading': 'Loading page…',
 
@@ -368,6 +379,17 @@ const translations: Record<Locale, Record<string, string>> = {
     'accuracy.noReset': 'No Reset',
   },
   zh: {
+    'banked.title': "Banked reset",
+    'banked.announced': "已公告发放",
+    'banked.available': "官方称已发放",
+    'banked.correction': "官方更正",
+    'banked.source': "官方原文",
+    'banked.eligibility': "涉及套餐（具体资格见原文）",
+    'banked.paid': "ChatGPT 付费套餐",
+    'banked.seeSource': "以官方原文为准",
+    'banked.caveat': "Banked reset 需手动使用。公告不代表你的账户已到账，也不代表全局额度已重置；请在 Codex 中核对。",
+    'banked.updates': "此前公告更新（不代表发放次数）",
+
     // Common
     'common.loading': '正在加载页面…',
 

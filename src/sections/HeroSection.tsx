@@ -1,3 +1,4 @@
+import { BankedNotice } from '@/sections/BankedNotice';
 import { getEffectiveHistory } from '@/lib/reset-data';
 import { useI18n } from '@/contexts/I18nContext';
 import { ProbabilityCurve } from '@/sections/ProbabilityCurve';
@@ -69,6 +70,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
 
   return (
     <section aria-label="Reset probability" className="hero-stage max-w-4xl border border-border/50 bg-muted/10">
+      <BankedNotice notices={prediction.bankedNotices} currentTime={currentTime} />
       <header className="border-b border-border/40 px-4 py-4 sm:px-5">
         <p className="font-mono text-xs text-muted-foreground">{t('hero.question', { n: timeframe })}</p>
         <h2 className="mt-1 text-xl font-semibold tracking-tight text-foreground">{t(verdictKey)}</h2>

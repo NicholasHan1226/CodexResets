@@ -3,6 +3,7 @@
  * visible unavailable state, never a locally recomputed production forecast.
  */
 
+import { publicBankedNotices, type BankedNotice } from './banked-notices';
 import type { ResetRecord, ResetSignal } from '@/types/reset';
 
 const PIPELINE_API_URL = (import.meta.env.VITE_PIPELINE_API_URL || '').replace(/\/+$/, '');
@@ -12,6 +13,7 @@ const PIPELINE_SIGNAL_SOURCES = ['tibopost', 'status_page', 'cooldown'] as const
 const PIPELINE_SIGNAL_SOURCE_SET = new Set<string>(PIPELINE_SIGNAL_SOURCES);
 
 interface PipelineSnapshot {
+  bankedNotices?: BankedNotice[];
   signals: ResetSignal[];
   generatedAt: number;
   history?: PipelineHistoryRow[];
@@ -24,6 +26,7 @@ interface PipelineHistoryRow {
 }
 
 export interface DashboardInputs {
+  bankedNotices?: BankedNotice[];
   /** Null when no fresh Worker snapshot is available. */
   signals: ResetSignal[] | null;
   hasRealData: boolean;
@@ -105,6 +108,7 @@ async function fetchPipelineSnapshot(force = false): Promise<PipelineSnapshot | 
     if (!isCompletePipelineSnapshot(snapshotInput)) return null;
     // Snapshot is refreshed every 30min server-side; cache for 5min locally
     const snapshot: PipelineSnapshot = {
+      bankedNotices: publicBankedNotices(snapshotInput.bankedNotices),
       signals: snapshotInput.signals,
       generatedAt: snapshotInput.generatedAt,
       // Older deployed Workers do not have this field; a missing history will
@@ -152,6 +156,7 @@ export async function getDashboardInputs(force = false): Promise<DashboardInputs
   const pipeline = await fetchPipelineSnapshot(force);
   if (pipeline) {
     return {
+      bankedNotices: publicBankedNotices(pipeline.bankedNotices),
       signals: pipeline.signals,
       hasRealData: true,
       generatedAt: pipeline.generatedAt,

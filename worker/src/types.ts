@@ -86,6 +86,7 @@ export interface SignalSnapshot {
 }
 
 export interface SignalsPayload {
+  bankedNotices?: import('../../src/lib/banked-notices').BankedNotice[];
   signals: SignalSnapshot[];
   generatedAt: number;
   /** Public, model-only reset fields delivered with the fresh Worker snapshot. */

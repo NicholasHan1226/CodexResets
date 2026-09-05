@@ -260,3 +260,11 @@ claims into those pages. Keep their links and `public/sitemap.xml` synchronized.
 - Cloudflare Worker: `codex-resets-pipeline` builds production from `NicholasHan1226/CodexResets` branch `main`, root `/worker`, with `pnpm install --frozen-lockfile && pnpm exec tsc --noEmit`, then `pnpm exec wrangler deploy`. Runtime secrets remain dashboard-managed.
 - Deploy: `CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... npx wrangler pages deploy dist --project-name=codex-resets --commit-dirty=true`
 - Supabase: email subscriptions (`subscriptions` table) + reset records
+
+### Banked reset announcement context
+
+Keep official banked grant updates separate from global forecast signals and
+confirmed reset delivery. Never count posts as grants or promote elapsed
+promises to account receipt. The public `bankedNotices` contract and freshness
+bounds are documented in README; `tests/banked-notices.test.ts` covers source
+recognition through browser parsing.
