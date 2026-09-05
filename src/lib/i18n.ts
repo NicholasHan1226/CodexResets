@@ -7,7 +7,7 @@ export type Locale = 'en' | 'zh';
 const translations: Record<Locale, Record<string, string>> = {
   en: {
     // Common
-    'common.loading': 'Initializing signal model...',
+    'common.loading': 'Loading page…',
 
     // Hero Section
     'hero.signalNo': 'no official reset signal',
@@ -47,8 +47,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.windowStat': '{pct}% in {n}h',
     'hero.horizonLabel': '{n}h reset probability',
     'hero.horizonToggle': '24-hour and 48-hour forecast',
-    'hero.historySample': 'Based on {n} verified resets. Limited history; timing estimates are exploratory, not a validated accuracy claim.',
-    'hero.scope': 'For Codex users: a 24/48-hour forecast of broadly observed usage-limit resets — not the timer in your ChatGPT or Codex /status.',
+    'hero.historySample': 'Based on {n} verified resets. Limited history; forecast accuracy is not yet validated.',
+    'hero.scope': 'Forecasts broad Codex resets, not your personal quota timer. Check Codex /status for your account.',
     'hero.shareText': 'Codex reset probability: {n}% in next {h}h — live forecast:',
     'hero.shareLink': '[share]',
     'hero.copied': '[copied ✓]',
@@ -104,6 +104,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'header.liveMonitoring': 'LIVE MONITORING',
     'header.simulated': 'SIMULATED',
     'header.model': 'Model',
+    'home.evidence': 'Evidence and reset history',
+    'home.evidenceHint': 'Probability curve, source signals and past resets',
     'header.updated': 'Updated',
     'header.justNow': 'just now',
     'header.minutesAgo': '{n}m ago',
@@ -165,6 +167,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Signal Radar
     'signals.title': 'SIGNAL RADAR',
+    'signals.viewSource': 'View public source',
     'signals.sources': '{n} indicators',
     'signals.composite': 'signal strength',
     'signals.strength.low': 'low',
@@ -254,6 +257,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'subscribe.subscribers': '{n} subscribers',
     'subscribe.invalidEmail': 'Please enter a valid email',
     'subscribe.success': "Subscribed — we'll email a 24-hour forecast, official due-time notice, and any confirmed reset.",
+    'subscribe.retryVerification': 'Retry verification',
     'subscribe.confirmationSent': 'Check your inbox to confirm your subscription.',
     'subscribe.verificationRequired': 'Complete the human verification before subscribing.',
     'subscribe.verificationUnavailable': 'Subscription verification is temporarily unavailable.',
@@ -317,7 +321,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'about.sourceHistory': 'Verified reset history',
     'about.sourceHistoryDesc': 'reviewed public reset episodes and production-confirmed records',
     'about.privacyTitle': 'Email and privacy',
-    'about.privacyDesc': 'An email address is stored only after its recipient confirms the subscription. It is used to send reset alerts and to process unsubscribe requests; this site does not ask for an OpenAI account or personal usage data.',
+    'about.privacyDesc': 'Your email address is temporarily stored to verify your subscription and is added to the subscriber list only after you confirm. It is used to send reset alerts and to process unsubscribe requests; this site does not ask for an OpenAI account or personal usage data.',
     'about.privacyRetention': 'Unconfirmed email addresses expire after 24 hours. A confirmed address is deleted when you unsubscribe, or when its mail provider reports a permanent delivery failure or spam complaint.',
     'about.privacyAbuse': 'To protect the subscription form, the service temporarily keeps a hashed network address for up to 10 minutes. It is used only to limit automated requests.',
     'about.privacyAnalytics': 'Cloudflare Web Analytics collects aggregate visit and performance metrics; it is not used to read OpenAI account or personal usage data.',
@@ -356,7 +360,7 @@ const translations: Record<Locale, Record<string, string>> = {
   },
   zh: {
     // Common
-    'common.loading': '正在初始化信号模型...',
+    'common.loading': '正在加载页面…',
 
     // Hero Section
     'hero.signalNo': '暂无官方重置信号',
@@ -396,8 +400,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.windowStat': '{n} 小时 {pct}%',
     'hero.horizonLabel': '{n} 小时重置概率',
     'hero.horizonToggle': '24 小时与 48 小时预测',
-    'hero.historySample': '基于 {n} 次已验证重置。历史样本有限，时间估计仅供探索，不代表已验证的预测准确率。',
-    'hero.scope': '面向 Codex 用户：这是对可公开观察到的额度重置的 24/48 小时预判，不是 ChatGPT 或 Codex /status 里的个人倒计时。',
+    'hero.historySample': '基于 {n} 次已验证重置。样本有限，预测准确率尚未验证。',
+    'hero.scope': '预判 Codex 大范围额度重置，并非个人倒计时。个人额度请查看 Codex /status。',
     'hero.shareText': 'Codex 重置概率：未来 {h} 小时内 {n}% — 实时预测：',
     'hero.shareLink': '[分享]',
     'hero.copied': '[已复制 ✓]',
@@ -453,6 +457,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'header.liveMonitoring': '实时监控',
     'header.simulated': '模拟数据',
     'header.model': '模型',
+    'home.evidence': '查看依据与重置历史',
+    'home.evidenceHint': '概率曲线、来源信号和历史记录',
     'header.updated': '更新',
     'header.justNow': '刚刚',
     'header.minutesAgo': '{n}分钟前',
@@ -514,6 +520,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Signal Radar
     'signals.title': '信号雷达',
+    'signals.viewSource': '查看公开来源',
     'signals.sources': '{n} 个观测项',
     'signals.composite': '信号强度',
     'signals.strength.low': '低',
@@ -603,6 +610,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'subscribe.subscribers': '{n} 位订阅者',
     'subscribe.invalidEmail': '请输入有效的邮箱地址',
     'subscribe.success': '已订阅——达到预告条件、官方预告时间到达及重置确认后都会邮件通知你。',
+    'subscribe.retryVerification': '重试验证',
     'subscribe.confirmationSent': '请查收邮箱并完成订阅确认。',
     'subscribe.verificationRequired': '请先完成人机验证，再订阅。',
     'subscribe.verificationUnavailable': '订阅验证暂时不可用。',
@@ -666,7 +674,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'about.sourceHistory': '已验证的重置历史',
     'about.sourceHistoryDesc': '经复核的公开重置事件与生产确认记录',
     'about.privacyTitle': '邮箱与隐私',
-    'about.privacyDesc': '只有收件人完成确认后，邮箱才会写入订阅名单。邮箱仅用于发送重置提醒和处理退订；本站不会索取 OpenAI 账户或个人用量数据。',
+    'about.privacyDesc': '邮箱会临时保存以完成订阅验证；只有收件人完成确认后，才会加入订阅名单。邮箱仅用于发送重置提醒和处理退订；本站不会索取 OpenAI 账户或个人用量数据。',
     'about.privacyRetention': '未确认的邮箱会在 24 小时后过期。已确认的邮箱会在退订后删除；若邮箱服务商报告永久投递失败或垃圾邮件投诉，也会删除。',
     'about.privacyAbuse': '为保护订阅表单，服务会暂存经过哈希处理的网络地址，最长 10 分钟，仅用于限制自动化请求。',
     'about.privacyAnalytics': 'Cloudflare Web Analytics 会收集汇总访问与性能指标；它不会读取 OpenAI 账户或个人用量数据。',

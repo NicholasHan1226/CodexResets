@@ -8,18 +8,18 @@ import { HistoryPanel } from "@/sections/HistoryPanel";
 import { TimeDistribution } from "@/sections/TimeDistribution";
 import { ResetCalendar } from "@/sections/ResetCalendar";
 import { ProbabilityCurve } from "@/sections/ProbabilityCurve";
-import { AnchorNav } from "@/components/AnchorNav";
 import { GuideLinks } from "@/components/GuideLinks";
-import { buildShareSummary, shareUrl, copyToClipboard } from "@/lib/export-share";
 import { useI18n } from "@/contexts/I18nContext";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { DashboardUnavailable } from "@/components/DashboardUnavailable";
+import { isFreshPipelineSnapshot } from "@/lib/signal-fetcher";
 import { shouldShowResetCalendar } from "@/lib/reset-data";
-import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPlanningProbability, getPrimaryForecast } from "@/lib/forecast-display";
+import { getPlanningProbability, getPrimaryForecast } from "@/lib/forecast-display";
 
 export default function Home() {
-  const { prediction, isLive, signalsLoading, dataUnavailable, refresh } = usePrediction();
-  const { t, locale } = useI18n();
+  const { state, refresh } = usePrediction();
+  const { prediction } = state;
+  const { t } = useI18n();
   const [timeframe, setTimeframe] = useState<24 | 48>(24);
   const [now, setNow] = useState(() => Date.now());
 
@@ -28,8 +28,12 @@ export default function Home() {
     return () => window.clearInterval(interval);
   }, []);
 
+  if (prediction && !isFreshPipelineSnapshot(prediction.generatedAt, now)) {
+    return <DashboardUnavailable onRetry={() => { void refresh(true); }} />;
+  }
+
   if (!prediction) {
-    if (dataUnavailable) {
+    if (state.status === 'unavailable') {
       return <DashboardUnavailable onRetry={() => { void refresh(true); }} />;
     }
     return <DashboardSkeleton />;
@@ -37,45 +41,23 @@ export default function Home() {
 
   const showCalendar = shouldShowResetCalendar();
   const primaryForecast = getPrimaryForecast(prediction.signals, timeframe, now);
-  const officialSchedule = primaryForecast.kind === 'official-schedule'
-    ? {
-        targetLabel: formatOfficialScheduleTarget(primaryForecast.scheduledAt, locale),
-        countdownLabel: formatOfficialScheduleCountdown(primaryForecast.scheduledAt, now, locale),
-        window: primaryForecast.window,
-      }
-    : undefined;
-  // A scheduled target keeps the deeper timing-distribution section out of
-  // the way, while the primary model probability and curve stay visible.
-  const showHistoricalTiming = !officialSchedule;
+  const showHistoricalTiming = primaryForecast.kind !== 'official-schedule';
   const modelProbability = timeframe === 24 ? prediction.prob24h : prediction.prob48h;
   const planningProbability = getPlanningProbability(modelProbability, prediction.signals, primaryForecast);
   const officialScheduleAt = primaryForecast.kind === 'official-schedule' && primaryForecast.window === 'within'
     ? primaryForecast.scheduledAt
     : undefined;
 
-  const handleShare = async () => {
-    const pct = Math.round(planningProbability * 100);
-    const text = buildShareSummary({
-      pct,
-      hours: timeframe,
-      daysSince: prediction.daysSinceLastReset,
-      medianDays: prediction.medianIntervalDays,
-      officialSchedule,
-    }, locale);
-    await copyToClipboard(`${text}\n${shareUrl()}`);
-  };
-
   return (
       <div className="min-h-screen bg-background">
         <StatusHeader
           prediction={prediction}
-          isLive={isLive}
-          isRefreshing={signalsLoading}
+          currentTime={now}
+          isRefreshing={state.status === 'refreshing'}
           onRefresh={() => { void refresh(true); }}
-          onShare={handleShare}
         />
 
-        <main className="mx-auto max-w-4xl px-4 py-10 md:px-6 lg:py-12" role="main" aria-label="Codex Reset Prediction Dashboard">
+        <main className="mx-auto max-w-4xl px-4 py-8 md:px-6 lg:py-10" role="main" aria-label="Codex Reset Prediction Dashboard">
           {/* Answer first, then the subscribe well — deeper evidence follows. */}
           <HeroSection
             prediction={prediction}
@@ -84,52 +66,61 @@ export default function Home() {
             primaryForecast={primaryForecast}
             currentTime={now}
           />
-          <AnchorNav showCalendar={showCalendar} showRhythm={showHistoricalTiming} />
 
-          <hr className="my-10 border-border/30" />
+          <hr className="my-8 border-border/30" />
 
           <div id="alerts" className="scroll-mt-24">
             <ResetAlertsPanel />
           </div>
 
-          <hr className="my-10 border-border/30" />
+          <hr className="my-8 border-border/30" />
 
-          <div id="curve" className="scroll-mt-24">
-            <ProbabilityCurve
-              curve={prediction.curve}
-              hours={timeframe}
-              planningProbability={planningProbability}
-              officialScheduleAt={officialScheduleAt}
-            />
-          </div>
+          <details className="group">
+            <summary className="cursor-pointer py-3 font-mono text-sm text-foreground marker:text-primary">
+              {t('home.evidence')}
+              <span className="mt-1 block text-xs font-sans text-muted-foreground">{t('home.evidenceHint')}</span>
+            </summary>
+            <div className="pt-6">
+              <div id="curve" className="scroll-mt-24">
+                <ProbabilityCurve
+                  currentTime={now}
+                  curve={prediction.curve}
+                  hours={timeframe}
+                  planningProbability={planningProbability}
+                  officialScheduleAt={officialScheduleAt}
+                />
+              </div>
 
-          <hr className="my-10 border-border/30" />
+              <hr className="my-8 border-border/30" />
 
-          <div id="signals" className="scroll-mt-16 cv-auto">
-            <SignalPanel prediction={prediction} loading={signalsLoading} />
-          </div>
+              <div id="signals" className="scroll-mt-16 cv-auto">
+                <SignalPanel prediction={prediction} loading={state.status === 'refreshing'} />
+              </div>
 
-          {showHistoricalTiming && <>
-            <hr className="my-10 border-border/30" />
+              {showHistoricalTiming && <>
+                <hr className="my-8 border-border/30" />
 
-            <div id="rhythm" className="scroll-mt-16 cv-auto">
-              <TimeDistribution />
+                <div id="rhythm" className="scroll-mt-16 cv-auto">
+                  <TimeDistribution />
+                </div>
+              </>}
+
+              <hr className="my-8 border-border/30" />
+
+              <div id="history" className="scroll-mt-16 cv-auto">
+                <HistoryPanel />
+              </div>
+
+              {showCalendar && <>
+                <hr className="my-8 border-border/30" />
+
+                <div id="calendar" className="scroll-mt-16 cv-auto">
+                  <ResetCalendar />
+                </div>
+              </>}
+
             </div>
-          </>}
-
-          <hr className="my-10 border-border/30" />
-
-          <div id="history" className="scroll-mt-16 cv-auto">
-            <HistoryPanel />
-          </div>
-
-          {showCalendar && <>
-            <hr className="my-10 border-border/30" />
-
-            <div id="calendar" className="scroll-mt-16 cv-auto">
-              <ResetCalendar />
-            </div>
-          </>}
+          </details>
 
           {/* Footer */}
           <footer className="mt-10 pt-6 border-t border-border/30" role="contentinfo">

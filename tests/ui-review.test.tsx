@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AlertStatusBadge, EmailConfirmationPending, ResetAlertsPanel } from '@/sections/ResetAlertsPanel';
 import { HeroSection } from '@/sections/HeroSection';
 import { ProbabilityCurve } from '@/sections/ProbabilityCurve';
+import { SignalPanel } from '@/sections/SignalPanel';
 import { TimeDistribution } from '@/sections/TimeDistribution';
 import { setDynamicResetHistory } from '@/lib/reset-data';
 import { t, type Locale } from '@/lib/i18n';
@@ -82,6 +83,20 @@ describe('reviewed visitor claims', () => {
     expect(html).not.toContain('0/0');
   });
 
+  it.each(['en', 'zh'] as const)('renders evidence descriptions and only HTTPS source links in %s', (language) => {
+    locale = language;
+    const prediction = { signals: [
+      { source: 'tibopost', label: 'Tibo', description: 'signals.resetScheduled', updatedAt: now, status: 'active', value: 0.8, sourceUrl: 'https://x.com/example/status/123' },
+      { source: 'status_page', label: 'Status', description: 'signals.statusUnavailable', updatedAt: now, status: 'idle', value: 0, sourceUrl: 'javascript:alert(1)' },
+    ] } as ResetPrediction;
+    const html = renderToStaticMarkup(<SignalPanel prediction={prediction} />);
+    expect(html).toContain(t(locale, 'signals.resetScheduled'));
+    expect(html).toContain('href="https://x.com/example/status/123"');
+    expect(html).toContain(t(locale, 'signals.viewSource'));
+    expect(html).not.toContain('javascript:');
+    expect(html).toContain('href="https://status.openai.com/history"');
+  });
+
   it('shows the actual verified sample count next to the main probability', () => {
     history(5);
     const prediction: ResetPrediction = {
@@ -91,6 +106,6 @@ describe('reviewed visitor claims', () => {
     };
     const html = renderToStaticMarkup(<HeroSection prediction={prediction} timeframe={24} onTimeframeChange={() => {}} primaryForecast={{ kind: 'model' }} currentTime={now} />);
     expect(html).toContain('Based on 5 verified resets.');
-    expect(html).toContain('not a validated accuracy claim');
+    expect(html).toContain('forecast accuracy is not yet validated');
   });
 });

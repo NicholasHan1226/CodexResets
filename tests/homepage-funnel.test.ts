@@ -23,12 +23,10 @@ describe('homepage funnel contracts', () => {
     const hero = read('src/sections/HeroSection.tsx');
 
     expect(display).toContain('[{tf}h {tf === 24 ? pct24 : pct48}%]');
-    expect(display).toContain("t('hero.windowStat'");
     expect(hero).toContain("t('hero.question', { n: timeframe })");
     expect(hero).toContain('const verdictKey');
     expect(hero).toContain(': pct >= 60');
     expect(hero).toContain(': pct >= 30');
-    expect(hero).toContain("t('hero.windowStat'");
     expect(hero).toContain('pct24');
     expect(hero).toContain('pct48');
     expect(hero).toContain('command-action-primary');

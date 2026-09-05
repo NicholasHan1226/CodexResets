@@ -1,87 +1,46 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { generatePrediction } from "@/lib/prediction";
 import { getDashboardInputs } from "@/lib/signal-fetcher";
-import type { ResetPrediction, ResetRecord } from "@/types/reset";
+import type { ResetPrediction } from "@/types/reset";
 
-/**
- * Hook that manages the reset prediction state.
- * Fetches the Worker-produced signals and verified reset history together.
- * It never renders a locally simulated forecast when the live inputs fail.
- * Refreshes data every 5 minutes; an explicit user refresh bypasses the
- * short in-memory snapshot cache so it always asks the Worker for its latest
- * already-generated result.
- */
+type PredictionState =
+  | { status: 'loading' | 'unavailable'; prediction: null }
+  | { status: 'ready' | 'refreshing'; prediction: ResetPrediction };
+
+/** Fresh Worker inputs only. Manual refresh bypasses the five-minute cache. */
 export function usePrediction() {
-  // Wait for the first refresh rather than showing a bundled estimate that
-  // could disagree with current verified history for one visible frame.
-  const [prediction, setPrediction] = useState<ResetPrediction | null>(null);
-  const [resetRecords, setResetRecords] = useState<ResetRecord[]>([]);
-  const [signalsLoading, setSignalsLoading] = useState(true);
-  const [usingRealData, setUsingRealData] = useState(false);
-  const [dataUnavailable, setDataUnavailable] = useState(false);
-  // A manual refresh may overlap the initial/periodic refresh. Only the most
-  // recently started request is allowed to update the dashboard state.
+  const [state, setState] = useState<PredictionState>({ status: 'loading', prediction: null });
   const latestRefreshId = useRef(0);
-  // Honest badge: LIVE only when a fresh Worker signal snapshot was received.
-  const isLive = usingRealData;
 
   const refresh = useCallback(async (force = false) => {
-    const refreshId = ++latestRefreshId.current;
-    setSignalsLoading(true);
-    
+    const id = ++latestRefreshId.current;
+    setState((previous) => previous.prediction
+      ? { status: 'refreshing', prediction: previous.prediction }
+      : { status: 'loading', prediction: null });
     try {
-      const { signals, hasRealData, generatedAt, records: snapshotRecords } = await getDashboardInputs(force);
-      if (refreshId !== latestRefreshId.current) return;
-      if (!hasRealData || !signals || !snapshotRecords || snapshotRecords.length === 0) {
-        setPrediction(null);
-        setResetRecords([]);
-        setUsingRealData(false);
-        setDataUnavailable(true);
+      const { signals, hasRealData, generatedAt, records } = await getDashboardInputs(force);
+      if (id !== latestRefreshId.current) return;
+      if (!hasRealData || !signals || !records?.length || generatedAt === null) {
+        setState({ status: 'unavailable', prediction: null });
         return;
       }
-      const records = snapshotRecords;
-      setResetRecords(records);
-      setUsingRealData(hasRealData);
-      setDataUnavailable(false);
-
-      // Signals remain informational; probabilities are derived from the
-      // forward-looking reset history only.
-      const nextPrediction = generatePrediction(records, signals);
-      // The header reports when the inputs were produced, not when this
-      // browser happened to recompute the derived probability.
-      setPrediction({ ...nextPrediction, generatedAt: generatedAt ?? Date.now() });
-    } catch (error) {
-      console.warn('Error refreshing prediction:', error);
-      if (refreshId !== latestRefreshId.current) return;
-      setPrediction(null);
-      setResetRecords([]);
-      setUsingRealData(false);
-      setDataUnavailable(true);
-    } finally {
-      if (refreshId === latestRefreshId.current) setSignalsLoading(false);
+      // Preserve the server's input timestamp; a browser refresh is not new evidence.
+      setState({ status: 'ready', prediction: { ...generatePrediction(records, signals), generatedAt } });
+    } catch {
+      if (id === latestRefreshId.current) setState({ status: 'unavailable', prediction: null });
     }
   }, []);
 
-  // Initial load and periodic refresh (every 5 minutes)
   useEffect(() => {
-    // Run after mount so the skeleton is the only pre-refresh state.
-    const initialRefresh = window.setTimeout(() => {
-      void refresh();
-    }, 0);
-    const interval = setInterval(refresh, 5 * 60 * 1000);
+    const initial = window.setTimeout(() => { void refresh(); }, 0);
+    const interval = window.setInterval(() => { void refresh(); }, 5 * 60 * 1000);
     return () => {
-      window.clearTimeout(initialRefresh);
-      clearInterval(interval);
+      window.clearTimeout(initial);
+      window.clearInterval(interval);
+      // Late results cannot update an unmounted dashboard or a subsequent mount.
+      latestRefreshId.current += 1;
     };
   }, [refresh]);
 
-  return {
-    prediction,
-    resetRecords,
-    isLive,
-    signalsLoading,
-    usingRealData,
-    dataUnavailable,
-    refresh,
-  };
+  return { state, refresh };
 }
