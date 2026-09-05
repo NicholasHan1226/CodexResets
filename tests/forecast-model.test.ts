@@ -46,6 +46,26 @@ describe('reset episode forecasting', () => {
     expect(['logistic', 'weibull']).toContain(selectForecastModel(regularHistory()).model);
   });
 
+  it('allows elapsed time to change the sparse-history estimate without new reset evidence', () => {
+    // Five synthetic episodes exercise the fallback, not production accuracy.
+    const origin = Date.parse('2026-01-01T00:00:00Z');
+    const history = Array.from({ length: 5 }, (_, index) => record(
+      `sparse-${index}`, origin + index * 2.2 * DAY_MS,
+    )).reverse();
+    const selection = selectForecastModel(history);
+    expect(selection.model).toBe('logistic');
+    expect(selection.scores.every((score) => score.samples === 0)).toBe(true);
+    const latest = history[0].timestamp;
+    const justReset = probabilityWithin(history, selection.model, latest, 24);
+    const afterMedian = probabilityWithin(history, selection.model, latest + 2.2 * DAY_MS, 24);
+    const later = probabilityWithin(history, selection.model, latest + 5.1 * DAY_MS, 24);
+    // Counterexample to the former About claim that quiet-time odds stay flat.
+    expect(afterMedian).toBeGreaterThan(justReset);
+    expect(later).toBeGreaterThan(afterMedian);
+    expect(later).toBeLessThan(1);
+    expect(history).toHaveLength(5);
+  });
+
   it('never counts the quarantined seed as verified history or calibration evidence', () => {
     expect(RESET_HISTORY).toHaveLength(0);
     expect(getEffectiveHistory()).toEqual([]);

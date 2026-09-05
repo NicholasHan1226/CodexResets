@@ -26,7 +26,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.lastResetWas': 'The last verified global reset was',
     'hero.lastResetLabel': 'last verified global reset',
     'hero.daysAgo': 'days ago',
-    'hero.flatNote': 'Waiting longer does not raise the odds — the 24h number stays flat while the quiet stretch runs.',
+    'hero.flatNote': 'Elapsed time can change this estimate; waiting does not guarantee a reset.',
     'hero.medianGap': 'median gap',
     'hero.adviceLabel': 'Advice:',
     'hero.probLabel': 'reset probability',
@@ -274,8 +274,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'model.signalBasedDesc': 'The model combines reset intervals with current product conditions and recalculates as fresh evidence arrives.',
     'model.historicalData': 'Historical intervals',
     'model.historicalDataDesc': 'Reviewed public reset episodes form the baseline. Production-confirmed records extend it as they accumulate.',
-    'model.weibullModel': 'Time-decay estimate',
-    'model.weibullModelDesc': 'A survival model over the historical gap distribution yields the 24h / 48h probabilities. Waiting longer does not raise the odds during a quiet stretch — the model avoids the "due for a reset" fallacy.',
+    'model.weibullModel': 'History-based estimate',
+    'model.weibullModelDesc': 'The estimate uses verified reset intervals and time since the last reset. With limited history it uses a logistic model; once enough backtest samples exist, it selects between logistic and Weibull models. The 24h / 48h estimate can change as time passes. Waiting does not guarantee a reset, and an estimate is not proof of predictive accuracy.',
     'model.disclaimerDesc': 'This is a probability estimate, not a guarantee. Resets are manually triggered by OpenAI and cannot be precisely predicted. Use at your own discretion.',
 
     // Limits (how Codex limits work)
@@ -358,7 +358,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'hero.lastResetWas': '上次已验证的全局重置发生在',
     'hero.lastResetLabel': '上次已验证的全局重置',
     'hero.daysAgo': '天前',
-    'hero.flatNote': '等待不会提高概率——在平静期内，24 小时数值保持不变。',
+    'hero.flatNote': '等待时间可能改变估计值，但不保证重置会发生。',
     'hero.medianGap': '中位间隔',
     'hero.adviceLabel': '建议：',
     'hero.probLabel': '重置概率',
@@ -606,8 +606,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'model.signalBasedDesc': '模型结合重置间隔与当前产品状态，并在获得新证据时重新计算。',
     'model.historicalData': '历史间隔',
     'model.historicalDataDesc': '经复核的公开重置事件构成基线，生产环境确认的记录会随积累纳入计算。',
-    'model.weibullModel': '时间衰减估计',
-    'model.weibullModelDesc': '基于历史间隔分布的生存模型给出 24h / 48h 概率。在平静期内等待不会提高概率——模型避免"该重置了"的谬误。',
+    'model.weibullModel': '历史间隔估计',
+    'model.weibullModelDesc': '估计依据已验证的重置间隔和距上次重置的时间。历史有限时采用 Logistic 模型；积累足够回测样本后，再从 Logistic 与 Weibull 模型中选择。24 / 48 小时估计会随时间变化，但等待不保证重置，估计值也不代表预测准确率已获验证。',
     'model.disclaimerDesc': '这是概率估计，不是保证。重置由 OpenAI 手动触发，无法精确预测。请自行判断使用。',
 
     // Limits
