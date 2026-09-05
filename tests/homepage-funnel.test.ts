@@ -30,7 +30,7 @@ describe('homepage funnel contracts', () => {
     expect(hero).toContain(': pct >= 30');
     expect(hero).toContain('pct24');
     expect(hero).toContain('pct48');
-    expect(header).toContain('command-action-primary');
+    expect(header).toContain('header-action-primary');
     expect(header).toContain("t('header.alerts')");
     expect(hero).toContain("t('hero.scope')");
     expect(header).toContain('#alerts');

@@ -14,7 +14,7 @@ export function DashboardSkeleton() {
     <div className="min-h-screen bg-background" role="main" aria-busy="true" aria-label={t('common.loading')}>
       {/* Status header */}
       <div className="border-b border-border/20">
-        <div className="mx-auto flex h-12 max-w-4xl items-center justify-between px-4 md:px-6">
+        <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4 md:px-6">
           <div className="flex items-center gap-3">
             <Bar className="h-4 w-28" />
             <Bar className="h-3 w-10" />
@@ -24,7 +24,6 @@ export function DashboardSkeleton() {
             <Bar className="h-3 w-12" />
           </div>
         </div>
-        <Bar className="mx-4 mb-2 h-11 w-[calc(100%_-_2rem)] md:hidden" />
       </div>
 
       <div className="mx-auto max-w-4xl px-4 py-10 md:px-6">

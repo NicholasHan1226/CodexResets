@@ -43,7 +43,7 @@ export default function Home() {
   const showHistoricalTiming = primaryForecast.kind !== 'official-schedule';
 
   return (
-      <div className="min-h-screen bg-background">
+      <div id="top" className="min-h-screen bg-background">
         <StatusHeader
           prediction={prediction}
           timeframe={timeframe}
@@ -65,7 +65,7 @@ export default function Home() {
 
           <hr className="my-8 border-border/30" />
 
-          <div id="alerts" className="scroll-mt-36 md:scroll-mt-24">
+          <div id="alerts" className="scroll-mt-24">
             <ResetAlertsPanel />
           </div>
 
