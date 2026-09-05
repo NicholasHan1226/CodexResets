@@ -11,12 +11,24 @@ const statusMessageKey: Record<SubscribeStatus, string> = {
 
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 
+export function AlertStatusBadge({ emailPending, pushSubscribed }: { emailPending: boolean; pushSubscribed: boolean }) {
+  const { t } = useI18n();
+  const statusKey = pushSubscribed ? 'subscribe.armed' : emailPending ? 'subscribe.awaitingConfirmation' : 'subscribe.standby';
+  return (
+    <span role="status" className={`px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider ${
+      pushSubscribed ? 'bg-primary text-background' : 'text-muted-foreground'
+    }`}>
+      {t(statusKey)}
+    </span>
+  );
+}
+
 export function ResetAlertsPanel() {
   const { t, locale } = useI18n();
 
   const [email, setEmail] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
-  const [emailDone, setEmailDone] = useState(false);
+  const [emailPending, setEmailPending] = useState(false);
   const [emailMessage, setEmailMessage] = useState('');
   const [emailError, setEmailError] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState('');
@@ -64,7 +76,7 @@ export function ResetAlertsPanel() {
       if (status === 'invalid') {
         setEmailError(true);
       } else {
-        setEmailDone(true);
+        setEmailPending(true);
         setEmail('');
       }
     } catch {
@@ -98,7 +110,6 @@ export function ResetAlertsPanel() {
     }
   };
 
-  const armed = emailDone || pushSubscribed;
   return (
     <section aria-label="Reset alerts" className="max-w-4xl">
       <div className="flex items-center justify-between">
@@ -106,15 +117,7 @@ export function ResetAlertsPanel() {
           <span className="mr-2 font-mono font-normal text-primary">❯</span>
           {t('subscribe.title')}
         </h2>
-        <span
-          className={`px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider ${
-            armed
-              ? 'bg-primary text-background'
-              : 'text-muted-foreground/50'
-          }`}
-        >
-          {armed ? t('subscribe.armed') : t('subscribe.standby')}
-        </span>
+        <AlertStatusBadge emailPending={emailPending} pushSubscribed={pushSubscribed} />
       </div>
       <p className="mt-2 text-sm text-muted-foreground">
         {t('subscribe.description')}
@@ -134,7 +137,7 @@ export function ResetAlertsPanel() {
 
         {/* Email row / success state */}
         <div className="px-3 py-3">
-          {emailDone ? (
+          {emailPending ? (
             <p className="font-mono text-sm text-primary">
               ✓ {emailMessage}
             </p>
@@ -174,7 +177,7 @@ export function ResetAlertsPanel() {
               )}
             </form>
           )}
-          {emailMessage && !emailDone && (
+          {emailMessage && !emailPending && (
             <p className={`mt-2 font-mono text-xs ${emailError ? 'text-destructive' : 'text-muted-foreground'}`}>
               {emailMessage}
             </p>

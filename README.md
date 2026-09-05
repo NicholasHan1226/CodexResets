@@ -235,8 +235,13 @@ shows unavailable rather than substituting that seed. The annual reset calendar 
 episodes exist, so early visitors see the denser reset timeline instead of a
 mostly empty year grid.
 The Worker also retains one non-PII forecast snapshot per UTC day and resolves
-its 24/48-hour outcome after the horizon closes. These private KV samples are
-kept for 120 days and are not shown in the visitor interface.
+its 24/48-hour outcome after the horizon closes. These private Durable Object
+samples are kept for 120 days and are not shown in the visitor interface.
+Settlement waits for a healthy direct-source collection and for overlapping
+observed candidates to finish stabilization. A late automatic confirmation
+updates affected outcome labels at their original 24/48-hour boundaries,
+without changing the original prediction. An absent row in bounded history
+never erases an already verified hit.
 The protected `/api/health/details` response includes the resulting sample
 count, 24/48-hour Brier scores, model usage counts, and the latest snapshot.
 For the formal-release accuracy target, it also reports 48-hour
@@ -253,7 +258,7 @@ time-ordered model selection.
 Direct reset announcements are already-observed information, so they are not
 part of the browser or Worker probability model. Legacy private snapshots that
 contained one are excluded from calibration and formal release scoring.
-When history is recovered after a prediction, affected pending/evaluated
+When historical events are recovered as manual history after a prediction, affected pending/evaluated
 samples are retained with `historyIncomplete=true` and excluded from calibration
 and release scoring; past scores are not rewritten into successful predictions.
 New forward snapshots can use the corrected history. Only snapshots tagged
@@ -264,9 +269,12 @@ history. Backfills create no
 synthetic forecasts or historical decision samples.
 The dashboard presents exactly one percentage as its primary answer: the
 selected 24- or 48-hour probability. The timing chart is deliberately
-percentage-free; it highlights the single three-hour period with the highest
-relative likelihood inside that selected window, so visitors can see when to
-watch without mistaking a chart bucket for the overall forecast. A direct
+percentage-free. With fewer than 12 verified episodes it suppresses a precise
+future model peak and explains that timing observations are sparse. The hero
+shows the actual verified sample count; the historical hour panel describes
+past concentration. Twelve episodes is a display threshold, not an accuracy
+validation gate. With sufficient history the chart may highlight the model
+peak inside the selected window. A direct
 official target inside that window takes over the highlighted timing block;
 this is a display-only alignment with the combined planning answer and never
 changes the stored historical curve or calibration. Timing slots use fixed
@@ -327,6 +335,7 @@ pnpm run dev
 pnpm run lint
 pnpm test
 pnpm run build
+pnpm run test:runtime # isolated Workers runtime; about 35 seconds
 ```
 
 `pnpm run build` includes a production-bundle check. It fails when the public
@@ -386,12 +395,33 @@ from X Recent Search only after three distinct authors give independently
 worded post-reset reports. It retains no community post content or identity;
 this is supplementary execution evidence, not a confirmation or a new signal
 source for the model.
-It records a 31-day keyed digest for each successfully delivered recipient,
-never the email address or Push endpoint itself. A temporary failure therefore
-retries only the missing recipient on the next automatic pipeline run. Each
-run is deliberately bounded to 50 emails and 50 Push endpoints per channel;
-any remainder continues automatically on later runs without needing a separate
-queue service at the current subscriber scale.
+The coordinator sequences runs with an awaited promise chain; external I/O
+never holds the platform's 30-second `blockConcurrencyWhile` gate. Each
+successful recipient is persisted immediately, so a slow peer cannot discard
+already-completed progress. An interrupted run writes a failed health report.
+
+Before any subscriber email is sent, the coordinator stores its frozen sender,
+subject, rendered HTML/text and unsubscribe headers using a recipient
+placeholder. Only a keyed recipient digest and signed token are retained, not
+the recipient address or Push endpoint. Retrying preserves the original
+probability, timestamp, locale, template and corroboration wording even across
+a deployment. A still-unacknowledged email more than 23 hours after preparation
+stops with a private `needs-review` delivery error, rather than risking a
+duplicate after the provider's 24-hour idempotency window. Inspect protected
+delivery diagnostics and provider receipts before resolving that case; do not
+clear its guard merely to force a resend. Existing pre-upgrade attempts without
+a prepared snapshot cannot retrospectively recover a lost original payload.
+
+Delivery, preparation and attempt records normally retain 31 days. Current
+forecast-cycle records remain until that cycle retires, preventing an extended
+no-reset interval from reopening its once-only alert. No new database table or
+queue service is required. Subscriber reads use ordered keyset pages until
+empty, including when the database caps pages below the requested 500 rows.
+Each campaign run is bounded to 50 emails and 50 Push endpoints, with 10
+concurrent requests; never-attempted recipients precede retries, then the
+oldest attempt goes first. Permanent failures therefore do not starve later
+recipients. Remaining confirmed alerts still respect their 48-hour freshness
+limit and scheduled notices their existing due-time window.
 
 ## Delivery
 
@@ -410,7 +440,12 @@ normal page traffic.
 
 Cloudflare Pages is the only quality gate. `quality:cloudflare` runs frontend
 lint, unit tests, the production bundle check, Worker TypeScript validation,
-and a Worker bundle dry run before assets are published. GitHub Actions is
+and a Worker bundle dry run before assets are published. `pnpm run test:runtime`
+is the additional targeted coordinator check for changes to sequencing or
+delivery persistence: it runs the real coordinator in Wrangler's installed
+Workers runtime with a deterministic pipeline fixture, exercises I/O beyond
+30 seconds, overlapping triggers, interruption health, and a persisted restart.
+All network operations are isolated fixtures; it never sends real mail. GitHub Actions is
 deliberately not used for this project.
 
 For an emergency/manual Pages release, deploy a validated `dist/` through the
@@ -458,7 +493,7 @@ curl -s -o /dev/null -w '%{http_code}\n' https://codexresets.cc/not-a-real-page
 curl -sSI https://codexresets.cc/ | grep -i '^strict-transport-security:'
 ```
 
-The last command must return `404`.
+The unknown-path request must return `404`; the final command must show HSTS.
 
 Cloudflare sets HSTS at the zone level with a one-month `max-age`. Keep
 `includeSubDomains` and preload disabled: Resend owns the separate

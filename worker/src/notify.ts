@@ -1,5 +1,5 @@
 import { buildPushPayload, type PushMessage, type PushSubscription, type VapidKeys } from '@block65/webcrypto-web-push';
-import type { DeliveryLedger, Env, ResetEvent, RunReport } from './types';
+import type { DeliveryLedger, PreparedEmail, Env, ResetEvent, RunReport } from './types';
 import type { ForecastCalibration } from './forecast';
 import { hasPrivilegedAccess, privListEmails, privListPush, privDeletePush, type PushSubRow } from './privileged';
 import { signToken, readTextWithin } from './util';
@@ -117,31 +117,38 @@ export async function notifyAll(env: Env, event: ResetEvent & { id: string }, de
 
   const emailCandidates = await pendingRecipients(emails, 'email', event.id, (row) => row.email, deliveryLedger);
   const emailBatch = emailCandidates.slice(0, MAX_DELIVERIES_PER_CHANNEL_RUN);
-  const emailResults = await settleInBatches(emailBatch, (candidate) => sendEmail(env, candidate.row.email, event, emailLocale(candidate.row.locale)));
+  const emailResults = await settleInBatches(emailBatch, async (candidate) => {
+    await deliveryLedger?.markAttempt?.(event.id, 'email', candidate.recipient);
+    const sent = await sendEmail(env, candidate.row.email, event, emailLocale(candidate.row.locale), deliveryLedger);
+    if (sent) await deliveryLedger?.markDelivered(event.id, 'email', candidate.recipient);
+    return sent;
+  });
   const sentEmails = emailResults.filter((r) => r.status === 'fulfilled' && r.value).length;
   for (let index = 0; index < emailResults.length; index++) {
     const r = emailResults[index];
-    if (r.status === 'fulfilled' && r.value && deliveryLedger) {
-      await deliveryLedger.markDelivered(event.id, 'email', emailBatch[index].recipient);
-    }
     if (r.status === 'rejected') errors.push(`email: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`);
   }
 
   const pushCandidates = await pendingRecipients(pushes, 'push', event.id, (row) => row.endpoint, deliveryLedger);
   const pushBatch = pushCandidates.slice(0, MAX_DELIVERIES_PER_CHANNEL_RUN);
-  const pushResults = await settleInBatches(pushBatch, (candidate) => sendPush(env, candidate.row, event));
+  const pushResults = await settleInBatches(pushBatch, async (candidate) => {
+    await deliveryLedger?.markAttempt?.(event.id, 'push', candidate.recipient);
+    const result = await sendPush(env, candidate.row, event);
+    if (result === 'gone') {
+      const deletion = await privDeletePush(env, candidate.row.endpoint);
+      if (!deletion.ok) throw new Error(`expired push endpoint deletion failed: ${deletion.status}`);
+    }
+    if (result === 'sent' || result === 'gone') await deliveryLedger?.markDelivered(event.id, 'push', candidate.recipient);
+    return result;
+  });
   let sentPushes = 0;
   let prunedPushEndpoints = 0;
   for (let i = 0; i < pushResults.length; i++) {
     const r = pushResults[i];
     if (r.status === 'fulfilled') {
       if (r.value === 'gone') {
-        // Endpoint is dead — prune it so the list stays clean
-        await privDeletePush(env, pushBatch[i].row.endpoint).catch(() => {});
-        if (deliveryLedger) await deliveryLedger.markDelivered(event.id, 'push', pushBatch[i].recipient);
         prunedPushEndpoints++;
       } else if (r.value === 'sent') {
-        if (deliveryLedger) await deliveryLedger.markDelivered(event.id, 'push', pushBatch[i].recipient);
         sentPushes++;
       }
     } else {
@@ -186,13 +193,15 @@ export async function notifyForecastPrealert(
   };
   const emailCandidates = await pendingRecipients(emails, 'email', safePrealert.id, (row) => row.email, deliveryLedger);
   const emailBatch = emailCandidates.slice(0, MAX_DELIVERIES_PER_CHANNEL_RUN);
-  const emailResults = await settleInBatches(emailBatch, (candidate) => sendForecastPrealertEmail(env, candidate.row.email, safePrealert, emailLocale(candidate.row.locale)));
+  const emailResults = await settleInBatches(emailBatch, async (candidate) => {
+    await deliveryLedger?.markAttempt?.(safePrealert.id, 'email', candidate.recipient);
+    const sent = await sendForecastPrealertEmail(env, candidate.row.email, safePrealert, emailLocale(candidate.row.locale), deliveryLedger);
+    if (sent) await deliveryLedger?.markDelivered(safePrealert.id, 'email', candidate.recipient);
+    return sent;
+  });
   const sentEmails = emailResults.filter((result) => result.status === 'fulfilled' && result.value).length;
   for (let index = 0; index < emailResults.length; index++) {
     const result = emailResults[index];
-    if (result.status === 'fulfilled' && result.value && deliveryLedger) {
-      await deliveryLedger.markDelivered(safePrealert.id, 'email', emailBatch[index].recipient);
-    }
     if (result.status === 'rejected') errors.push(`forecast pre-alert email: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
   }
 
@@ -231,13 +240,15 @@ export async function notifyScheduledExecution(
   };
   const emailCandidates = await pendingRecipients(emails, 'email', safeNotice.id, (row) => row.email, deliveryLedger);
   const emailBatch = emailCandidates.slice(0, MAX_DELIVERIES_PER_CHANNEL_RUN);
-  const emailResults = await settleInBatches(emailBatch, (candidate) => sendScheduledExecutionEmail(env, candidate.row.email, safeNotice, emailLocale(candidate.row.locale)));
+  const emailResults = await settleInBatches(emailBatch, async (candidate) => {
+    await deliveryLedger?.markAttempt?.(safeNotice.id, 'email', candidate.recipient);
+    const sent = await sendScheduledExecutionEmail(env, candidate.row.email, safeNotice, emailLocale(candidate.row.locale), deliveryLedger);
+    if (sent) await deliveryLedger?.markDelivered(safeNotice.id, 'email', candidate.recipient);
+    return sent;
+  });
   const sentEmails = emailResults.filter((result) => result.status === 'fulfilled' && result.value).length;
   for (let index = 0; index < emailResults.length; index++) {
     const result = emailResults[index];
-    if (result.status === 'fulfilled' && result.value && deliveryLedger) {
-      await deliveryLedger.markDelivered(safeNotice.id, 'email', emailBatch[index].recipient);
-    }
     if (result.status === 'rejected') errors.push(`scheduled execution email: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
   }
 
@@ -265,97 +276,101 @@ async function pendingRecipients<T>(
   const deliveryState = await Promise.all(candidates.map(async (candidate) => ({
     candidate,
     delivered: await deliveryLedger.hasDelivered(resetId, channel, candidate.recipient),
+    lastAttempt: await deliveryLedger.lastAttemptAt?.(resetId, channel, candidate.recipient) ?? 0,
   })));
-  return deliveryState.filter((entry) => !entry.delivered).map((entry) => entry.candidate);
+  return deliveryState.filter((entry) => !entry.delivered).sort((a, b) => a.lastAttempt - b.lastAttempt).map((entry) => entry.candidate);
 }
 
 // --- Email (Resend HTTPS API) ----------------------------------------------
 
-async function sendEmail(env: Env, email: string, event: ResetEvent & { id: string }, locale: EmailLocale): Promise<boolean> {
-  // A missing mail credential is a delivery failure, not a successful no-op:
-  // leaving the reset unmarked lets the next automated run recover after the
-  // credential is restored.
-  if (!env.RESEND_API_KEY) throw new Error('Resend email delivery is not configured');
-  // This timestamp must be derived from the event, not the retry time: Resend
-  // checks that a repeated idempotency key has the exact same payload.
-  const expiresAt = Math.floor(event.ts / 1000) + UNSUBSCRIBE_TTL_SECONDS;
-  const token = env.UNSUBSCRIBE_SECRET ? await signToken(`${email.toLowerCase()}.${expiresAt}`, env.UNSUBSCRIBE_SECRET) : '';
-  const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&x=${expiresAt}&t=${token}${emailLanguageQuery(locale)}`;
-  const resetTime = formatResetTime(event.ts);
-  const details = resetNotificationDetails(event);
+/** Freeze provider payload before IO; only the recipient is hydrated at send time. */
+export const EMAIL_RECIPIENT_PLACEHOLDER = '__CODEX_EMAIL_RECIPIENT__';
+const PREPARED_EMAIL_RETRY_MS = 23 * 60 * 60 * 1000;
 
+async function sendPreparedEmail(
+  env: Env, email: string, resetId: string, idempotencyKey: string,
+  ledger: DeliveryLedger | undefined, build: () => Promise<PreparedEmail>,
+): Promise<boolean> {
+  if (!env.RESEND_API_KEY) throw new Error('Resend email delivery is not configured');
+  let prepared = await ledger?.getPreparedEmail?.(resetId, email);
+  if (!prepared) {
+    prepared = await build();
+    await ledger?.prepareEmail?.(resetId, email, prepared);
+  }
+  // Beyond this bound a lost provider response cannot safely be retried:
+  // Resend's key expires after 24 hours, while our ledger persists longer.
+  if (!Number.isFinite(prepared.preparedAt) || Date.now() - prepared.preparedAt > PREPARED_EMAIL_RETRY_MS) {
+    throw new Error('email needs-review: prepared delivery exceeded safe idempotency retry window');
+  }
+  const hydrate = (value: string) => value.split(EMAIL_RECIPIENT_PLACEHOLDER).join(encodeURIComponent(email.toLowerCase()));
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       authorization: `Bearer ${env.RESEND_API_KEY}`,
       'content-type': 'application/json',
-      // The Durable Object ledger is the long-lived delivery guard. Resend's
-      // idempotency key closes the shorter gap between a successful external
-      // send and persisting that guard (for example a retry after a timeout).
-      'idempotency-key': await resetEmailIdempotencyKey(event.id, email),
+      'idempotency-key': idempotencyKey,
     },
     body: JSON.stringify({
-      from: env.RESEND_FROM,
+      from: prepared.from,
       to: [email],
+      subject: prepared.subject,
+      headers: Object.fromEntries(Object.entries(prepared.headers).map(([key, value]) => [key, hydrate(value)])),
+      html: hydrate(prepared.html),
+      text: hydrate(prepared.text),
+    }),
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
+  return true;
+}
+
+async function sendEmail(env: Env, email: string, event: ResetEvent & { id: string }, locale: EmailLocale, ledger?: DeliveryLedger): Promise<boolean> {
+  return sendPreparedEmail(env, email, event.id, await resetEmailIdempotencyKey(event.id, email), ledger, async () => {
+    const expiresAt = Math.floor(event.ts / 1000) + UNSUBSCRIBE_TTL_SECONDS;
+    const token = env.UNSUBSCRIBE_SECRET ? await signToken(`${email.toLowerCase()}.${expiresAt}`, env.UNSUBSCRIBE_SECRET) : '';
+    const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${EMAIL_RECIPIENT_PLACEHOLDER}&x=${expiresAt}&t=${token}${emailLanguageQuery(locale)}`;
+    const resetTime = formatResetTime(event.ts);
+    const details = resetNotificationDetails(event);
+    return {
+      preparedAt: Date.now(),
+      from: env.RESEND_FROM,
       subject: locale ? emailCopy({ zh: `Codex 已确认：${details.labelZh}`, en: `Codex ${details.labelEn} confirmed` }, locale) : `Codex ${details.labelEn} confirmed / 已确认：${details.labelZh}`,
       headers: unsubscribeHeaders(unsubUrl),
       ...resetEmail(env, resetTime, unsubUrl, details, locale),
-    }),
-    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
+    };
   });
-  if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
-  return true;
 }
 
-async function sendForecastPrealertEmail(env: Env, email: string, prealert: ForecastPrealert, locale: EmailLocale): Promise<boolean> {
-  if (!env.RESEND_API_KEY) throw new Error('Resend email delivery is not configured');
-  const expiresAt = Math.floor(prealert.evaluatedAt / 1000) + UNSUBSCRIBE_TTL_SECONDS;
-  const token = env.UNSUBSCRIBE_SECRET ? await signToken(`${email.toLowerCase()}.${expiresAt}`, env.UNSUBSCRIBE_SECRET) : '';
-  const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&x=${expiresAt}&t=${token}${emailLanguageQuery(locale)}`;
-  const probability = Math.round(prealert.planningProbability * 100);
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${env.RESEND_API_KEY}`,
-      'content-type': 'application/json',
-      'idempotency-key': await forecastEmailIdempotencyKey(prealert.id, email),
-    },
-    body: JSON.stringify({
+async function sendForecastPrealertEmail(env: Env, email: string, prealert: ForecastPrealert, locale: EmailLocale, ledger?: DeliveryLedger): Promise<boolean> {
+  return sendPreparedEmail(env, email, prealert.id, await forecastEmailIdempotencyKey(prealert.id, email), ledger, async () => {
+    const expiresAt = Math.floor(prealert.evaluatedAt / 1000) + UNSUBSCRIBE_TTL_SECONDS;
+    const token = env.UNSUBSCRIBE_SECRET ? await signToken(`${email.toLowerCase()}.${expiresAt}`, env.UNSUBSCRIBE_SECRET) : '';
+    const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${EMAIL_RECIPIENT_PLACEHOLDER}&x=${expiresAt}&t=${token}${emailLanguageQuery(locale)}`;
+    const probability = Math.round(prealert.planningProbability * 100);
+    return {
+      preparedAt: Date.now(),
       from: env.RESEND_FROM,
-      to: [email],
       subject: locale ? emailCopy({ zh: `Codex 未来 24 小时重置预告：${probability}%`, en: `Codex reset forecast: ${probability}% within 24h` }, locale) : `Codex reset forecast: ${probability}% within 24h / 未来 24 小时重置预告：${probability}%`,
       headers: unsubscribeHeaders(unsubUrl),
       ...forecastPrealertEmail(env, prealert, unsubUrl, locale),
-    }),
-    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
+    };
   });
-  if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
-  return true;
 }
 
-async function sendScheduledExecutionEmail(env: Env, email: string, notice: ScheduledExecutionNotice, locale: EmailLocale): Promise<boolean> {
-  if (!env.RESEND_API_KEY) throw new Error('Resend email delivery is not configured');
-  const expiresAt = Math.floor(notice.scheduledAt / 1000) + UNSUBSCRIBE_TTL_SECONDS;
-  const token = env.UNSUBSCRIBE_SECRET ? await signToken(`${email.toLowerCase()}.${expiresAt}`, env.UNSUBSCRIBE_SECRET) : '';
-  const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${encodeURIComponent(email.toLowerCase())}&x=${expiresAt}&t=${token}${emailLanguageQuery(locale)}`;
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${env.RESEND_API_KEY}`,
-      'content-type': 'application/json',
-      'idempotency-key': await scheduledExecutionEmailIdempotencyKey(notice.id, email),
-    },
-    body: JSON.stringify({
+async function sendScheduledExecutionEmail(env: Env, email: string, notice: ScheduledExecutionNotice, locale: EmailLocale, ledger?: DeliveryLedger): Promise<boolean> {
+  return sendPreparedEmail(env, email, notice.id, await scheduledExecutionEmailIdempotencyKey(notice.id, email), ledger, async () => {
+    const expiresAt = Math.floor(notice.scheduledAt / 1000) + UNSUBSCRIBE_TTL_SECONDS;
+    const token = env.UNSUBSCRIBE_SECRET ? await signToken(`${email.toLowerCase()}.${expiresAt}`, env.UNSUBSCRIBE_SECRET) : '';
+    const unsubUrl = `${workerBase(env)}/api/unsubscribe?e=${EMAIL_RECIPIENT_PLACEHOLDER}&x=${expiresAt}&t=${token}${emailLanguageQuery(locale)}`;
+
+    return {
+      preparedAt: Date.now(),
       from: env.RESEND_FROM,
-      to: [email],
       subject: locale ? emailCopy({ zh: 'Codex 预定重置现应生效', en: 'Codex scheduled reset is now due' }, locale) : 'Codex scheduled reset is now due / Codex 预定重置现应生效',
       headers: unsubscribeHeaders(unsubUrl),
       ...scheduledExecutionEmail(env, notice, unsubUrl, locale),
-    }),
-    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
+    };
   });
-  if (!res.ok) throw new Error(`resend ${res.status}: ${await resendError(res)}`);
-  return true;
 }
 
 /** RFC 8058 one-click unsubscribe for mailbox providers plus a regular GET page for people. */

@@ -40,12 +40,12 @@ export function TimeDistribution() {
       <div
         className="mt-4 flex h-24 items-end gap-[2px] sm:h-32 sm:gap-[3px]"
         role="img"
-        aria-label={`${t('timeDistribution.title')}: ${String(bestStart).padStart(2, '0')}:00–${String((bestStart + 3) % 24).padStart(2, '0')}:00 ${t('timeDistribution.peakWindow')}`}
+        aria-label={history.length === 0 ? t("timeDistribution.empty") : `${t('timeDistribution.title')}: ${String(bestStart).padStart(2, '0')}:00–${String((bestStart + 3) % 24).padStart(2, '0')}:00 ${t('timeDistribution.peakWindow')}`}
       >
         {hourlyCounts.map((count, hour) => {
           const height = maxCount > 0 ? (count / maxCount) * 100 : 0;
           // The peak window may cross midnight (for example 23:00–02:00).
-          const isPeak = isPeakHour(hour, bestStart);
+          const isPeak = bestCount > 0 && isPeakHour(hour, bestStart);
           return (
             <div key={hour} className="flex-1 relative" style={{ height: "100%" }}>
               <div
@@ -69,8 +69,8 @@ export function TimeDistribution() {
         <span>00</span><span>06</span><span>12</span><span>18</span><span>23</span>
       </div>
 
-      {/* Peak window — inline text */}
-      <p className="mt-3 text-sm text-muted-foreground">
+      {/* Observed concentration, never a future target. */}
+      {history.length > 0 ? <p className="mt-3 text-sm text-muted-foreground">
         {t('timeDistribution.peakWindow')}:{" "}
         <span className="font-mono text-foreground">
           {String(bestStart).padStart(2, "0")}:00 – {String((bestStart + 3) % 24).padStart(2, "0")}:00
@@ -80,7 +80,7 @@ export function TimeDistribution() {
           {bestCount}/{history.length}
         </span>{" "}
         {t('timeDistribution.resets')}
-      </p>
+      </p> : <p className="mt-3 text-sm text-muted-foreground">{t("timeDistribution.empty")}</p>}
     </section>
   );
 }

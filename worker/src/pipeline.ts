@@ -235,7 +235,7 @@ export async function runPipelineOnce(env: Env, trigger: string, deliveryLedger?
     record.verified && Number.isFinite(Date.parse(record.reset_date)) && Date.parse(record.reset_date) <= recordNow
   ));
   try {
-    await recordForecastSnapshot(env, records, Date.now());
+    await recordForecastSnapshot(env, allRecords, Date.now(), scrape.ok && scrape.sourceKind === 'direct');
     const calibration = await getForecastCalibration(env);
     await env.CACHE.put(
       FORECAST_RELEASE_STATUS_KEY,

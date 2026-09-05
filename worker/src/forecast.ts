@@ -151,6 +151,7 @@ export async function recordForecastSnapshot(
   env: Env,
   rows: ResetRecordRow[],
   now = Date.now(),
+  observationHealthy = true,
 ): Promise<void> {
   if (env.FORECAST_LEDGER) {
     const legacy = await readLegacyForecastState(env.CACHE);
@@ -159,6 +160,7 @@ export async function recordForecastSnapshot(
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         now,
+        observationHealthy,
         legacy,
         rows: rows.map(({ id, reset_date, verified, auto_state, automated, created_at }) => ({ id, reset_date, verified, auto_state, automated, created_at })),
       }),
@@ -166,7 +168,7 @@ export async function recordForecastSnapshot(
     if (!response.ok) throw new Error(`forecast ledger ${response.status}`);
     return;
   }
-  await recordForecastSnapshotInStore(env.CACHE, rows, now);
+  await recordForecastSnapshotInStore(env.CACHE, rows, now, observationHealthy);
 }
 
 async function readLegacyForecastState(store: ForecastStore): Promise<LegacyForecastState> {
@@ -189,8 +191,11 @@ export async function recordForecastSnapshotInStore(
   store: ForecastStore,
   rows: ResetRecordRow[],
   now = Date.now(),
+  observationHealthy = true,
 ): Promise<void> {
   const observedRecords = toForecastRecords(rows, now);
+  const confirmedRecords = toForecastRecords(rows.filter((row) => row.automated === true
+    && row.auto_state === 'confirmed'), now);
   const records = recordsForModel(observedRecords, now);
   const flagIncompleteHistory = <T extends ForecastSample>(sample: T): T => ({
     ...sample,
@@ -200,14 +205,28 @@ export async function recordForecastSnapshotInStore(
       ? { historyIncomplete: true } : {}),
   });
   const pending = parseSamples((await store.get(FORECAST_PENDING_KEY)) ?? null).map(flagIncompleteHistory);
-  const due = pending.filter((sample) => sample.dueAt <= now);
-  const remaining = pending.filter((sample) => sample.dueAt > now);
+  const canSettle = (sample: ForecastSample): boolean => sample.dueAt <= now && observationHealthy
+    && !rows.some((row) => row.automated && !row.verified && row.auto_state === 'observed'
+      && Date.parse(row.reset_date) > sample.at && Date.parse(row.reset_date) <= sample.dueAt);
+  const due = pending.filter(canSettle);
+  const remaining = pending.filter((sample) => !canSettle(sample)
+    && sample.at >= now - FORECAST_TTL_SECONDS * 1000);
   {
     const cutoff = now - FORECAST_TTL_SECONDS * 1000;
     const previous = parseEvaluations((await store.get(FORECAST_EVALUATIONS_KEY)) ?? null)
       .filter((evaluation) => evaluation.at >= cutoff).map(flagIncompleteHistory);
     const evaluations = [
-      ...previous,
+      ...previous.map((evaluation) => {
+        // New automatic confirmation can arrive after settlement. Keep the
+        // original prediction and only add positive evidence: the input is a
+        // bounded history, so absence must never erase an established hit.
+        // Recovered manual history retains its separate exclusion policy.
+        return {
+          ...evaluation,
+          resetIn24h: evaluation.resetIn24h || hasResetBetween(confirmedRecords, evaluation.at, evaluation.at + DAY_MS),
+          resetIn48h: evaluation.resetIn48h || hasResetBetween(confirmedRecords, evaluation.at, evaluation.dueAt),
+        };
+      }),
       ...due.map((sample) => ({
         ...sample,
         resetIn24h: hasResetBetween(observedRecords, sample.at, sample.at + DAY_MS),

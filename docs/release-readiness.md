@@ -19,11 +19,13 @@ when it can be described as a formally validated public release.
    active Cloudflare deployment or route.
 
 The codebase also runs a leakage-free historical regression for the same 80%
-criterion: every cutoff chooses its model using only then-known records. A
-reviewed bundled history may initialize the live model when the production
-table is sparse, but every production score is still settled only from a
-future, confirmed database outcome. Neither baseline nor regression evidence
-can make the production gate pass.
+criterion: every cutoff chooses its model using only then-known records.
+The live model uses verified production records only; `RESET_HISTORY` is empty
+and cannot initialize a sparse table. Production outcomes require confirmed
+database evidence. Late automated confirmation corrects the original outcome
+labels while retaining the original prediction; manual history recovery stays
+excluded. Neither historical regression nor a display sample threshold can
+make the production gate pass.
 
 Direct reset announcements are already-observed information, not future
 predictions. They are excluded from the probability model and formal accuracy

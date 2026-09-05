@@ -738,10 +738,12 @@ describe('pipeline read endpoints', () => {
     };
     const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
       const url = String(input);
-      if (url.endsWith('/subscriptions?select=email,locale&is_active=eq.true')) {
+      if (url.startsWith('https://db.example.test/rest/v1/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500&email=gt.')) return Response.json([]);
+      if (url.endsWith('/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500')) {
         return new Response(JSON.stringify([{ email: 'first@example.test' }, { email: 'second@example.test' }]));
       }
-      if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth')) return new Response(JSON.stringify([]));
+      if (url.startsWith('https://db.example.test/rest/v1/push_subscriptions?select=endpoint,p256dh,auth&order=endpoint.asc&limit=500&endpoint=gt.')) return Response.json([]);
+      if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth&order=endpoint.asc&limit=500')) return new Response(JSON.stringify([]));
       if (url === 'https://api.resend.com/emails') {
         const body = JSON.parse(String(init?.body)) as { to: string[] };
         const recipient = body.to[0];
@@ -771,8 +773,10 @@ describe('pipeline read endpoints', () => {
     let idempotencyKey: string | null = null;
     const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
       const url = String(input);
-      if (url.endsWith('/subscriptions?select=email,locale&is_active=eq.true')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
-      if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth')) return new Response(JSON.stringify([]));
+      if (url.startsWith('https://db.example.test/rest/v1/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500&email=gt.')) return Response.json([]);
+      if (url.endsWith('/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
+      if (url.startsWith('https://db.example.test/rest/v1/push_subscriptions?select=endpoint,p256dh,auth&order=endpoint.asc&limit=500&endpoint=gt.')) return Response.json([]);
+      if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth&order=endpoint.asc&limit=500')) return new Response(JSON.stringify([]));
       if (url === 'https://api.resend.com/emails') {
         message = JSON.parse(String(init?.body)) as { subject: string; html: string; headers: Record<string, string> };
         idempotencyKey = new Headers(init?.headers).get('idempotency-key');
@@ -839,7 +843,8 @@ describe('pipeline read endpoints', () => {
     const messages: Array<{ subject: string; html: string; headers: Record<string, string> }> = [];
     const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
       const url = String(input);
-      if (url.endsWith('/subscriptions?select=email,locale&is_active=eq.true')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
+      if (url.startsWith('https://db.example.test/rest/v1/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500&email=gt.')) return Response.json([]);
+      if (url.endsWith('/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
       if (url === 'https://api.resend.com/emails') {
         messages.push(JSON.parse(String(init?.body)) as { subject: string; html: string });
         return new Response(JSON.stringify({ id: 'forecast-email' }), { status: 200 });
@@ -889,7 +894,8 @@ describe('pipeline read endpoints', () => {
     const messages: Array<{ subject: string; html: string; headers: Record<string, string> }> = [];
     const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
       const url = String(input);
-      if (url.endsWith('/subscriptions?select=email,locale&is_active=eq.true')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
+      if (url.startsWith('https://db.example.test/rest/v1/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500&email=gt.')) return Response.json([]);
+      if (url.endsWith('/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
       if (url === 'https://api.resend.com/emails') {
         messages.push(JSON.parse(String(init?.body)) as { subject: string; html: string });
         return new Response(JSON.stringify({ id: 'scheduled-email' }), { status: 200 });
@@ -971,8 +977,10 @@ describe('pipeline read endpoints', () => {
     const requests: Array<{ idempotencyKey: string | null; body: string }> = [];
     const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
       const url = String(input);
-      if (url.endsWith('/subscriptions?select=email,locale&is_active=eq.true')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
-      if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth')) return new Response(JSON.stringify([]));
+      if (url.startsWith('https://db.example.test/rest/v1/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500&email=gt.')) return Response.json([]);
+      if (url.endsWith('/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
+      if (url.startsWith('https://db.example.test/rest/v1/push_subscriptions?select=endpoint,p256dh,auth&order=endpoint.asc&limit=500&endpoint=gt.')) return Response.json([]);
+      if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth&order=endpoint.asc&limit=500')) return new Response(JSON.stringify([]));
       if (url === 'https://api.resend.com/emails') {
         requests.push({
           idempotencyKey: new Headers(init?.headers).get('idempotency-key'),
@@ -1002,8 +1010,10 @@ describe('pipeline read endpoints', () => {
   it('leaves a reset eligible for retry when email or Push delivery is not configured', async () => {
     const emailFetch = vi.fn(async (input: string) => {
       const url = String(input);
-      if (url.endsWith('/subscriptions?select=email,locale&is_active=eq.true')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
-      if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth')) return new Response(JSON.stringify([]));
+      if (url.startsWith('https://db.example.test/rest/v1/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500&email=gt.')) return Response.json([]);
+      if (url.endsWith('/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500')) return new Response(JSON.stringify([{ email: 'reader@example.test' }]));
+      if (url.startsWith('https://db.example.test/rest/v1/push_subscriptions?select=endpoint,p256dh,auth&order=endpoint.asc&limit=500&endpoint=gt.')) return Response.json([]);
+      if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth&order=endpoint.asc&limit=500')) return new Response(JSON.stringify([]));
       throw new Error(`unexpected request: ${url}`);
     });
     vi.stubGlobal('fetch', emailFetch);
@@ -1018,8 +1028,10 @@ describe('pipeline read endpoints', () => {
 
     const pushFetch = vi.fn(async (input: string) => {
       const url = String(input);
-      if (url.endsWith('/subscriptions?select=email,locale&is_active=eq.true')) return new Response(JSON.stringify([]));
-      if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth')) {
+      if (url.startsWith('https://db.example.test/rest/v1/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500&email=gt.')) return Response.json([]);
+      if (url.endsWith('/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500')) return new Response(JSON.stringify([]));
+      if (url.startsWith('https://db.example.test/rest/v1/push_subscriptions?select=endpoint,p256dh,auth&order=endpoint.asc&limit=500&endpoint=gt.')) return Response.json([]);
+      if (url.endsWith('/push_subscriptions?select=endpoint,p256dh,auth&order=endpoint.asc&limit=500')) {
         return new Response(JSON.stringify([{ endpoint: 'https://fcm.googleapis.com/fcm/send/device', p256dh: 'a'.repeat(88), auth: 'b'.repeat(24) }]));
       }
       throw new Error(`unexpected request: ${url}`);

@@ -25,8 +25,10 @@ function captureMail(locale: EmailLocale = null) {
       messages.push(JSON.parse(String(init?.body)) as Mail);
       return Response.json({ id: 'local-preview-only' });
     }
-    if (url === 'https://db.example.test/rest/v1/subscriptions?select=email,locale&is_active=eq.true') return Response.json([{ email: 'reader@example.test', locale }]);
-    if (url === 'https://db.example.test/rest/v1/push_subscriptions?select=endpoint,p256dh,auth') return Response.json([]);
+    if (url.startsWith('https://db.example.test/rest/v1/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500&email=gt.')) return Response.json([]);
+    if (url === 'https://db.example.test/rest/v1/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500') return Response.json([{ email: 'reader@example.test', locale }]);
+    if (url.startsWith('https://db.example.test/rest/v1/push_subscriptions?select=endpoint,p256dh,auth&order=endpoint.asc&limit=500&endpoint=gt.')) return Response.json([]);
+    if (url === 'https://db.example.test/rest/v1/push_subscriptions?select=endpoint,p256dh,auth&order=endpoint.asc&limit=500') return Response.json([]);
     throw new Error('Unmocked request: ' + url);
   });
   vi.stubGlobal('fetch', mock);

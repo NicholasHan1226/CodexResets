@@ -1,5 +1,5 @@
 import type { Env } from './types';
-import { sb, sbSelect } from './supabase';
+import { sb } from './supabase';
 import type { EmailLocale } from './email-template';
 
 /** Privileged DB gateway: only the Worker service-role secret may write or read private data. */
@@ -28,7 +28,7 @@ export async function privInsertResets(env: Env, rows: ResetInsertRow[]): Promis
 export interface EmailSubscriptionRow { email: string; locale?: EmailLocale }
 
 export async function privListEmails(env: Env): Promise<EmailSubscriptionRow[]> {
-  return sbSelect(env, 'subscriptions?select=email,locale&is_active=eq.true', true);
+  return listRecipients<EmailSubscriptionRow>(env, 'subscriptions?select=email,locale&is_active=eq.true', 'email');
 }
 
 export interface PushSubRow {
@@ -38,7 +38,40 @@ export interface PushSubRow {
 }
 
 export async function privListPush(env: Env): Promise<PushSubRow[]> {
-  return sbSelect(env, 'push_subscriptions?select=endpoint,p256dh,auth', true);
+  return listRecipients<PushSubRow>(env, 'push_subscriptions?select=endpoint,p256dh,auth', 'endpoint');
+}
+
+/** Keyset pagination keeps server row caps from silently truncating delivery. */
+async function listRecipients<T>(env: Env, base: string, key: keyof T & string): Promise<T[]> {
+  const rows: T[] = [];
+  const seen = new Set<string>();
+  let cursor: string | undefined;
+  for (;;) {
+    // PostgREST quoted literals escape both backslashes and double quotes;
+    // URI encoding alone does not escape its filter grammar.
+    const quoted = cursor === undefined ? '' : '"' + cursor.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+    const path = `${base}&order=${key}.asc&limit=500${cursor === undefined ? '' : `&${key}=gt.${encodeURIComponent(quoted)}`}`;
+    let page: T[];
+    try {
+      const response = await sb(env, path, {}, true);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      page = await response.json() as T[];
+    } catch {
+      // A path or provider error can contain the private cursor; never log it.
+      throw new Error('private subscription pagination failed');
+    }
+    if (!Array.isArray(page)) throw new Error('private subscription pagination invalid response');
+    if (!page.length) return rows;
+    for (const row of page) {
+      const value = row?.[key];
+      if (typeof value !== 'string' || !value || seen.has(value)) {
+        throw new Error('private subscription pagination made no progress');
+      }
+      seen.add(value);
+      rows.push(row);
+    }
+    cursor = page[page.length - 1][key] as string;
+  }
 }
 
 export async function privUpsertPush(env: Env, row: PushSubRow & { user_agent: string | null }): Promise<Response> {

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { getEffectiveHistory } from '@/lib/reset-data';
 import { useI18n } from '@/contexts/I18nContext';
 import { ProbabilityDisplay } from '@/sections/ProbabilityDisplay';
 import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPlanningProbability, getPrimaryForecast, type PrimaryForecast } from '@/lib/forecast-display';
@@ -132,6 +133,10 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
             : undefined}
         />
       </div>
+
+      <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+        {t('hero.historySample', { n: getEffectiveHistory().length })}
+      </p>
 
       {/* Meta — one quiet line */}
       <p className="mt-8 font-mono text-xs text-muted-foreground/80">
