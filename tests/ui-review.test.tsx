@@ -47,6 +47,8 @@ describe('reviewed visitor claims', () => {
     expect(html).toContain('autoComplete="email"');
     expect(html).toContain('aria-describedby="reset-alert-email-help"');
     expect(html).not.toContain('type="checkbox"');
+    expect(html).not.toContain('<dialog');
+    expect(html).not.toContain('challenges.cloudflare.com');
   });
 
   it.each(['en', 'zh'] as const)('keeps pending confirmation actionable and honest in %s', (language) => {
@@ -112,6 +114,6 @@ describe('reviewed visitor claims', () => {
     };
     const html = renderToStaticMarkup(<HeroSection prediction={prediction} timeframe={24} onTimeframeChange={() => {}} primaryForecast={{ kind: 'model' }} currentTime={now} />);
     expect(html).toContain('Based on 5 verified resets.');
-    expect(html).toContain('forecast accuracy is not yet validated');
+    expect(html).toContain(t(locale, 'hero.historySample', { n: 5 }));
   });
 });

@@ -1,6 +1,6 @@
 import { useI18n } from '@/contexts/I18nContext';
 import { useResetAlerts } from '@/hooks/useResetAlerts';
-import { TurnstileWidget } from '@/components/TurnstileWidget';
+import { VerificationDialog } from '@/components/VerificationDialog';
 
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 
@@ -34,7 +34,7 @@ export function ResetAlertsPanel() {
 
   const {
     email, setEmail, emailState, pushState, submitEmail, togglePush, retryEmail,
-    onToken, onVerificationError, onVerificationReady,
+    onToken, onVerificationError, verificationOpen, cancelVerification,
   } = useResetAlerts(locale);
   const emailPending = emailState.status === 'pending';
   const emailLoading = emailState.status === 'submitting';
@@ -85,19 +85,10 @@ export function ResetAlertsPanel() {
                     {emailLoading ? '···' : t('subscribe.button')}
                   </button>
                 </div>
-                {TURNSTILE_SITE_KEY ? (
-                  <TurnstileWidget
-                    siteKey={TURNSTILE_SITE_KEY}
-                    onToken={onToken}
-                    onError={onVerificationError}
-                    onReady={onVerificationReady}
-                  />
-                ) : (
-                  <p role="alert" className="text-xs leading-relaxed text-destructive">{t('subscribe.verificationUnavailable')}</p>
-                )}
+                {!TURNSTILE_SITE_KEY && <p role="alert" className="text-xs leading-relaxed text-destructive">{t('subscribe.verificationUnavailable')}</p>}
               </form>
             )}
-            {emailState.status === 'error' && (
+            {emailState.status === 'error' && !verificationOpen && (
               <p id="reset-alert-email-error" role="alert" className="mt-2 text-xs leading-relaxed text-destructive">
                 {t(emailState.messageKey)}
               </p>
@@ -131,6 +122,13 @@ export function ResetAlertsPanel() {
           ) : <p className="mt-2 text-xs text-muted-foreground/70">{t('push.notSupported')}</p>)}
         </div>
       </div>
+      {verificationOpen && <VerificationDialog
+        siteKey={TURNSTILE_SITE_KEY}
+        onToken={onToken}
+        onError={onVerificationError}
+        onCancel={cancelVerification}
+        error={emailState.status === 'error' ? t(emailState.messageKey) : undefined}
+      />}
     </section>
   );
 }

@@ -301,10 +301,16 @@ shows snapshot age on mobile as well as desktop. A single native disclosure
 keeps source signals and historical panels available on demand. The hero pairs
 the timing curve with a compact probability on the right on desktop; mobile
 shows the probability first. Email verification and alert descriptions share
-one container with a full-width optional Push footer.
+one container with a full-width optional Push footer. The hero groups its verdict
+above timing/probability, supporting history beside the probability, and actions
+with the account-scope explanation below.
 Signals include a short explanation and a public source link. When the public
 snapshot omits article URLs, the link opens the official source entry point. Failed
 verification can be retried without discarding the email or reloading the page.
+Valid email submission opens a native modal and loads Turnstile on demand.
+Successful verification automatically continues the captured email/locale request
+once; Escape or Cancel dismisses it without submitting. Tokens are never reused
+and the Worker still validates every subscription with Siteverify.
 Email entry precedes the three alert descriptions on mobile; pending email
 confirmation remains distinct from active browser Push. Sharing stays beside
 the answer, and explanatory guides remain available there and in the footer.

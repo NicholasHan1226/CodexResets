@@ -3,7 +3,6 @@ import { useI18n } from '@/contexts/I18nContext';
 
 interface TurnstileApi {
   render: (container: HTMLElement, options: Record<string, unknown>) => string;
-  reset: (widgetId: string) => void;
   remove: (widgetId: string) => void;
 }
 
@@ -47,11 +46,10 @@ interface TurnstileWidgetProps {
   siteKey: string;
   onToken: (token: string) => void;
   onError: () => void;
-  onReady: (reset: (() => void) | null) => void;
 }
 
 /** Explicit rendering avoids duplicate widgets across React re-renders. */
-export function TurnstileWidget({ siteKey, onToken, onError, onReady }: TurnstileWidgetProps) {
+export function TurnstileWidget({ siteKey, onToken, onError }: TurnstileWidgetProps) {
   const { t } = useI18n();
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -96,20 +94,15 @@ export function TurnstileWidget({ siteKey, onToken, onError, onReady }: Turnstil
           'expired-callback': () => onToken(''),
           'error-callback': handleError,
         });
-        onReady(() => {
-          onToken('');
-          if (widgetId) api?.reset(widgetId);
-        });
       })
       .catch(handleError);
 
     return () => {
       cancelled = true;
-      onReady(null);
       if (api && widgetId) api.remove(widgetId);
       onToken('');
     };
-  }, [attempt, compact, onError, onReady, onToken, siteKey]);
+  }, [attempt, compact, onError, onToken, siteKey]);
 
   return (
     <div>

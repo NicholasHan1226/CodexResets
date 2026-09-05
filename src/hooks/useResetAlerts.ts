@@ -10,8 +10,9 @@ export function useResetAlerts(locale: Locale) {
   const [email, setEmail] = useState('');
   const [emailState, setEmailState] = useState<EmailState>({ status: 'idle' });
   const [pushState, setPushState] = useState<PushState>({ status: 'checking' });
-  const token = useRef('');
-  const turnstileReset = useRef<(() => void) | null>(null);
+  const [verificationOpen, setVerificationOpen] = useState(false);
+  const verificationRequest = useRef<{ email: string; locale: Locale } | null>(null);
+  const submitting = useRef(false);
   const mounted = useRef(false);
 
   useEffect(() => {
@@ -37,37 +38,22 @@ export function useResetAlerts(locale: Locale) {
     void initializePush();
     return () => {
       mounted.current = false;
+      verificationRequest.current = null;
       cancelled = true;
       clearTimeout(timer);
     };
   }, []);
 
-  // Stable callbacks prevent the verification widget remounting on locale changes.
-  const onToken = useCallback((value: string) => {
-    token.current = value;
-    if (value) setEmailState((state) => state.status === 'error'
-      && (state.messageKey === 'subscribe.verificationUnavailable' || state.messageKey === 'subscribe.verificationRequired')
-      ? { status: 'idle' } : state);
-  }, []);
-  const onVerificationError = useCallback(() => {
-    token.current = '';
-    setEmailState((state) => state.status === 'submitting' || state.status === 'pending'
-      ? state : { status: 'error', messageKey: 'subscribe.verificationUnavailable' });
-  }, []);
-  const onVerificationReady = useCallback((reset: (() => void) | null) => {
-    turnstileReset.current = reset;
-  }, []);
-
-  async function submitEmail(event: FormEvent) {
-    event.preventDefault();
-    if (!email || emailState.status === 'submitting') return;
-    if (!token.current) {
-      setEmailState({ status: 'error', messageKey: 'subscribe.verificationRequired' });
-      return;
-    }
+  // Consume each explicit subscription intent once, even if a widget callback repeats.
+  const onToken = useCallback(async (value: string) => {
+    const request = verificationRequest.current;
+    if (!value || !request || submitting.current || !mounted.current) return;
+    verificationRequest.current = null;
+    submitting.current = true;
+    setVerificationOpen(false);
     setEmailState({ status: 'submitting' });
     try {
-      const status = await subscribeEmail(email, token.current, locale);
+      const status = await subscribeEmail(request.email, value, request.locale);
       if (!mounted.current) return;
       setEmailState(status === 'pending'
         ? { status: 'pending' }
@@ -76,9 +62,28 @@ export function useResetAlerts(locale: Locale) {
     } catch {
       if (mounted.current) setEmailState({ status: 'error', messageKey: 'subscribe.errorRetry' });
     } finally {
-      token.current = '';
-      if (mounted.current) turnstileReset.current?.();
+      submitting.current = false;
     }
+  }, []);
+
+  const onVerificationError = useCallback(() => {
+    if (verificationRequest.current) {
+      setEmailState({ status: 'error', messageKey: 'subscribe.verificationUnavailable' });
+    }
+  }, []);
+
+  const cancelVerification = useCallback(() => {
+    verificationRequest.current = null;
+    setVerificationOpen(false);
+    setEmailState({ status: 'idle' });
+  }, []);
+
+  function submitEmail(event: FormEvent) {
+    event.preventDefault();
+    if (!email.trim() || submitting.current || verificationRequest.current) return;
+    verificationRequest.current = { email, locale };
+    setEmailState({ status: 'idle' });
+    setVerificationOpen(true);
   }
 
   async function togglePush() {
@@ -97,6 +102,6 @@ export function useResetAlerts(locale: Locale) {
   return {
     email, setEmail, emailState, pushState, submitEmail, togglePush,
     retryEmail: () => setEmailState({ status: 'idle' }),
-    onToken, onVerificationError, onVerificationReady,
+    onToken, onVerificationError, verificationOpen, cancelVerification,
   };
 }
