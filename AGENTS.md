@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Project Overview
-**Codex Resets** — A real-time prediction dashboard for OpenAI Codex usage limit resets. Uses a signal-based model to estimate reset timing with probability curves.
+**Codex Resets** — A real-time prediction dashboard for OpenAI Codex usage limit resets. Uses verified-history interval models for probabilities and separate official signals for planning.
 
 **Product focus**: visitors come to SEE the reset probability and SHARE it. No accounts, no personal usage tracking (Codex client already provides those). Anonymous-first: email/push alerts use the email/endpoint as identity.
 
@@ -43,6 +43,9 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   (`signals:latest`) → health report (`health:last_run`). Every cron, webhook, and manual trigger
   enters the globally addressed `PipelineCoordinator` Durable Object first, so
   discovery, confirmation, and delivery remain a single-writer workflow.
+  Sequencing uses an awaited request chain, not a `blockConcurrencyWhile`
+  gate around external I/O. Run `pnpm run test:runtime` after coordinator or
+  persistence changes; it uses local fixtures and never real subscriptions.
 - `src/forecast.ts`  — private daily prediction snapshots and automatic
   24/48-hour outcome resolution through a single-writer Durable Object ledger;
   7/14/30 review thresholds and a
@@ -51,11 +54,17 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   it never becomes a reset candidate or notification input
 - `src/notify.ts`    — Resend email (HMAC-signed unsubscribe links) +
   Web Push via @block65/webcrypto-web-push (prunes 404/410 endpoints), with
-  bounded fan-out and outbound timeouts
+  bounded fan-out and outbound timeouts. Prepared mail is immutable across
+  retries and stores a recipient placeholder, never the address. Persist
+  success per recipient; stop ambiguous retries after 23 hours. Preserve the
+  current forecast cycle through 31-day pruning, and paginate subscriber reads
+  with oldest-attempt scheduling so failing recipients cannot block new ones.
 - `src/operational-metrics.ts` — append-only, non-PII KV telemetry for
   subscription conversion/delivery and signed X webhook pipeline outcomes;
   use unique event keys rather than a shared request-time counter because KV
-  writes to one key are rate-limited
+  writes to one key are rate-limited. Private summaries include coverage and
+  truncation metadata, prioritize recent UTC days, and retain at most 500
+  events. Event-count ratios are not cohort conversion rates.
 - Runtime compatibility: `nodejs_compat` is enabled because the Web Push
   library imports `node:crypto`.
 - `src/routes.ts`    — GET /api/signals, public GET /api/health, protected
@@ -134,7 +143,9 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
   conversion, bounce/complaint, Push-test/prune, and X receipt-to-pipeline
   summaries; do not expose any of them in public UI or health responses.
 - Forecast calibration retains one non-PII snapshot per UTC day and resolves
-  its 24/48-hour outcomes after the horizon closes. The private forecast
+  its 24/48-hour outcomes after the horizon closes and overlapping candidates
+  stabilize on a healthy direct collection. Late automatic confirmation
+  corrects original outcome labels without rewriting predictions. The private forecast
   evidence is retained for 120 days; it is not public product copy. At 7, 14,
   and 30 resolved samples, and on a material seven-sample Brier degradation,
   it may notify the existing operations recipient once per review key.
@@ -183,7 +194,7 @@ claims into those pages. Keep their links and `public/sitemap.xml` synchronized.
 - shadcn/ui components in `src/components/ui/`
 - Section components are self-contained dashboard modules
 - Dark theme only — CSS variables in `index.css`
-- Monospace font (IBM Plex Mono) for all data/numbers
+- System monospace font stack for data/numbers; no remote font dependency
 
 ## Key Patterns
 - `usePrediction` starts with the dashboard skeleton, then resolves the fresh
@@ -208,8 +219,15 @@ claims into those pages. Keep their links and `public/sitemap.xml` synchronized.
 - Share: `buildShareSummary()` emits a Wordle-style terminal text (ASCII bar +
   waited/median), copied with the clean root URL — no state params in the URL
   (they were never read back; the destination always shows fresher live data)
-- No localStorage-backed user features — the site is stateless for visitors
-  (exception: prediction accuracy samples + locale preference)
+- No localStorage-backed user features except locale preference. Forecast
+  accuracy evidence is server-owned; pending email is never an active subscription.
+- Show actual verified-history count; fewer than 12 episodes hides a precise
+  future model peak. This display threshold does not validate accuracy.
+- Keep the subscription section after the primary answer and before deeper
+  evidence. Explain all three email classes; Push remains confirmed-only.
+- `pnpm run report:traffic` reads production-host Web Analytics with explicit
+  periods, bot separation and sampling flags. Never equate Visits with people.
+  Block RUM requests during browser QA so tests do not inflate product traffic.
 - `public/sw.js` is hand-written **plain JS** served as-is — never add TS
   syntax (type annotations break SW registration in browsers). Icons it and
   manifest.json reference live in `public/icons/` (PIL-generated, favicon motif)
@@ -225,7 +243,7 @@ claims into those pages. Keep their links and `public/sitemap.xml` synchronized.
 - vite.config `manualChunks` lists ONLY eager vendors (react/ui); adding
   other deps there would force them onto the critical path
 - About page is route-level code-split in App.tsx
-- Fonts load non-render-blocking (preload + media=print swap in index.html)
+- System font stacks render immediately; do not reintroduce remote font requests
 - Below-fold Home sections use `.cv-auto` (content-visibility: auto)
 
 ## Deployment

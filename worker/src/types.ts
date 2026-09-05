@@ -103,9 +103,23 @@ export interface PublicResetHistory {
   verified: true;
 }
 
+/** Frozen mail with an address placeholder; never persist recipient PII here. */
+export interface PreparedEmail {
+  preparedAt: number;
+  from: string;
+  subject: string;
+  headers: Record<string, string>;
+  html: string;
+  text: string;
+}
+
 export interface DeliveryLedger {
   hasDelivered(resetId: string, channel: 'email' | 'push', recipient: string): Promise<boolean>;
   markDelivered(resetId: string, channel: 'email' | 'push', recipient: string): Promise<void>;
+  getPreparedEmail?(resetId: string, recipient: string): Promise<PreparedEmail | undefined>;
+  prepareEmail?(resetId: string, recipient: string, message: PreparedEmail): Promise<void>;
+  lastAttemptAt?(resetId: string, channel: 'email' | 'push', recipient: string): Promise<number>;
+  markAttempt?(resetId: string, channel: 'email' | 'push', recipient: string): Promise<void>;
 }
 
 export interface RunReport {

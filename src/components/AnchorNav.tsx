@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
 
 const baseSections = [
-  { id: 'curve', key: 'nav.curve' },
   { id: 'alerts', key: 'nav.alerts' },
+  { id: 'curve', key: 'nav.curve' },
   { id: 'signals', key: 'nav.signals' },
   { id: 'rhythm', key: 'nav.rhythm' },
   { id: 'history', key: 'nav.history' },
@@ -30,13 +30,13 @@ export function AnchorNav({ showCalendar, showRhythm = true }: AnchorNavProps) {
   }, [showCalendar, showRhythm]);
   const [activeId, setActiveId] = useState(() => {
     const hashId = window.location.hash.slice(1);
-    return hashId && sections.some(({ id }) => id === hashId) ? hashId : 'curve';
+    return hashId && sections.some(({ id }) => id === hashId) ? hashId : 'alerts';
   });
 
   useEffect(() => {
     const updateFromHash = () => {
       const hashId = window.location.hash.slice(1);
-      setActiveId(hashId && sections.some(({ id }) => id === hashId) ? hashId : 'curve');
+      setActiveId(hashId && sections.some(({ id }) => id === hashId) ? hashId : 'alerts');
     };
     updateFromHash();
     const observer = new IntersectionObserver(

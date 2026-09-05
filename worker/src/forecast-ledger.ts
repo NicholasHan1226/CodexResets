@@ -9,6 +9,7 @@ import type { ResetRecordRow } from './types';
 
 interface LedgerRequest {
   now?: unknown;
+  observationHealthy?: unknown;
   rows?: unknown;
   legacy?: unknown;
 }
@@ -40,10 +41,11 @@ export class ForecastLedger {
     }
     const now = typeof body.now === 'number' && Number.isFinite(body.now) ? body.now : null;
     const rows = parseRows(body.rows);
-    if (now === null || rows === null) return response({ error: 'invalid forecast snapshot' }, 400);
+    if (now === null || rows === null
+      || (body.observationHealthy !== undefined && typeof body.observationHealthy !== 'boolean')) return response({ error: 'invalid forecast snapshot' }, 400);
 
     await migrateLegacyStateOnce(this.state.storage as ForecastStore, parseLegacyState(body.legacy));
-    await recordForecastSnapshotInStore(this.state.storage as ForecastStore, rows, now);
+    await recordForecastSnapshotInStore(this.state.storage as ForecastStore, rows, now, body.observationHealthy !== false);
     return response({ ok: true });
   }
 }

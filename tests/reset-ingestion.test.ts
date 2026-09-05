@@ -293,7 +293,13 @@ describe('reset ingestion regressions', () => {
         }
         return Response.json(rows);
       }
-      if (url.pathname.endsWith('/subscriptions')) return Response.json([{ email: 'reader@example.test' }]);
+      if (url.pathname.endsWith('/subscriptions')) {
+        expect(url.searchParams.get('select')).toBe('email,locale');
+        expect(url.searchParams.get('is_active')).toBe('eq.true');
+        expect(url.searchParams.get('order')).toBe('email.asc');
+        expect(url.searchParams.get('limit')).toBe('500');
+        return Response.json(url.searchParams.has('email') ? [] : [{ email: 'reader@example.test' }]);
+      }
       if (url.pathname.endsWith('/push_subscriptions')) return Response.json([]);
       if (url.hostname === 'api.resend.com') {
         const body = JSON.parse(String(init?.body));
@@ -326,10 +332,11 @@ describe('reset ingestion regressions', () => {
       };
       const delivered = new Set<string>();
       let ledgerFailure = failure === 'ledger-mark';
+      let failedLedgerRecipient: string | null = null;
       const ledger = {
         hasDelivered: async (id: string, channel: string, recipient: string) => delivered.has(`${id}:${channel}:${recipient}`),
         markDelivered: async (id: string, channel: string, recipient: string) => {
-          if (ledgerFailure) { ledgerFailure = false; throw new Error('ledger unavailable'); }
+          if (ledgerFailure) { ledgerFailure = false; failedLedgerRecipient = recipient; throw new Error('ledger unavailable'); }
           delivered.add(`${id}:${channel}:${recipient}`);
         },
       };
@@ -350,7 +357,13 @@ describe('reset ingestion regressions', () => {
           }
           return Response.json([row]);
         }
-        if (url.pathname.endsWith('/subscriptions')) return Response.json([{ email: 'first@example.test' }, { email: 'second@example.test' }]);
+        if (url.pathname.endsWith('/subscriptions')) {
+          expect(url.searchParams.get('select')).toBe('email,locale');
+          expect(url.searchParams.get('is_active')).toBe('eq.true');
+          expect(url.searchParams.get('order')).toBe('email.asc');
+          expect(url.searchParams.get('limit')).toBe('500');
+          return Response.json(url.searchParams.has('email') ? [] : [{ email: 'first@example.test' }, { email: 'second@example.test' }]);
+        }
         if (url.pathname.endsWith('/push_subscriptions')) return Response.json([]);
         if (url.hostname === 'api.resend.com') {
           const body = String(init?.body);
@@ -374,8 +387,11 @@ describe('reset ingestion regressions', () => {
         }
         throw new Error(`Unexpected request: ${url.origin}${url.pathname}`);
       }));
-      if (failure === 'ledger-mark') await expect(runPipelineOnce(env, 'test', ledger)).rejects.toThrow('ledger unavailable');
-      else expect((await runPipelineOnce(env, 'test', ledger)).errors.length).toBeGreaterThan(0);
+      expect((await runPipelineOnce(env, 'test', ledger)).errors.length).toBeGreaterThan(0);
+      if (failure === 'ledger-mark') {
+        expect(delivered.size).toBe(1);
+        expect(delivered.has(`retry-reset:email:${failedLedgerRecipient}`)).toBe(false);
+      }
       expect(row.notified_at).toBeNull();
       vi.setSystemTime(NOW + HOUR / 2);
       expect((await runPipelineOnce(env, 'test', ledger)).errors).toEqual([]);
@@ -387,7 +403,7 @@ describe('reset ingestion regressions', () => {
       expect(attempts.slice(2).sort()).toEqual(failure === 'database-mark'
         ? []
         : failure === 'ledger-mark'
-          ? ['first@example.test', 'second@example.test']
+          ? [failedLedgerRecipient]
           : ['second@example.test']);
       const requestCount = attempts.length;
       expect(await runPipelineOnce(env, 'test', ledger)).toMatchObject({ notifiedEmails: 0, errors: [] });

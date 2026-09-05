@@ -88,19 +88,19 @@ export default function Home() {
 
           <hr className="my-10 border-border/30" />
 
-          <div id="curve" className="scroll-mt-16">
+          <div id="alerts" className="scroll-mt-24">
+            <ResetAlertsPanel />
+          </div>
+
+          <hr className="my-10 border-border/30" />
+
+          <div id="curve" className="scroll-mt-24">
             <ProbabilityCurve
               curve={prediction.curve}
               hours={timeframe}
               planningProbability={planningProbability}
               officialScheduleAt={officialScheduleAt}
             />
-          </div>
-
-          <hr className="my-10 border-border/30" />
-
-          <div id="alerts" className="scroll-mt-16">
-            <ResetAlertsPanel />
           </div>
 
           <hr className="my-10 border-border/30" />

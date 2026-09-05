@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface TurnstileApi {
   render: (container: HTMLElement, options: Record<string, unknown>) => string;
@@ -39,6 +39,17 @@ interface TurnstileWidgetProps {
 /** Explicit rendering avoids duplicate widgets across React re-renders. */
 export function TurnstileWidget({ siteKey, onToken, onError, onReady }: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [compact, setCompact] = useState(false);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    // Flexible widgets have a 300px minimum. Narrow forms need the supported
+    // compact layout, not clipping or scaling the verification controls.
+    const observer = new ResizeObserver(([entry]) => setCompact(entry.contentRect.width < 300));
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,7 +63,7 @@ export function TurnstileWidget({ siteKey, onToken, onError, onReady }: Turnstil
         widgetId = api.render(containerRef.current, {
           sitekey: siteKey,
           theme: 'dark',
-          size: 'flexible',
+          size: compact ? 'compact' : 'flexible',
           action: 'subscribe_email',
           callback: onToken,
           'expired-callback': () => onToken(''),
@@ -69,8 +80,9 @@ export function TurnstileWidget({ siteKey, onToken, onError, onReady }: Turnstil
       cancelled = true;
       onReady(null);
       if (api && widgetId) api.remove(widgetId);
+      onToken('');
     };
-  }, [onError, onReady, onToken, siteKey]);
+  }, [compact, onError, onReady, onToken, siteKey]);
 
   return <div ref={containerRef} className="min-h-[65px]" />;
 }

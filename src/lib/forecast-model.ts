@@ -33,16 +33,17 @@ const MIN_HISTORY = 4;
 const MIN_BACKTEST_SAMPLES = 16;
 const MAX_FORECAST_PROBABILITY = 0.9;
 
-function logisticCdf(days: number, medianDays: number): number {
-  const steepness = 1.5 / Math.max(medianDays, 0.25);
-  return 1 / (1 + Math.exp(-steepness * (days - medianDays)));
-}
-
 function logisticProbability(records: ResetRecord[], elapsedDays: number, horizonHours: number): number {
   const historyMedian = median(intervalDays(records));
-  const current = logisticCdf(elapsedDays, historyMedian);
-  const later = logisticCdf(elapsedDays + horizonHours / 24, historyMedian);
-  return clampProbability((later - current) / Math.max(1 - current, 0.000_001));
+  const steepness = 1.5 / Math.max(historyMedian, 0.25);
+  const horizon = steepness * Math.max(0, horizonHours) / 24;
+  const laterLogOdds = steepness * (elapsedDays - historyMedian) + horizon;
+  // P(t < T <= t+h | T > t) = (1-exp(-k*h)) * sigmoid(k*(t+h-m)).
+  // Avoid subtracting two CDF values that both round to one in the tail.
+  const laterCdf = laterLogOdds >= 0
+    ? 1 / (1 + Math.exp(-laterLogOdds))
+    : Math.exp(laterLogOdds) / (1 + Math.exp(laterLogOdds));
+  return clampProbability(-Math.expm1(-horizon) * laterCdf);
 }
 
 function weibullProbability(records: ResetRecord[], elapsedDays: number, horizonHours: number): number {

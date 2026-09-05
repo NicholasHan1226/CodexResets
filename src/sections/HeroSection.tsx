@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { getEffectiveHistory } from '@/lib/reset-data';
 import { useI18n } from '@/contexts/I18nContext';
 import { ProbabilityDisplay } from '@/sections/ProbabilityDisplay';
 import { formatOfficialScheduleCountdown, formatOfficialScheduleTarget, getPlanningProbability, getPrimaryForecast, type PrimaryForecast } from '@/lib/forecast-display';
@@ -119,7 +120,7 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
       </p>
 
       {/* The probability — the single protagonist */}
-      <div className="mt-10">
+      <div className="mt-7 md:mt-9">
         <ProbabilityDisplay
           pct={pct}
           pct24={pct24}
@@ -133,14 +134,18 @@ export function HeroSection({ prediction, timeframe, onTimeframeChange, primaryF
         />
       </div>
 
+      <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+        {t('hero.historySample', { n: getEffectiveHistory().length })}
+      </p>
+
       {/* Meta — one quiet line */}
-      <p className="mt-8 font-mono text-xs text-muted-foreground/80">
-        <span className="mr-2 inline-block whitespace-nowrap">
+      <p className="mt-5 font-mono text-xs text-muted-foreground/80">
+        <span className="mr-2 inline-block max-w-full">
           {t('hero.lastResetLabel')}{' '}
           <span className="text-foreground">{daysSince.toFixed(1)}d</span>
           {lastResetStr && <span className="text-muted-foreground/50"> ({lastResetStr})</span>}
         </span>
-        <span className="mr-2 inline-block whitespace-nowrap">
+        <span className="mr-2 inline-block max-w-full">
           <span className="mr-2 text-border">·</span>
           {t('hero.medianGap')}{' '}
           <span className="text-foreground">{prediction.medianIntervalDays.toFixed(1)}d</span>

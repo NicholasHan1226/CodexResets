@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { getEffectiveHistory, MIN_CALENDAR_RECORDS } from "@/lib/reset-data";
 import type { ProbabilityPoint } from "@/types/reset";
 import { useI18n } from "@/contexts/I18nContext";
 import { alignTimingCurveWithOfficialSchedule, formatTimingRange, getTimingWindow, timingBucketStart } from "@/lib/forecast-display";
@@ -120,6 +121,9 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
   );
   const peakTime = formatTimingRange(timingBucketStart(peak), peak.timestamp);
   const hasOfficialTiming = officialBucketIndex >= 0;
+  // Reuse the existing sparse-history presentation floor; this is not an accuracy claim.
+  const sparseHistory = getEffectiveHistory().length < MIN_CALENDAR_RECORDS;
+  const showPeak = hasOfficialTiming || !sparseHistory;
   const officialTime = hasOfficialTiming && typeof officialScheduleAt === 'number'
     ? new Date(officialScheduleAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-GB', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : null;
   const totalPlanningProbability = planningProbability !== undefined ? Math.round(planningProbability * 100) : null;
@@ -221,7 +225,7 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
 
   const hoverPoint = hoverIdx !== null ? chartData[hoverIdx] : null;
   const hoverLocal = hoverPoint ? new Date(hoverPoint.timestamp) : null;
-  const hoveredIsPeak = hoverPoint?.timestamp === peak.timestamp;
+  const hoveredIsPeak = showPeak && hoverPoint?.timestamp === peak.timestamp;
 
   return (
     <section aria-label="Probability curve" className="max-w-4xl">
@@ -238,12 +242,12 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
         <span className="font-mono text-xs text-muted-foreground">
           {officialTime
             ? t("curve.scheduleTarget", { time: officialTime })
-            : t("curve.likeliestTime", { time: peakTime })
+            : sparseHistory ? t("curve.sparseTiming") : t("curve.likeliestTime", { time: peakTime })
           }
           <span className="mx-2 text-border">·</span>
           {totalPlanningProbability !== null && typeof hours === "number"
             ? t("curve.totalWindowProbability", { n: hours, pct: totalPlanningProbability })
-            : t("curve.peakProbability", { pct: peakPercent })
+            : showPeak ? t("curve.peakProbability", { pct: peakPercent }) : t("curve.historyModel")
           }
           <span className="text-muted-foreground/50"> · {tzLabel}</span>
         </span>
@@ -311,14 +315,14 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
               ))}
 
               {/* The highlighted band answers the only chart question: when is likeliest? */}
-              <rect
+              {showPeak && <rect
                 x={peakStartX}
                 y={PAD.top}
                 width={Math.max(1, peakEndX - peakStartX)}
                 height={plotH}
                 fill={C.green}
                 fillOpacity={0.1}
-              />
+              />}
 
               {/* Area + line */}
               <path d={areaPath} fill="url(#probGradient)" />
@@ -330,7 +334,7 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />
-              <circle cx={x(peak.timestamp)} cy={y(peak.probability)} r={4} fill={C.green} stroke={C.bg} strokeWidth={2} />
+              {showPeak && <circle cx={x(peak.timestamp)} cy={y(peak.probability)} r={4} fill={C.green} stroke={C.bg} strokeWidth={2} />}
 
               {/* Hover crosshair */}
               {hoverIdx !== null && pts[hoverIdx] && (

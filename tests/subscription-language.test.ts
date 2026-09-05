@@ -42,8 +42,10 @@ function setup() {
       rows.push(...body);
       return new Response(null, { status: 201 });
     }
-    if (url === 'https://db.example.test/rest/v1/subscriptions?select=email,locale&is_active=eq.true') return Response.json(rows);
-    if (url === 'https://db.example.test/rest/v1/push_subscriptions?select=endpoint,p256dh,auth') return Response.json([]);
+    if (url.startsWith('https://db.example.test/rest/v1/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500&email=gt.')) return Response.json([]);
+    if (url === 'https://db.example.test/rest/v1/subscriptions?select=email,locale&is_active=eq.true&order=email.asc&limit=500') return Response.json(rows);
+    if (url.startsWith('https://db.example.test/rest/v1/push_subscriptions?select=endpoint,p256dh,auth&order=endpoint.asc&limit=500&endpoint=gt.')) return Response.json([]);
+    if (url === 'https://db.example.test/rest/v1/push_subscriptions?select=endpoint,p256dh,auth&order=endpoint.asc&limit=500') return Response.json([]);
     if (url.startsWith('https://db.example.test/rest/v1/subscriptions?email=eq.') && init?.method === 'DELETE') {
       deletes.push(url);
       return new Response(null, { status: 204 });
