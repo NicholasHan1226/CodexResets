@@ -169,7 +169,7 @@ src/
 ├── pages/             # Home (dashboard), About (/about docs page)
 ├── sections/          # Dashboard sections (doc-flow, no cards)
 │   ├── StatusHeader.tsx      # Sticky header: snapshot age, language, refresh
-│   ├── HeroSection.tsx       # Outlook + last reset + probability + share
+│   ├── HeroSection.tsx       # Outlook + timing curve + compact probability + share
 │   ├── ProbabilityDisplay.tsx# Primary probability + 24h/48h comparison
 │   ├── ProbabilityCurve.tsx  # Area chart, filters to next 24/48h (hours prop)
 │   ├── SignalPanel.tsx       # Signal timeline feed (ACTIVE/WARM/IDLE)
@@ -220,8 +220,9 @@ claims into those pages. Keep their links and `public/sitemap.xml` synchronized.
   (they were never read back; the destination always shows fresher live data)
 - No localStorage-backed user features except locale preference. Forecast
   accuracy evidence is server-owned; pending email is never an active subscription.
-- Show actual verified-history count; fewer than 12 episodes hides a precise
-  future model peak. This display threshold does not validate accuracy.
+- Show actual verified-history count. Highlight the model-relative timing peak
+  when history and future timing data exist; fewer than 12 episodes must show
+  a sparse-history caveat. A highlighted interval is not confirmed timing.
 - Keep the subscription section after the primary answer and before deeper
   evidence. Explain all three email classes; Push remains confirmed-only.
 - `pnpm run report:traffic` reads production-host Web Analytics with explicit

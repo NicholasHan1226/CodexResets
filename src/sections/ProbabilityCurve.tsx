@@ -63,11 +63,9 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
   const peakTime = formatTimingRange(timingBucketStart(peak), peak.timestamp);
   // Reuse the existing sparse-history presentation floor; this is not an accuracy claim.
   const sparseHistory = getEffectiveHistory().length < MIN_CALENDAR_RECORDS;
-  const showPeak = hasOfficialTiming || !sparseHistory;
+  const showPeak = hasOfficialTiming || (getEffectiveHistory().length > 0 && peak.timestamp > nowTimestamp && peak.probability > 0);
   const officialTime = hasOfficialTiming && typeof officialScheduleAt === 'number'
     ? new Date(officialScheduleAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-GB', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : null;
-  const totalPlanningProbability = planningProbability !== undefined ? Math.round(planningProbability * 100) : null;
-  const peakPercent = Math.round(peak.probability * 100);
 
   const formatXTick = (ts: number) => {
     const d = new Date(ts);
@@ -113,17 +111,12 @@ export function ProbabilityCurve({ curve, hours, planningProbability, officialSc
         <span className="font-mono text-xs text-muted-foreground">
           {officialTime
             ? t("curve.scheduleTarget", { time: officialTime })
-            : sparseHistory ? t("curve.sparseTiming") : t("curve.likeliestTime", { time: peakTime })
+            : showPeak ? t("curve.likeliestTime", { time: peakTime }) : t("curve.sparseTiming")
           }
-          <span className="mx-2 text-border">·</span>
-          {totalPlanningProbability !== null && typeof hours === "number"
-            ? t("curve.totalWindowProbability", { n: hours, pct: totalPlanningProbability })
-            : showPeak ? t("curve.peakProbability", { pct: peakPercent }) : t("curve.historyModel")
-          }
-          <span className="text-muted-foreground/50"> · {tzLabel}</span>
+
         </span>
       </div>
-      <p className="mt-1 font-mono text-xs text-muted-foreground">{t("curve.distributionHint")}</p>
+      <p className="mt-1 font-mono text-xs text-muted-foreground">{sparseHistory && !officialTime ? t("curve.sparseTiming") : t("curve.distributionHint")}</p>
       <div className="mt-4">
         <div ref={containerRef} className="relative h-40 w-full sm:h-56">
           {width > 0 && height > 0 && (

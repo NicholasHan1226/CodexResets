@@ -298,7 +298,10 @@ synthetic forecasts or historical decision samples.
 The home page follows the visitor's decision order: the current outlook and
 last verified reset, the 24/48-hour comparison, then email alerts. The header
 shows snapshot age on mobile as well as desktop. A single native disclosure
-keeps the curve, source signals and historical panels available on demand.
+keeps source signals and historical panels available on demand. The hero pairs
+the timing curve with a compact probability on the right on desktop; mobile
+shows the probability first. Email verification and alert descriptions share
+one container with a full-width optional Push footer.
 Signals include a short explanation and a public source link. When the public
 snapshot omits article URLs, the link opens the official source entry point. Failed
 verification can be retried without discarding the email or reloading the page.
@@ -308,12 +311,11 @@ the answer, and explanatory guides remain available there and in the footer.
 
 The dashboard presents exactly one percentage as its primary answer: the
 selected 24- or 48-hour probability. The timing chart is deliberately
-percentage-free. With fewer than 12 verified episodes it suppresses a precise
-future model peak and explains that timing observations are sparse. The hero
-shows the actual verified sample count; the historical hour panel describes
-past concentration. Twelve episodes is a display threshold, not an accuracy
-validation gate. With sufficient history the chart may highlight the model
-peak inside the selected window. A direct
+percentage-free. A model-relative high-likelihood interval is highlighted when
+verified history and positive future timing data exist. With fewer than 12
+verified episodes, a sparse-history caveat remains visible. The hero shows the
+actual verified sample count; no sample threshold validates forecast accuracy.
+Empty history or an empty timing curve never invents a peak. A direct
 official target inside that window takes over the highlighted timing block;
 this is a display-only alignment with the combined planning answer and never
 changes the stored historical curve or calibration. Timing slots use fixed

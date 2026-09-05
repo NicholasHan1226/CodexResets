@@ -45,7 +45,7 @@ export function ProbabilityDisplay({ pct, pct24, pct48, modelPct, timeframe, onT
           {t(modelPct !== undefined ? 'hero.compositeWithinHours' : officialSchedule ? 'hero.modelWithinHours' : 'hero.horizonLabel', { n: timeframe })}
         </span>
         {/* Timeframe toggle — both windows carry their numbers */}
-        <div className="flex items-center rounded-sm border border-border/50 bg-background/50 p-0.5 font-mono text-sm" role="tablist" aria-label={t('hero.horizonToggle')}>
+        <div className="flex items-center rounded-sm border border-border/50 bg-background/50 p-0.5 font-mono text-xs" role="tablist" aria-label={t('hero.horizonToggle')}>
           {([24, 48] as const).map((tf) => (
             <button
               key={tf}
@@ -71,10 +71,10 @@ export function ProbabilityDisplay({ pct, pct24, pct48, modelPct, timeframe, onT
 
       <div id="probability-forecast-panel" role="tabpanel" aria-labelledby={`timeframe-tab-${timeframe}`} className="mt-3">
         <div className="flex items-baseline">
-          <span className="font-mono text-8xl sm:text-9xl font-semibold leading-none tracking-tighter text-primary">
+          <span className="font-mono text-7xl font-semibold leading-none tracking-tighter text-primary">
             {pct}
           </span>
-          <span className="font-mono text-4xl sm:text-5xl text-primary/40">%</span>
+          <span className="font-mono text-3xl text-primary/40">%</span>
         </div>
 
         {modelPct !== undefined && (
