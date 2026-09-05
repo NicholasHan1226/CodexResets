@@ -2,6 +2,23 @@ import type { Env, RunReport } from './types';
 
 const METRIC_TTL_SECONDS = 31 * 24 * 60 * 60;
 const MAX_METRIC_KEYS = 500;
+const MAX_LIST_PAGES = 64;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export interface MetricCoverage {
+  windowStart: string;
+  windowEnd: string;
+  complete: boolean;
+  truncated: boolean;
+  available: boolean;
+  scannedKeys: number;
+  invalidEntries: number;
+  missingEntries: number;
+  readErrors: number;
+  /** UTC days are newest first; UUID keys within a day are not chronological. */
+  selection: 'recent-days-first';
+  limit: number;
+}
 
 export type SubscriptionMetricKind =
   | 'email_confirmation_sent'
@@ -33,6 +50,8 @@ interface MetricEntry {
 }
 
 export interface SubscriptionQuality {
+  coverage: MetricCoverage;
+  rateBasis: 'sampled-event-counts-not-cohorts';
   sampledEvents: number;
   email: {
     confirmationSent: number;
@@ -55,6 +74,7 @@ export interface SubscriptionQuality {
 }
 
 export interface XWebhookQuality {
+  coverage: MetricCoverage;
   sampledEvents: number;
   completed: number;
   failed: number;
@@ -102,10 +122,12 @@ export async function recordXWebhookOutcome(
   });
 }
 
-/** Private, bounded admin diagnostic. Missing KV list support is treated as no telemetry. */
+/** Private, bounded admin diagnostic. Coverage distinguishes zero activity from missing telemetry. */
 export async function getSubscriptionQuality(env: Env): Promise<SubscriptionQuality> {
-  const entries = await readMetricEntries(env, 'subscription');
+  const { entries, coverage } = await readMetricEntries(env, 'subscription');
   const quality: SubscriptionQuality = {
+    coverage,
+    rateBasis: 'sampled-event-counts-not-cohorts',
     sampledEvents: entries.length,
     email: { confirmationSent: 0, confirmed: 0, confirmationRate: null, delivered: 0, lastDeliveredAt: null, bounced: 0, complained: 0, unsubscribed: 0 },
     push: { registered: 0, testDelivered: 0, testSkipped: 0, expiredDuringTest: 0, unsubscribed: 0, prunedAfterDelivery: 0 },
@@ -138,8 +160,9 @@ export async function getSubscriptionQuality(env: Env): Promise<SubscriptionQual
 
 /** Private X webhook receipt-to-pipeline readback, without event payloads or account identifiers. */
 export async function getXWebhookQuality(env: Env): Promise<XWebhookQuality> {
-  const entries = await readMetricEntries(env, 'x-webhook');
+  const { entries, coverage } = await readMetricEntries(env, 'x-webhook');
   const quality: XWebhookQuality = {
+    coverage,
     sampledEvents: entries.length,
     completed: 0,
     failed: 0,
@@ -179,27 +202,103 @@ interface ListableCache {
   }>;
 }
 
-async function readMetricEntries(env: Env, stream: 'subscription' | 'x-webhook'): Promise<MetricEntry[]> {
+async function readMetricEntries(env: Env, stream: 'subscription' | 'x-webhook'): Promise<{
+  entries: MetricEntry[];
+  coverage: MetricCoverage;
+}> {
+  const end = Date.now();
+  const start = end - METRIC_TTL_SECONDS * 1000;
+  const coverage: MetricCoverage = {
+    windowStart: new Date(start).toISOString(), windowEnd: new Date(end).toISOString(),
+    complete: true, truncated: false, available: true, scannedKeys: 0,
+    invalidEntries: 0, missingEntries: 0, readErrors: 0,
+    selection: 'recent-days-first', limit: MAX_METRIC_KEYS,
+  };
   const cache = env.CACHE as unknown as ListableCache;
-  if (typeof cache.list !== 'function') return [];
-  const keys: string[] = [];
-  let cursor: string | undefined;
-  do {
-    const page = await cache.list({ prefix: `metrics:${stream}:`, cursor, limit: 100 });
-    keys.push(...page.keys.map((key) => key.name));
-    cursor = page.list_complete || keys.length >= MAX_METRIC_KEYS ? undefined : page.cursor;
-  } while (cursor);
+  if (typeof cache.list !== 'function') {
+    coverage.available = false;
+    coverage.complete = false;
+    return { entries: [], coverage };
+  }
+  const keys = new Set<string>();
+  let pages = 0;
+  // A rolling 31-day window spans up to 32 UTC date prefixes. Starting with
+  // today's prefix prevents a busy older day from consuming the entire cap.
+  days: for (let day = Math.floor(end / DAY_MS); day >= Math.floor(start / DAY_MS); day -= 1) {
+    const prefix = `metrics:${stream}:${new Date(day * DAY_MS).toISOString().slice(0, 10)}:`;
+    let cursor: string | undefined;
+    const cursors = new Set<string>();
+    do {
+      if (keys.size >= MAX_METRIC_KEYS || pages >= MAX_LIST_PAGES) {
+        coverage.truncated = true;
+        break days;
+      }
+      let page: Awaited<ReturnType<NonNullable<ListableCache['list']>>>;
+      try {
+        page = await cache.list({ prefix, cursor, limit: Math.min(100, MAX_METRIC_KEYS - keys.size) });
+        pages += 1;
+      } catch {
+        coverage.readErrors += 1;
+        break days;
+      }
+      for (const key of page.keys) {
+        if (!key.name.startsWith(prefix)) {
+          coverage.readErrors += 1;
+          continue;
+        }
+        if (keys.size >= MAX_METRIC_KEYS) {
+          coverage.truncated = true;
+          break days;
+        }
+        keys.add(key.name);
+      }
+      if (page.list_complete) break;
+      if (!page.cursor || cursors.has(page.cursor)) {
+        coverage.readErrors += 1;
+        break days;
+      }
+      cursors.add(page.cursor);
+      cursor = page.cursor;
+    } while (cursor);
+  }
 
-  const raw = await Promise.all(keys.slice(0, MAX_METRIC_KEYS).map((key) => env.CACHE.get(key)));
-  return raw.flatMap((value) => parseEntry(value));
+  coverage.scannedKeys = keys.size;
+  const entries: MetricEntry[] = [];
+  const keyList = [...keys];
+  // Bound concurrent reads as well as total keys; this endpoint is diagnostic.
+  for (let offset = 0; offset < keyList.length; offset += 25) {
+    const values = await Promise.allSettled(keyList.slice(offset, offset + 25).map((key) => env.CACHE.get(key)));
+    for (const result of values) {
+      if (result.status === 'rejected') { coverage.readErrors += 1; continue; }
+      if (result.value === null) { coverage.missingEntries += 1; continue; }
+      const entry = parseEntry(result.value, stream);
+      if (!entry) { coverage.invalidEntries += 1; continue; }
+      const at = Date.parse(entry.at);
+      if (at >= start && at <= end) entries.push(entry);
+    }
+  }
+  coverage.complete = !coverage.truncated && !coverage.invalidEntries && !coverage.missingEntries && !coverage.readErrors;
+  return { entries, coverage };
 }
 
-function parseEntry(raw: string | null): MetricEntry[] {
-  if (!raw) return [];
+const SUBSCRIPTION_KINDS = new Set<SubscriptionMetricKind>([
+  'email_confirmation_sent', 'email_confirmed', 'email_delivered', 'email_bounced',
+  'email_complained', 'email_unsubscribed', 'push_registered', 'push_test_delivered',
+  'push_test_skipped', 'push_expired_during_test', 'push_unsubscribed', 'push_pruned_after_delivery',
+]);
+
+function parseEntry(raw: string, stream: 'subscription' | 'x-webhook'): MetricEntry | null {
   try {
-    const value = JSON.parse(raw) as Partial<MetricEntry>;
-    return typeof value.at === 'string' && typeof value.kind === 'string' ? [value as MetricEntry] : [];
+    const value = JSON.parse(raw) as Partial<MetricEntry> | null;
+    if (!value || typeof value.at !== 'string' || !Number.isFinite(Date.parse(value.at))) return null;
+    if (stream === 'subscription') {
+      if (!SUBSCRIPTION_KINDS.has(value.kind as SubscriptionMetricKind)
+        || typeof value.count !== 'number' || !Number.isSafeInteger(value.count) || value.count < 0) return null;
+    } else if (value.kind !== 'x_webhook' || !['completed', 'failed', 'ignored', 'duplicate'].includes(value.outcome || '')) {
+      return null;
+    }
+    return { ...value, at: new Date(value.at).toISOString() } as MetricEntry;
   } catch {
-    return [];
+    return null;
   }
 }

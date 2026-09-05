@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AlertStatusBadge } from '@/sections/ResetAlertsPanel';
+import { AlertStatusBadge, EmailConfirmationPending, ResetAlertsPanel } from '@/sections/ResetAlertsPanel';
 import { HeroSection } from '@/sections/HeroSection';
 import { ProbabilityCurve } from '@/sections/ProbabilityCurve';
 import { TimeDistribution } from '@/sections/TimeDistribution';
@@ -32,6 +32,30 @@ describe('reviewed visitor claims', () => {
     expect(pending).not.toContain(t(locale, 'subscribe.armed'));
     expect(renderToStaticMarkup(<AlertStatusBadge emailPending pushSubscribed />)).toContain(t(locale, 'subscribe.armed'));
     expect(renderToStaticMarkup(<AlertStatusBadge emailPending={false} pushSubscribed={false} />)).toContain(t(locale, 'subscribe.standby'));
+  });
+
+  it.each(['en', 'zh'] as const)('explains each email type and the separate push scope in %s', (language) => {
+    locale = language;
+    const html = renderToStaticMarkup(<ResetAlertsPanel />);
+    for (const kind of ['forecast', 'scheduled', 'confirmed']) {
+      expect(html).toContain(t(locale, `subscribe.${kind}Title`));
+      expect(html).toContain(t(locale, `subscribe.${kind}Detail`));
+    }
+    expect(html).toContain(t(locale, 'push.description'));
+    expect(html).toContain(t(locale, 'subscribe.emailNote'));
+    expect(html).toContain('autoComplete="email"');
+    expect(html).toContain('aria-describedby="reset-alert-email-help"');
+    expect(html).not.toContain('type="checkbox"');
+  });
+
+  it.each(['en', 'zh'] as const)('keeps pending confirmation actionable and honest in %s', (language) => {
+    locale = language;
+    const html = renderToStaticMarkup(<EmailConfirmationPending onRetry={() => {}} />);
+    expect(html).toContain(t(locale, 'subscribe.confirmationSent'));
+    expect(html).toContain(t(locale, 'subscribe.pendingHelp'));
+    expect(html).toContain(t(locale, 'subscribe.tryAnother'));
+    expect(html).toContain('role="status"');
+    expect(html).not.toContain(t(locale, 'subscribe.success'));
   });
 
   it.each([0, 5])('suppresses a precise peak target with %s verified observations', (count) => {

@@ -45,6 +45,34 @@ The Worker runs every 30 minutes. Its public read endpoints are:
   `CRON_SECRET` bearer token; raw upstream errors are excluded from public
   health.
 
+### Product measurement and layout
+
+The homepage puts the probability first, subscription second, then timing and
+source evidence. The subscription area explains forecast, official due-time,
+and confirmed-reset emails separately; optional Push is confirmed-reset only.
+Pending email confirmation remains inactive and explains the 24-hour expiry
+and inbox/spam check. Narrow forms use Turnstile's compact widget when the
+available width falls below its flexible 300px minimum.
+
+Run `pnpm run report:traffic` with `CLOUDFLARE_API_TOKEN` and
+`CLOUDFLARE_ACCOUNT_ID` supplied securely in the environment. The read-only
+report includes the last 24 hours, last seven days, previous seven days, and
+source/page/device breakdowns for `codexresets.cc` only. `REPORT_END` optionally
+sets a reproducible ISO timestamp. Output includes bot and sampling flags;
+Visits are not unique users and internal testing cannot be removed after the
+fact. Block the Cloudflare beacon and `/cdn-cgi/rum` during browser QA.
+
+Private subscription and X metrics now expose `coverage`: a rolling 31-day
+window, available/complete/truncated flags, scanned keys, and missing/invalid
+records or read errors. Reads prioritize recent UTC days and stop at 500 keys
+or 64 pages; within-day UUID keys are not ordered by event time. `complete`
+means bounded KV enumeration succeeded, not that eventual-consistency delay
+is absent. `confirmationRate` is retained as an event-count ratio, labelled
+`rateBasis=sampled-event-counts-not-cohorts`; never report it as a unique-user
+conversion rate or combine it directly with a seven-day traffic denominator.
+See [measurement and search follow-up](docs/growth-measurement.md) for the
+current baseline, Search Console checks, and interpretation boundaries.
+
 Public subscription intake uses a per-client Durable Object quota, so concurrent
 requests cannot race the quota counter. The quota state is isolated by hashed
 client address and scope; it does not store the address itself.

@@ -62,7 +62,9 @@ workers.dev is DNS-poisoned in some regions — do not rely on it).
 - `src/operational-metrics.ts` — append-only, non-PII KV telemetry for
   subscription conversion/delivery and signed X webhook pipeline outcomes;
   use unique event keys rather than a shared request-time counter because KV
-  writes to one key are rate-limited
+  writes to one key are rate-limited. Private summaries include coverage and
+  truncation metadata, prioritize recent UTC days, and retain at most 500
+  events. Event-count ratios are not cohort conversion rates.
 - Runtime compatibility: `nodejs_compat` is enabled because the Web Push
   library imports `node:crypto`.
 - `src/routes.ts`    — GET /api/signals, public GET /api/health, protected
@@ -221,6 +223,11 @@ claims into those pages. Keep their links and `public/sitemap.xml` synchronized.
   accuracy evidence is server-owned; pending email is never an active subscription.
 - Show actual verified-history count; fewer than 12 episodes hides a precise
   future model peak. This display threshold does not validate accuracy.
+- Keep the subscription section after the primary answer and before deeper
+  evidence. Explain all three email classes; Push remains confirmed-only.
+- `pnpm run report:traffic` reads production-host Web Analytics with explicit
+  periods, bot separation and sampling flags. Never equate Visits with people.
+  Block RUM requests during browser QA so tests do not inflate product traffic.
 - `public/sw.js` is hand-written **plain JS** served as-is — never add TS
   syntax (type annotations break SW registration in browsers). Icons it and
   manifest.json reference live in `public/icons/` (PIL-generated, favicon motif)
